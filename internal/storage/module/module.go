@@ -1,9 +1,8 @@
 package module
 
 import (
+	"net/http"
 	"time"
-
-	"github.com/gin-gonic/gin"
 
 	"myclouddrive-go/internal/app"
 	storageapi "myclouddrive-go/internal/storage/api"
@@ -28,8 +27,8 @@ func (m *Module) Models() []any {
 	return []any{&model.StoragePlatform{}, &model.StorageSetting{}}
 }
 
-func (m *Module) RegisterRoutes(engine *gin.Engine, deps *app.Dependencies) error {
+func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
 	svc := service.NewGormService(deps.DB, deps.Redis, m.cacheTTL)
-	storageapi.RegisterGinRoutes(engine, svc)
+	storageapi.RegisterRoutes(mux, svc)
 	return nil
 }

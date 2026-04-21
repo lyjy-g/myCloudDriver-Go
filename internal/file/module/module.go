@@ -1,7 +1,7 @@
 package module
 
 import (
-	"github.com/gin-gonic/gin"
+	"net/http"
 
 	"myclouddrive-go/internal/app"
 	"myclouddrive-go/internal/file/api"
@@ -23,7 +23,7 @@ func (m *Module) Models() []any {
 	return nil
 }
 
-func (m *Module) RegisterRoutes(engine *gin.Engine, _ *app.Dependencies) error {
-	api.RegisterRoutes(engine, service.NewPlaceholderService())
+func (m *Module) RegisterRoutes(mux *http.ServeMux, _ *app.Dependencies) error {
+	api.RegisterRoutes(mux, service.NewPlaceholderService())
 	return nil
 }

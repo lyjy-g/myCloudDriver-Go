@@ -3,7 +3,7 @@ package api
 import (
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/web"
-	"myclouddrive-go/internal/storage/api/gen"
+	gen "myclouddrive-go/internal/storage/api/gen"
 	"myclouddrive-go/internal/storage/model"
 	"myclouddrive-go/internal/storage/service"
 	"net/http"

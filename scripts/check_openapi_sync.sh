@@ -11,9 +11,17 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! git diff --quiet -- internal/storage/api/storage.gen.go; then
+if ! git diff --quiet -- \
+  internal/storage/api/gen/storage.gen.go \
+  internal/user/api/gen/user.gen.go \
+  internal/file/api/gen/file.gen.go \
+  internal/share/api/gen/share.gen.go; then
   echo "检测到 OpenAPI 生成代码未同步，请提交最新生成结果。" >&2
-  git --no-pager diff -- internal/storage/api/storage.gen.go
+  git --no-pager diff -- \
+    internal/storage/api/gen/storage.gen.go \
+    internal/user/api/gen/user.gen.go \
+    internal/file/api/gen/file.gen.go \
+    internal/share/api/gen/share.gen.go
   exit 1
 fi
 

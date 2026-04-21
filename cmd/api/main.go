@@ -12,7 +12,7 @@ import (
 
 const configPath = "configs/config.yaml"
 
-// Gin + GORM + Redis 工程化入口（模块化装配版）。
+// OpenAPI + net/http + GORM + Redis 工程化入口（模块化装配版）。
 func main() {
 	srv, err := app.NewServer(
 		configPath,

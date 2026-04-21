@@ -3,20 +3,12 @@ package api
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
+	gen "myclouddrive-go/internal/share/api/gen"
 	"myclouddrive-go/internal/share/service"
 )
 
-// RegisterRoutes 注册 share 路由（占位）。
-func RegisterRoutes(r *gin.Engine, svc service.Service) {
-	g := r.Group("/api/v1/share")
-	g.GET("/ping", func(c *gin.Context) {
-		msg, err := svc.Ping(c.Request.Context())
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"code": "OK", "message": msg})
-	})
+// RegisterRoutes 将 OpenAPI 生成路由注册到标准库 ServeMux。
+func RegisterRoutes(mux *http.ServeMux, svc *service.PlaceholderService) {
+	h := NewHandler(svc)
+	gen.HandlerFromMux(h, mux)
 }

@@ -1,0 +1,50 @@
+openapi: 3.0.3
+info:
+  title: MyCloudDrive User API
+  version: 1.0.0
+  description: User 域接口契约（spec-first）。
+servers:
+  - url: /
+tags:
+  - name: User
+    description: 用户服务
+paths:
+  /api/v1/user/ping:
+    get:
+      tags: [User]
+      operationId: PingUser
+      summary: User 服务健康检查
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PingResponse'
+        '500':
+          description: 失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    PingResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+          example: user service ready
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: INTERNAL_ERROR
+        message:
+          type: string

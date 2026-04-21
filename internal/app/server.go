@@ -3,8 +3,10 @@ package app
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"runtime/debug"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
@@ -18,7 +20,7 @@ import (
 type Module interface {
 	Name() string
 	Models() []any
-	RegisterRoutes(engine *gin.Engine, deps *Dependencies) error
+	RegisterRoutes(mux *http.ServeMux, deps *Dependencies) error
 }
 
 // Dependencies 是模块可使用的基础设施依赖集合。
@@ -30,53 +32,66 @@ type Dependencies struct {
 
 // Server 表示应用服务实例。
 type Server struct {
-	engine *gin.Engine
-	addr   string
+	httpServer *http.Server
 }
 
-// NewServer 构建带模块能力的 Gin 服务。
+// NewServer 构建带模块能力的标准库 HTTP 服务。
 func NewServer(configPath string, modules ...Module) (*Server, error) {
-
-	//读取mysql/redis配置
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
 
-	//创建gorm
 	db, err := orm.NewGormDB(cfg.Database)
 	if err != nil {
 		return nil, fmt.Errorf("init gorm: %w", err)
 	}
 
-	//创建redis
 	rdb, err := cache.NewRedisClient(cfg.Redis)
 	if err != nil {
 		return nil, fmt.Errorf("warn: redis unavailable, fallback without cache: %v", err)
 	}
 
-	ginEngine := gin.New()
-	ginEngine.Use(gin.Logger(), gin.Recovery())
-	ginEngine.GET("/healthz", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	//创建`type Dependencies struct`把实例放进去
-	depens := &Dependencies{Config: cfg, DB: db, Redis: rdb}
-
-	//遍历模块列表
+	deps := &Dependencies{Config: cfg, DB: db, Redis: rdb}
 	for _, module := range modules {
-		if err = module.RegisterRoutes(ginEngine, depens); err != nil {
+		if err = module.RegisterRoutes(mux, deps); err != nil {
 			return nil, fmt.Errorf("register module %s: %w", module.Name(), err)
 		}
 		log.Printf("module registered: %s", module.Name())
 	}
 
-	return &Server{engine: ginEngine, addr: cfg.HTTP.Addr}, nil
+	handler := recoverMiddleware(accessLogMiddleware(mux))
+	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil
 }
 
 // Run 启动 HTTP 服务。
 func (s *Server) Run() error {
-	log.Printf("gin api listening on %s", s.addr)
-	return s.engine.Run(s.addr)
+	log.Printf("http api listening on %s", s.httpServer.Addr)
+	return s.httpServer.ListenAndServe()
+}
+
+func accessLogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+func recoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("panic recovered: %v\n%s", rec, debug.Stack())
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
