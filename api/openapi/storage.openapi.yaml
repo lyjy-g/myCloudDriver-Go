@@ -1,0 +1,282 @@
+openapi: 3.0.3
+info:
+  title: MyCloudDrive Storage API
+  version: 1.0.0
+  description: Storage 域接口契约（spec-first）。
+servers:
+  - url: /
+tags:
+  - name: Storage
+    description: 存储平台与配置管理
+paths:
+  /api/v1/storage/platforms:
+    get:
+      tags: [Storage]
+      operationId: ListStoragePlatforms
+      summary: 查询可用存储平台
+      responses:
+        '200':
+          description: 平台列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformListResponse'
+  /api/v1/storage/platforms/{identifier}:
+    get:
+      tags: [Storage]
+      operationId: GetStoragePlatformByIdentifier
+      summary: 按标识查询平台详情
+      parameters:
+        - $ref: '#/components/parameters/Identifier'
+      responses:
+        '200':
+          description: 平台详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformResponse'
+        '404':
+          description: 平台不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/storage/settings:
+    get:
+      tags: [Storage]
+      operationId: ListStorageSettings
+      summary: 查询当前用户存储配置
+      responses:
+        '200':
+          description: 配置列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingListResponse'
+    post:
+      tags: [Storage]
+      operationId: CreateStorageSetting
+      summary: 创建存储配置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettingRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 配置语义重复
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/storage/settings/{settingId}:
+    put:
+      tags: [Storage]
+      operationId: UpdateStorageSetting
+      summary: 更新存储配置
+      parameters:
+        - $ref: '#/components/parameters/SettingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingResponse'
+        '404':
+          description: 配置不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Storage]
+      operationId: DeleteStorageSetting
+      summary: 删除存储配置
+      parameters:
+        - $ref: '#/components/parameters/SettingId'
+      responses:
+        '204':
+          description: 删除成功
+        '404':
+          description: 配置不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/storage/settings/{settingId}/activate:
+    post:
+      tags: [Storage]
+      operationId: ActivateStorageSetting
+      summary: 启用指定配置（单活）
+      parameters:
+        - $ref: '#/components/parameters/SettingId'
+      responses:
+        '200':
+          description: 启用成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingResponse'
+        '404':
+          description: 配置不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/storage/active-platforms:
+    get:
+      tags: [Storage]
+      operationId: ListActivePlatforms
+      summary: 查询当前用户激活平台（含本地兜底）
+      responses:
+        '200':
+          description: 激活平台列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformListResponse'
+components:
+  parameters:
+    Identifier:
+      name: identifier
+      in: path
+      required: true
+      schema:
+        type: string
+    SettingId:
+      name: settingId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    StoragePlatform:
+      type: object
+      required: [identifier, name, enabled]
+      properties:
+        identifier:
+          type: string
+          example: local
+        name:
+          type: string
+          example: 本地存储
+        enabled:
+          type: boolean
+          example: true
+        description:
+          type: string
+    StorageSetting:
+      type: object
+      required: [id, identifier, active]
+      properties:
+        id:
+          type: string
+          example: stg_001
+        identifier:
+          type: string
+          example: local
+        active:
+          type: boolean
+          example: true
+        configJson:
+          type: string
+          example: '{"basePath":"/data"}'
+        updatedAt:
+          type: string
+          format: date-time
+    CreateSettingRequest:
+      type: object
+      required: [identifier, configJson]
+      properties:
+        identifier:
+          type: string
+        configJson:
+          type: string
+    UpdateSettingRequest:
+      type: object
+      required: [configJson]
+      properties:
+        configJson:
+          type: string
+    PlatformResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+          example: success
+        data:
+          $ref: '#/components/schemas/StoragePlatform'
+    PlatformListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+          example: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoragePlatform'
+    SettingResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+          example: success
+        data:
+          $ref: '#/components/schemas/StorageSetting'
+    SettingListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+          example: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageSetting'
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: BAD_REQUEST
+        message:
+          type: string
+          example: 参数错误

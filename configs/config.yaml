@@ -1,0 +1,12 @@
+app_name: myclouddrive-go
+http:
+  addr: ":8080"
+database:
+  dsn: "myclouddrive:myclouddrive@tcp(127.0.0.1:3306)/myclouddrive?charset=utf8mb4&parseTime=True&loc=Local"
+  max_idle_conns: 10
+  max_open_conns: 50
+  conn_max_lifetime_min: 30
+redis:
+  username: ""
+  addr: "127.0.0.1:6379"
+  db: 0

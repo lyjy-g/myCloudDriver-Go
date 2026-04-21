@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: myclouddrive-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-myclouddrive}
+      MYSQL_USER: ${MYSQL_USER:-myclouddrive}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    env_file:
+      - .env
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7.2
+    container_name: myclouddrive-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+#  admin:
+#    build:
+#      context: ..
+#      dockerfile: deploy/Dockerfile.mcd-admin
+#    container_name: myclouddrive-admin
+#    restart: unless-stopped
+#    environment:
+#      MYCLOUDDRIVE_DB_URL: ${MYCLOUDDRIVE_DB_URL}
+#      MYCLOUDDRIVE_DB_USER: ${MYCLOUDDRIVE_DB_USER}
+#      MYCLOUDDRIVE_DB_PASSWORD: ${MYCLOUDDRIVE_DB_PASSWORD}
+#      MYCLOUDDRIVE_REDIS_HOST: ${MYCLOUDDRIVE_REDIS_HOST}
+#      MYCLOUDDRIVE_REDIS_PORT: ${MYCLOUDDRIVE_REDIS_PORT}
+#      MYCLOUDDRIVE_REDIS_PASSWORD: ${MYCLOUDDRIVE_REDIS_PASSWORD}
+#      MYCLOUDDRIVE_BASE_PATH: ${MYCLOUDDRIVE_BASE_PATH}
+#      MYCLOUDDRIVE_BASE_URL: ${MYCLOUDDRIVE_BASE_URL}
+#      MYCLOUDDRIVE_UPLOAD_TMP: ${MYCLOUDDRIVE_UPLOAD_TMP}
+#      MYCLOUDDRIVE_UPLOAD_TTL: ${MYCLOUDDRIVE_UPLOAD_TTL}
+#    env_file:
+#      - .env
+#    ports:
+#      - "8080:8080"
+#    depends_on:
+#      - mysql
+#      - redis
+#    volumes:
+#      - app_data:/data/myclouddrive
+
+volumes:
+  mysql_data:
+  redis_data:
+  app_data:
