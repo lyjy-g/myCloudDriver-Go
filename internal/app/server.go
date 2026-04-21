@@ -3,9 +3,8 @@ package app
 import (
 	"fmt"
 	"log"
+	"myclouddrive-go/internal/framework/logx"
 	"net/http"
-	"runtime/debug"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -66,7 +65,7 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 		log.Printf("module registered: %s", module.Name())
 	}
 
-	handler := recoverMiddleware(accessLogMiddleware(mux))
+	handler := logx.LoggingMiddleware(mux)
 	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil
 }
 
@@ -74,24 +73,4 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 func (s *Server) Run() error {
 	log.Printf("http api listening on %s", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
-}
-
-func accessLogMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
-	})
-}
-
-func recoverMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if rec := recover(); rec != nil {
-				log.Printf("panic recovered: %v\n%s", rec, debug.Stack())
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
 }

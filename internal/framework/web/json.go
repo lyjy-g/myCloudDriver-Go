@@ -19,17 +19,17 @@ type Result[T any] struct {
 }
 
 // DecodeJSON 解码请求体 JSON。
-func DecodeJSON(r *http.Request, dst any) error {
-	decoder := json.NewDecoder(r.Body)
+func DecodeJSON(req *http.Request, dst any) error {
+	decoder := json.NewDecoder(req.Body)
 	decoder.DisallowUnknownFields()
 	return decoder.Decode(dst)
 }
 
 // WriteJSON 输出 JSON 响应。
-func WriteJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
+func WriteJSON(resp http.ResponseWriter, status int, data any) {
+	resp.Header().Set("Content-Type", "application/json")
+	resp.WriteHeader(status)
+	_ = json.NewEncoder(resp).Encode(data)
 }
 
 // WriteError 输出统一错误响应。

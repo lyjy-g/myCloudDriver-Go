@@ -25,7 +25,7 @@ type StorageService struct {
 	cacheTTL time.Duration
 }
 
-func NewGormService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration) *StorageService {
+func NewService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration) *StorageService {
 	return &StorageService{db: db, rdb: rdb, cacheTTL: cacheTTL}
 }
 

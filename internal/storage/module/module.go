@@ -28,7 +28,7 @@ func (m *Module) Models() []any {
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
-	svc := service.NewGormService(deps.DB, deps.Redis, m.cacheTTL)
+	svc := service.NewService(deps.DB, deps.Redis, m.cacheTTL)
 	storageapi.RegisterRoutes(mux, svc)
 	return nil
 }
