@@ -6,7 +6,7 @@ import (
 
 	"myclouddrive-go/internal/app"
 	storageapi "myclouddrive-go/internal/storage/api"
-	"myclouddrive-go/internal/storage/model/dbmodel"
+	dbmodel "myclouddrive-go/internal/storage/model/dbmodel"
 	"myclouddrive-go/internal/storage/service"
 )
 
@@ -24,7 +24,7 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Models() []any {
-	return []any{&model.StoragePlatform{}, &model.StorageSetting{}}
+	return []any{&dbmodel.StoragePlatform{}, &dbmodel.StorageSetting{}}
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
