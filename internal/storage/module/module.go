@@ -6,7 +6,7 @@ import (
 
 	"myclouddrive-go/internal/app"
 	storageapi "myclouddrive-go/internal/storage/api"
-	"myclouddrive-go/internal/storage/model/model"
+	"myclouddrive-go/internal/storage/model/dbmodel"
 	"myclouddrive-go/internal/storage/service"
 )
 
