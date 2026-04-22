@@ -2,49 +2,430 @@ openapi: 3.0.3
 info:
   title: MyCloudDrive File API
   version: 1.0.0
-  description: File 域接口契约（spec-first）。
+  description: 文件域接口契约（spec-first）。
 servers:
   - url: /
 tags:
   - name: File
-    description: 文件服务
+    description: 文件域接口契约（spec-first）。
 paths:
-  /api/v1/file/ping:
+  /apis/home/info:
     get:
-      tags: [File]
-      operationId: PingFile
-      summary: File 服务健康检查
+      tags:
+        - 文件首页
+      summary: 查询首页信息
+      description: 查询首页信息
+      operationId: getHomes
+      parameters:
+        - name: qry
+          in: query
+          required: true
+          schema:
+            $ref: "./components.yaml#/schemas/FileHomeUsedBytesQry"
       responses:
-        '200':
-          description: 成功
+        "200":
+          description: OK
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: '#/components/schemas/PingResponse'
-        '500':
-          description: 失败
+                $ref: "./components.yaml#/schemas/ResultFileHomeVO"
+  /apis/file/{fileId}/rename:
+    put:
+      tags:
+        - 文件管理
+      summary: 文件重命名
+      description: 文件重命名
+      operationId: createDirectory
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/RenameFileCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/file/recycles:
+    put:
+      tags:
+        - 文件管理
+      summary: 恢复文件
+      description: 从回收站批量恢复文件
+      operationId: restoreFile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+    delete:
+      tags:
+        - 文件管理
+      summary: 永久删除文件
+      description: 永久删除文件，不可恢复
+      operationId: permanentlyDeleteFiles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/file/moves:
+    put:
+      tags:
+        - 文件管理
+      summary: 文件移动
+      description: 文件移动
+      operationId: createDirectory_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/MoveFileCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /preview/token/{fileId}:
+    post:
+      tags:
+        - file-preview-controller
+      operationId: previewToken
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultString"
+  /archive/preview/token/{archiveFileId}:
+    post:
+      tags:
+        - archive-preview-controller
+      operationId: previewToken_1
+      parameters:
+        - name: archiveFileId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: innerPath
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultString"
+  /apis/file/favorites:
+    post:
+      tags:
+        - 文件管理
+      summary: 收藏文件
+      description: 收藏文件
+      operationId: favoritesFile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+    delete:
+      tags:
+        - 文件管理
+      summary: 取消收藏文件
+      description: 取消收藏文件
+      operationId: unFavoritesFile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/file/directory:
+    post:
+      tags:
+        - 文件管理
+      summary: 创建目录
+      description: 在指定目录下创建新目录
+      operationId: createDirectory_3
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/CreateDirectoryCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultFileInfo"
+  /apis/file/{fileId}:
+    get:
+      tags:
+        - 文件管理
+      summary: 查询文件详情
+      description: 查询文件详情
+      operationId: getFileDetails
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultFileDetailVO"
+  /apis/file/url/{fileId}:
+    get:
+      tags:
+        - 文件管理
+      summary: 获取文件URL
+      description: 获取文件的访问URL
+      operationId: getFileUrl
+      parameters:
+        - name: fileId
+          in: path
+          description: 文件ID
+          required: true
+          schema:
+            type: string
+        - name: expireSeconds
+          in: query
+          description: URL有效时间（秒），如果不支持或永久有效可为null
+          required: false
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultString"
+  /apis/file/recycle/pages:
+    get:
+      tags:
+        - 文件管理
+      summary: 分页获取回收站列表
+      description: 分页获取回收站列表
+      operationId: getRecyclePages
+      parameters:
+        - name: qry
+          in: query
+          required: true
+          schema:
+            $ref: "./components.yaml#/schemas/FileRecycleQry"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/PageResultObject"
+  /apis/file/list:
+    get:
+      tags:
+        - 文件管理
+      summary: 查询所有文件列表
+      description: 支持关键词搜索和文件类型筛选的列表查询
+      operationId: getList
+      parameters:
+        - name: qry
+          in: query
+          required: true
+          schema:
+            $ref: "./components.yaml#/schemas/FileQry"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/PageResultFileVO"
+  /apis/file/dirs:
+    get:
+      tags:
+        - 文件管理
+      summary: 查询目录列表
+      description: 查询目录列表
+      operationId: getDirs
+      parameters:
+        - name: parentId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultListFileVO"
+  /apis/file/directory/{dirId}/path:
+    get:
+      tags:
+        - 文件管理
+      summary: 获取目录层级
+      description: 根据目录ID获取目录层级
+      operationId: createDirectory_4
+      parameters:
+        - name: dirId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultListFileVO"
+  /api/file/stream/preview/{fileId}:
+    get:
+      tags:
+        - file-stream-controller
+      operationId: preview
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/StreamingResponseBody"
+  /api/file/stream/preview/archive/inner/{tempId}:
+    get:
+      tags:
+        - file-stream-controller
+      operationId: previewArchiveInner
+      parameters:
+        - name: tempId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/StreamingResponseBody"
+  /apis/file:
+    delete:
+      tags:
+        - 文件管理
+      summary: 移到回收站
+      description: 将文件移动到回收站
+      operationId: deleteFiles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/file/recycles/clear:
+    delete:
+      tags:
+        - 文件管理
+      summary: 清空回收站
+      description: 清空回收站，永久删除所有文件
+      operationId: clearRecycles
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
 components:
-  schemas:
-    PingResponse:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-          example: OK
-        message:
-          type: string
-          example: file service ready
-    ErrorResponse:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-          example: INTERNAL_ERROR
-        message:
-          type: string
+  $ref: './components.yaml'

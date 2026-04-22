@@ -2,49 +2,182 @@ openapi: 3.0.3
 info:
   title: MyCloudDrive User API
   version: 1.0.0
-  description: User 域接口契约（spec-first）。
+  description: 用户域接口契约（spec-first）。
 servers:
   - url: /
 tags:
   - name: User
-    description: 用户服务
+    description: 用户域接口契约（spec-first）。
 paths:
-  /api/v1/user/ping:
-    get:
-      tags: [User]
-      operationId: PingUser
-      summary: User 服务健康检查
+  /apis/auth/logout:
+    post:
+      tags:
+        - 认证管理
+      summary: 登出
+      operationId: logout
       responses:
-        '200':
-          description: 成功
+        "200":
+          description: OK
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: '#/components/schemas/PingResponse'
-        '500':
-          description: 失败
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/auth/login:
+    post:
+      tags:
+        - 认证管理
+      summary: 登录
+      operationId: doLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/LoginCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/user/transfer/setting:
+    get:
+      tags:
+        - 用户管理
+      summary: 获取用户传输配置
+      operationId: sendForgetPasswordCode
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultSysUserTransferSetting"
+    put:
+      tags:
+        - 用户管理
+      summary: 修改用户传输配置
+      operationId: updateUserTransferSetting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/UserTransferSettingEditCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultSysUserTransferSetting"
+  /apis/user/password:
+    put:
+      tags:
+        - 用户管理
+      summary: 修改密码
+      operationId: resetPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/PasswordEditCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/user/info:
+    get:
+      tags:
+        - 用户管理
+      summary: 获取用户详细信息
+      operationId: getDetail
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultSysUserVO"
+    put:
+      tags:
+        - 用户管理
+      summary: 编辑用户
+      operationId: editUserInfo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/UserEditInfoCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/user/forget-password:
+    put:
+      tags:
+        - 用户管理
+      summary: 忘记密码-修改密码
+      operationId: checkForgetPasswordCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/PasswordForgetEditCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/user/register:
+    post:
+      tags:
+        - 用户管理
+      summary: 注册用户
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/UserRegisterCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
+  /apis/user/forget-password/code/{mail}:
+    get:
+      tags:
+        - 用户管理
+      summary: 忘记密码-发送验证码
+      operationId: sendForgetPasswordCode_1
+      parameters:
+        - name: mail
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultObject"
 components:
-  schemas:
-    PingResponse:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-          example: OK
-        message:
-          type: string
-          example: user service ready
-    ErrorResponse:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-          example: INTERNAL_ERROR
-        message:
-          type: string
+  $ref: './components.yaml'

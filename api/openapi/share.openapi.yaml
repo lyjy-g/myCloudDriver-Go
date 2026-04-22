@@ -2,49 +2,219 @@ openapi: 3.0.3
 info:
   title: MyCloudDrive Share API
   version: 1.0.0
-  description: Share 域接口契约（spec-first）。
+  description: 分享域接口契约（spec-first）。
 servers:
   - url: /
 tags:
   - name: Share
-    description: 分享服务
+    description: 分享域接口契约（spec-first）。
 paths:
-  /api/v1/share/ping:
-    get:
-      tags: [Share]
-      operationId: PingShare
-      summary: Share 服务健康检查
+  /apis/share/verify/code:
+    post:
+      tags:
+        - 文件分享
+      summary: 验证提取码
+      description: 验证提取码
+      operationId: verifyShareCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/VerifyShareCodeCmd"
+        required: true
       responses:
-        '200':
-          description: 成功
+        "200":
+          description: OK
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: '#/components/schemas/PingResponse'
-        '500':
-          description: 失败
+                $ref: "./components.yaml#/schemas/ResultBoolean"
+  /apis/share/create:
+    post:
+      tags:
+        - 文件分享
+      summary: 创建分享
+      description: 创建分享
+      operationId: createDirectory_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "./components.yaml#/schemas/CreateShareCmd"
+        required: true
+      responses:
+        "200":
+          description: OK
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+  /apis/share/{shareId}:
+    get:
+      tags:
+        - 文件分享
+      summary: 获取分享详细信息
+      description: 获取分享详细信息
+      operationId: getDetail_1
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+  /apis/share/{shareId}/items:
+    get:
+      tags:
+        - 文件分享
+      summary: 获取分享页文件列表数据
+      description: 获取分享页文件列表数据
+      operationId: getShareFileItems
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: parentId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultListFileVO"
+  /apis/share/{shareId}/info:
+    get:
+      tags:
+        - 文件分享
+      summary: 获取分享页数据
+      description: 获取分享页数据
+      operationId: getFileShareThin
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultFileShareThinVO"
+  /apis/share/{shareId}/download/{fileId}:
+    get:
+      tags:
+        - 文件分享
+      summary: 分享内文件下载
+      description: 分享内文件下载
+      operationId: downloadShareFile
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+  /apis/share/{shareId}/access/records:
+    get:
+      tags:
+        - 文件分享
+      summary: 获取分享访问记录列表
+      description: 获取分享访问记录列表
+      operationId: getListByShareId
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultListFileShareAccessRecordVO"
+  /apis/share/pages:
+    get:
+      tags:
+        - 文件分享
+      summary: 获取我的分享
+      description: 分页获取我的分享列表
+      operationId: getPages
+      parameters:
+        - name: qry
+          in: query
+          required: true
+          schema:
+            $ref: "./components.yaml#/schemas/FileShareQry"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/PageResultFileShareVO"
+  /apis/share/clears:
+    delete:
+      tags:
+        - 文件分享
+      summary: 全部取消分享
+      description: 全部取消
+      operationId: cancelAllShares
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+  /apis/share/cancels:
+    delete:
+      tags:
+        - 文件分享
+      summary: 取消分享
+      description: 取消分享
+      operationId: cancelShares
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/ResultFileShareVO"
 components:
-  schemas:
-    PingResponse:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-          example: OK
-        message:
-          type: string
-          example: share service ready
-    ErrorResponse:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: string
-          example: INTERNAL_ERROR
-        message:
-          type: string
+  $ref: './components.yaml'

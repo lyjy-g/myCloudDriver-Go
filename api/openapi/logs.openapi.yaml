@@ -1,0 +1,32 @@
+openapi: 3.0.3
+info:
+  title: MyCloudDrive Logs API
+  version: 1.0.0
+  description: 日志域接口契约（spec-first）。
+servers:
+  - url: /
+tags:
+  - name: Logs
+    description: 日志域接口契约（spec-first）。
+paths:
+  /apis/logs/login/pages:
+    get:
+      tags:
+        - 日志管理
+      summary: 分页获取登录日志列表
+      operationId: getPages_2
+      parameters:
+        - name: qry
+          in: query
+          required: true
+          schema:
+            $ref: "./components.yaml#/schemas/LoginLogPageQry"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "./components.yaml#/schemas/PageResultSysLoginLogVO"
+components:
+  $ref: './components.yaml'

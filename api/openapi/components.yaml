@@ -1,0 +1,1500 @@
+schemas:
+  UserTransferSettingEditCmd:
+    type: object
+    properties:
+      downloadLocation:
+        type: string
+        minLength: 1
+      isDefaultDownloadLocation:
+        type: integer
+        format: int32
+        maximum: 1
+        minimum: 0
+      downloadSpeedLimit:
+        type: integer
+        format: int32
+        maximum: 200
+      concurrentUploadQuantity:
+        type: integer
+        format: int32
+        maximum: 3
+      concurrentDownloadQuantity:
+        type: integer
+        format: int32
+        maximum: 3
+      chunkSize:
+        type: integer
+        format: int64
+    required:
+      - chunkSize
+      - concurrentDownloadQuantity
+      - concurrentUploadQuantity
+      - downloadLocation
+      - downloadSpeedLimit
+      - isDefaultDownloadLocation
+  ResultSysUserTransferSetting:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/SysUserTransferSetting"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  SysUserTransferSetting:
+    type: object
+    properties:
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+      id:
+        type: integer
+        format: int64
+      userId:
+        type: string
+      downloadLocation:
+        type: string
+      isDefaultDownloadLocation:
+        type: integer
+        format: int32
+      downloadSpeedLimit:
+        type: integer
+        format: int32
+      concurrentUploadQuantity:
+        type: integer
+        format: int32
+      concurrentDownloadQuantity:
+        type: integer
+        format: int32
+      chunkSize:
+        type: integer
+        format: int64
+  PasswordEditCmd:
+    type: object
+    properties:
+      oldPassword:
+        type: string
+        minLength: 1
+      newPassword:
+        type: string
+        minLength: 1
+      confirmPassword:
+        type: string
+        minLength: 1
+    required:
+      - confirmPassword
+      - newPassword
+      - oldPassword
+  ResultObject:
+    type: object
+    properties:
+      data: {}
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  UserEditInfoCmd:
+    type: object
+    properties:
+      nickname:
+        type: string
+        minLength: 1
+    required:
+      - nickname
+  PasswordForgetEditCmd:
+    type: object
+    properties:
+      mail:
+        type: string
+        minLength: 1
+      code:
+        type: string
+        minLength: 1
+      newPassword:
+        type: string
+        minLength: 1
+      confirmPassword:
+        type: string
+        minLength: 1
+    required:
+      - code
+      - confirmPassword
+      - mail
+      - newPassword
+  StorageSettingEditCmd:
+    type: object
+    properties:
+      settingId:
+        type: string
+        minLength: 1
+      platformIdentifier:
+        type: string
+        minLength: 1
+      configData:
+        type: string
+        minLength: 1
+      remark:
+        type: string
+    required:
+      - configData
+      - platformIdentifier
+      - settingId
+  ResultStorageSetting:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/StorageSetting"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  StorageSetting:
+    type: object
+    properties:
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+      id:
+        type: string
+      platformIdentifier:
+        type: string
+      configData:
+        type: string
+      enabled:
+        type: integer
+        format: int32
+      userId:
+        type: string
+      remark:
+        type: string
+      deleted:
+        type: integer
+        format: int32
+  SubscriptionPlanEditCmd:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      planCode:
+        type: string
+        minLength: 1
+      planName:
+        type: string
+        minLength: 1
+      description:
+        type: string
+      storageQuotaGb:
+        type: integer
+        format: int32
+      maxFiles:
+        type: integer
+        format: int32
+      maxFileSize:
+        type: integer
+        format: int64
+      bandwidthQuota:
+        type: integer
+        format: int64
+      price:
+        type: number
+        format: double
+      isActive:
+        type: integer
+        format: int32
+        maximum: 1
+        minimum: 0
+      isDefault:
+        type: integer
+        format: int32
+        maximum: 1
+        minimum: 0
+      sortOrder:
+        type: integer
+        format: int32
+    required:
+      - bandwidthQuota
+      - id
+      - isActive
+      - isDefault
+      - maxFileSize
+      - maxFiles
+      - planCode
+      - planName
+      - price
+      - sortOrder
+      - storageQuotaGb
+  RenameFileCmd:
+    type: object
+    properties:
+      displayName:
+        type: string
+        minLength: 1
+    required:
+      - displayName
+  MoveFileCmd:
+    type: object
+    properties:
+      dirId:
+        type: string
+      fileIds:
+        type: array
+        items:
+          type: string
+        minItems: 1
+    required:
+      - fileIds
+  ResultString:
+    type: object
+    properties:
+      data:
+        type: string
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  UserRegisterCmd:
+    type: object
+    properties:
+      username:
+        type: string
+        minLength: 1
+      password:
+        type: string
+        minLength: 1
+      confirmPassword:
+        type: string
+        minLength: 1
+      email:
+        type: string
+        minLength: 1
+      nickname:
+        type: string
+        minLength: 1
+      avatar:
+        type: string
+    required:
+      - confirmPassword
+      - email
+      - nickname
+      - password
+      - username
+  ResultVoid:
+    type: object
+    properties:
+      data: {}
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  InitUploadCmd:
+    type: object
+    properties:
+      fileName:
+        type: string
+        minLength: 1
+      fileSize:
+        type: integer
+        format: int64
+      parentId:
+        type: string
+      totalChunks:
+        type: integer
+        format: int32
+      chunkSize:
+        type: integer
+        format: int64
+      mimeType:
+        type: string
+        minLength: 1
+    required:
+      - chunkSize
+      - fileName
+      - fileSize
+      - mimeType
+      - totalChunks
+  InitDownloadCmd:
+    type: object
+    properties:
+      fileId:
+        type: string
+        minLength: 1
+      chunkSize:
+        type: integer
+        format: int64
+    required:
+      - fileId
+  InitDownloadResultVO:
+    type: object
+    properties:
+      taskId:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+        format: int64
+      totalChunks:
+        type: integer
+        format: int32
+      chunkSize:
+        type: integer
+        format: int64
+      downloadedChunks:
+        type: array
+        items:
+          type: integer
+          format: int32
+        uniqueItems: true
+  ResultInitDownloadResultVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/InitDownloadResultVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  CheckUploadCmd:
+    type: object
+    properties:
+      taskId:
+        type: string
+        minLength: 1
+      fileMd5:
+        type: string
+        minLength: 1
+      fileName:
+        type: string
+    required:
+      - fileMd5
+      - taskId
+  CheckUploadResultVO:
+    type: object
+    properties:
+      isQuickUpload:
+        type: boolean
+      fileId:
+        type: string
+      taskId:
+        type: string
+      uploadId:
+        type: string
+      message:
+        type: string
+  ResultCheckUploadResultVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/CheckUploadResultVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  StorageSettingAddCmd:
+    type: object
+    properties:
+      platformIdentifier:
+        type: string
+        minLength: 1
+      configData:
+        type: string
+        minLength: 1
+      remark:
+        type: string
+    required:
+      - configData
+      - platformIdentifier
+  VerifyShareCodeCmd:
+    type: object
+    properties:
+      shareId:
+        type: string
+        minLength: 1
+      shareCode:
+        type: string
+        minLength: 1
+    required:
+      - shareCode
+      - shareId
+  ResultBoolean:
+    type: object
+    properties:
+      data:
+        type: boolean
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  CreateShareCmd:
+    type: object
+    properties:
+      fileIds:
+        type: array
+        items:
+          type: string
+        minItems: 1
+      shareName:
+        type: string
+      expireType:
+        type: integer
+        format: int32
+      expireTime:
+        type: string
+        format: date-time
+      scope:
+        type: string
+      needShareCode:
+        type: boolean
+      maxViewCount:
+        type: integer
+        format: int32
+      maxDownloadCount:
+        type: integer
+        format: int32
+    required:
+      - fileIds
+  FileShareVO:
+    type: object
+    properties:
+      id:
+        type: string
+      shareName:
+        type: string
+      shareCode:
+        type: string
+      expireTime:
+        type: string
+        format: date-time
+      scope:
+        type: string
+      isPermanent:
+        type: boolean
+      viewCount:
+        type: integer
+        format: int32
+      downloadCount:
+        type: integer
+        format: int32
+      maxViewCount:
+        type: integer
+        format: int32
+      maxDownloadCount:
+        type: integer
+        format: int32
+      fileCount:
+        type: integer
+        format: int64
+      createdAt:
+        type: string
+        format: date-time
+  ResultFileShareVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/FileShareVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  SubscriptionPlanAddCmd:
+    type: object
+    properties:
+      planCode:
+        type: string
+        minLength: 1
+      planName:
+        type: string
+        minLength: 1
+      description:
+        type: string
+      storageQuotaGb:
+        type: integer
+        format: int32
+      maxFiles:
+        type: integer
+        format: int32
+      maxFileSize:
+        type: integer
+        format: int64
+      bandwidthQuota:
+        type: integer
+        format: int64
+      price:
+        type: number
+        format: double
+      isActive:
+        type: integer
+        format: int32
+        maximum: 1
+        minimum: 0
+      isDefault:
+        type: integer
+        format: int32
+        maximum: 1
+        minimum: 0
+      sortOrder:
+        type: integer
+        format: int32
+    required:
+      - bandwidthQuota
+      - isActive
+      - isDefault
+      - maxFileSize
+      - maxFiles
+      - planCode
+      - planName
+      - price
+      - sortOrder
+      - storageQuotaGb
+  CreateDirectoryCmd:
+    type: object
+    properties:
+      folderName:
+        type: string
+        minLength: 1
+        title: 目录名称
+      parentId:
+        type: string
+        title: 父目录ID
+    required:
+      - folderName
+  FileInfo:
+    type: object
+    properties:
+      id:
+        type: string
+      objectKey:
+        type: string
+      originalName:
+        type: string
+      displayName:
+        type: string
+      suffix:
+        type: string
+      size:
+        type: integer
+        format: int64
+      mimeType:
+        type: string
+      isDir:
+        type: boolean
+      parentId:
+        type: string
+      userId:
+        type: string
+      contentMd5:
+        type: string
+      storagePlatformSettingId:
+        type: string
+      uploadTime:
+        type: string
+        format: date-time
+      updateTime:
+        type: string
+        format: date-time
+      lastAccessTime:
+        type: string
+        format: date-time
+      isDeleted:
+        type: boolean
+      deletedTime:
+        type: string
+        format: date-time
+  ResultFileInfo:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/FileInfo"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  LoginCmd:
+    type: object
+    properties:
+      username:
+        type: string
+        minLength: 1
+      password:
+        type: string
+        minLength: 1
+      isRemember:
+        type: boolean
+    required:
+      - password
+      - username
+  ResultSysUserVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/SysUserVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  SysUserVO:
+    type: object
+    description: 用户
+    properties:
+      id:
+        type: string
+        description: id
+      username:
+        type: string
+        description: 用户名
+      nickname:
+        type: string
+        description: 昵称
+      avatar:
+        type: string
+        description: 头像
+      email:
+        type: string
+        description: 邮箱地址
+      status:
+        type: integer
+        format: int32
+        description: 状态
+      createdAt:
+        type: string
+        format: date-time
+        description: 创建时间
+      updatedAt:
+        type: string
+        format: date-time
+        description: 更新时间
+      lastLoginAt:
+        type: string
+        format: date-time
+        description: 最后登录时间
+  SseEmitter:
+    type: object
+    properties:
+      timeout:
+        type: integer
+        format: int64
+  TransferFilesQry:
+    type: object
+    properties:
+      statusType:
+        type: integer
+        format: int32
+  FileTransferTaskVO:
+    type: object
+    properties:
+      taskId:
+        type: string
+      taskType:
+        type: string
+        enum:
+          - upload
+          - download
+      userId:
+        type: string
+      parentId:
+        type: string
+      objectKey:
+        type: string
+      fileName:
+        type: string
+      fileSize:
+        type: integer
+        format: int64
+      suffix:
+        type: string
+      totalChunks:
+        type: integer
+        format: int32
+      uploadedChunks:
+        type: integer
+        format: int32
+      chunkSize:
+        type: integer
+        format: int64
+      storagePlatformSettingId:
+        type: string
+      status:
+        type: string
+        enum:
+          - initialized
+          - checking
+          - uploading
+          - merging
+          - downloading
+          - failed
+          - paused
+          - completed
+          - canceled
+      errorMsg:
+        type: string
+      startTime:
+        type: string
+        format: date-time
+      completeTime:
+        type: string
+        format: date-time
+      progress:
+        type: integer
+        format: int32
+      speed:
+        type: integer
+        format: int64
+      remainTime:
+        type: integer
+        format: int32
+      uploadedSize:
+        type: integer
+        format: int64
+      completeEventData: {}
+  ResultListFileTransferTaskVO:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: "#/schemas/FileTransferTaskVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  ResultSetInteger:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          type: integer
+          format: int32
+        uniqueItems: true
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  DownloadChunkQry:
+    type: object
+    description: 下载分片查询参数
+    properties:
+      taskId:
+        type: string
+        description: 任务ID
+        example: task123
+        minLength: 1
+      chunkIndex:
+        type: integer
+        format: int32
+        description: 分片索引（从0开始）
+        example: 0
+        minimum: 0
+    required:
+      - chunkIndex
+      - taskId
+  StreamingResponseBody: {}
+  ResultListStoragePlatformVO:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: "#/schemas/StoragePlatformVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  StoragePlatformVO:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      name:
+        type: string
+      identifier:
+        type: string
+      configScheme:
+        type: string
+      icon:
+        type: string
+      link:
+        type: string
+      desc:
+        type: string
+      isDefault:
+        type: integer
+        format: int32
+  ResultStoragePlatform:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/StoragePlatform"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  StoragePlatform:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      name:
+        type: string
+      identifier:
+        type: string
+      configScheme:
+        type: string
+      icon:
+        type: string
+      link:
+        type: string
+      isDefault:
+        type: integer
+        format: int32
+      desc:
+        type: string
+  ResultListStorageSettingUserVO:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: "#/schemas/StorageSettingUserVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  StorageSettingUserVO:
+    type: object
+    properties:
+      id:
+        type: string
+      storagePlatform:
+        $ref: "#/schemas/StoragePlatformVO"
+      configData:
+        type: string
+      enabled:
+        type: integer
+        format: int32
+      userId:
+        type: string
+      remark:
+        type: string
+  ResultListStorageActivePlatformsVO:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: "#/schemas/StorageActivePlatformsVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  StorageActivePlatformsVO:
+    type: object
+    properties:
+      settingId:
+        type: string
+      platformIdentifier:
+        type: string
+      platformName:
+        type: string
+      platformIcon:
+        type: string
+      remark:
+        type: string
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+      isEnabled:
+        type: boolean
+  FileVO:
+    type: object
+    properties:
+      id:
+        type: string
+      objectKey:
+        type: string
+      originalName:
+        type: string
+      displayName:
+        type: string
+      suffix:
+        type: string
+      size:
+        type: integer
+        format: int64
+      mimeType:
+        type: string
+      isDir:
+        type: boolean
+      parentId:
+        type: string
+      userId:
+        type: string
+      thumbnailUrl:
+        type: string
+      uploadTime:
+        type: string
+        format: date-time
+      updateTime:
+        type: string
+        format: date-time
+      lastAccessTime:
+        type: string
+        format: date-time
+      isFavorite:
+        type: boolean
+  ResultListFileVO:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: "#/schemas/FileVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  FileShareThinVO:
+    type: object
+    properties:
+      id:
+        type: string
+      shareName:
+        type: string
+      expireTime:
+        type: string
+        format: date-time
+      scope:
+        type: string
+      isExpire:
+        type: boolean
+      fileCount:
+        type: integer
+        format: int64
+      hasCheckCode:
+        type: boolean
+  ResultFileShareThinVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/FileShareThinVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  FileShareAccessRecordVO:
+    type: object
+    properties:
+      id:
+        type: string
+      shareId:
+        type: string
+      accessIp:
+        type: string
+      accessAddress:
+        type: string
+      browser:
+        type: string
+      os:
+        type: string
+      accessTime:
+        type: string
+        format: date-time
+  ResultListFileShareAccessRecordVO:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: "#/schemas/FileShareAccessRecordVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  FileShareQry:
+    type: object
+    properties:
+      page:
+        type: integer
+        format: int32
+        description: 页码
+        example: 1
+        minimum: 1
+      pageSize:
+        type: integer
+        format: int32
+        description: 每页大小
+        example: 20
+        minimum: 1
+      orderBy:
+        type: string
+        description: 排序字段
+        example: updateTime
+      orderDirection:
+        type: string
+        description: 排序方向
+        enum:
+          - ASC
+          - DESC
+        example: DESC
+      keyword:
+        type: string
+  PageRecordFileShareVO:
+    type: object
+    properties:
+      records:
+        type: array
+        items:
+          $ref: "#/schemas/FileShareVO"
+      total:
+        type: integer
+        format: int64
+  PageResultFileShareVO:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      data:
+        $ref: "#/schemas/PageRecordFileShareVO"
+  SubscriptionPlanPageQry:
+    type: object
+    properties:
+      page:
+        type: integer
+        format: int32
+        description: 页码
+        example: 1
+        minimum: 1
+      pageSize:
+        type: integer
+        format: int32
+        description: 每页大小
+        example: 20
+        minimum: 1
+      orderBy:
+        type: string
+        description: 排序字段
+        example: updateTime
+      orderDirection:
+        type: string
+        description: 排序方向
+        enum:
+          - ASC
+          - DESC
+        example: DESC
+      planName:
+        type: string
+  PageRecordSubscriptionPlanVO:
+    type: object
+    properties:
+      records:
+        type: array
+        items:
+          $ref: "#/schemas/SubscriptionPlanVO"
+      total:
+        type: integer
+        format: int64
+  PageResultSubscriptionPlanVO:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      data:
+        $ref: "#/schemas/PageRecordSubscriptionPlanVO"
+  SubscriptionPlanVO:
+    type: object
+    description: 套餐
+    properties:
+      id:
+        type: integer
+        format: int64
+        description: 套餐ID
+      planCode:
+        type: string
+        description: 套餐代码
+      planName:
+        type: string
+        description: 套餐名称
+      description:
+        type: string
+        description: 套餐描述
+      storageQuotaGb:
+        type: integer
+        format: int32
+        description: 存储配额(GB)
+      maxFiles:
+        type: integer
+        format: int32
+        description: 最大文件数量
+      maxFileSize:
+        type: integer
+        format: int64
+        description: 最大文件大小(GB)
+      bandwidthQuota:
+        type: integer
+        format: int64
+        description: 带宽配额(GB/月)
+      price:
+        type: number
+        format: double
+        description: 套餐价格(元)
+      isActive:
+        type: integer
+        format: int32
+        description: 是否为激活套餐 0否1是
+      isDefault:
+        type: integer
+        format: int32
+        description: 是否为默认套餐 0否1是
+      sortOrder:
+        type: integer
+        format: int32
+        description: 排序
+      createdAt:
+        type: string
+        format: date-time
+        description: 创建时间
+      updatedAt:
+        type: string
+        format: date-time
+        description: 更新时间
+  ResultSubscriptionPlanVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/SubscriptionPlanVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  LoginLogPageQry:
+    type: object
+    properties:
+      page:
+        type: integer
+        format: int32
+        description: 页码
+        example: 1
+        minimum: 1
+      pageSize:
+        type: integer
+        format: int32
+        description: 每页大小
+        example: 20
+        minimum: 1
+      orderBy:
+        type: string
+        description: 排序字段
+        example: updateTime
+      orderDirection:
+        type: string
+        description: 排序方向
+        enum:
+          - ASC
+          - DESC
+        example: DESC
+      keyword:
+        type: string
+      status:
+        type: integer
+        format: int32
+  PageRecordSysLoginLogVO:
+    type: object
+    properties:
+      records:
+        type: array
+        items:
+          $ref: "#/schemas/SysLoginLogVO"
+      total:
+        type: integer
+        format: int64
+  PageResultSysLoginLogVO:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      data:
+        $ref: "#/schemas/PageRecordSysLoginLogVO"
+  SysLoginLogVO:
+    type: object
+    description: 登录日志
+    properties:
+      id:
+        type: integer
+        format: int64
+        description: id
+      userId:
+        type: string
+        description: 用户ID
+      username:
+        type: string
+        description: 用户名
+      loginIp:
+        type: string
+        description: 登录IP地址
+      loginAddress:
+        type: string
+        description: 登录地址
+      browser:
+        type: string
+        description: 浏览器
+      os:
+        type: string
+        description: 操作系统
+      status:
+        type: integer
+        format: int32
+        description: 状态
+      msg:
+        type: string
+        description: 错误信息
+      loginTime:
+        type: string
+        format: date-time
+        description: 最后登录时间
+  FileHomeUsedBytesQry:
+    type: object
+    description: 首页存储增长查询条件
+    properties:
+      unit:
+        type: integer
+        format: int32
+        description: "单位，1:KB, 2:MB, 3:GB"
+      dateType:
+        type: integer
+        format: int32
+        description: "日期类型, 0:近三个月, 1:近30天, 2:近7天"
+  FileHomeUsedBytesVO:
+    type: object
+    properties:
+      date:
+        type: string
+      usedBytes:
+        type: number
+        format: double
+  FileHomeVO:
+    type: object
+    properties:
+      usedStorage:
+        type: number
+        format: double
+      usedBytes:
+        type: array
+        items:
+          $ref: "#/schemas/FileHomeUsedBytesVO"
+      recentFiles:
+        type: array
+        items:
+          $ref: "#/schemas/FileVO"
+      unit:
+        type: string
+  ResultFileHomeVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/FileHomeVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  FileDetailVO:
+    type: object
+    properties:
+      id:
+        type: string
+      displayName:
+        type: string
+      suffix:
+        type: string
+      size:
+        type: integer
+        format: int64
+      includeFiles:
+        type: integer
+        format: int32
+      includeFolders:
+        type: integer
+        format: int32
+      isDir:
+        type: boolean
+      thumbnailUrl:
+        type: string
+      uploadTime:
+        type: string
+        format: date-time
+      lastAccessTime:
+        type: string
+        format: date-time
+  ResultFileDetailVO:
+    type: object
+    properties:
+      data:
+        $ref: "#/schemas/FileDetailVO"
+      code:
+        type: integer
+        format: int32
+      msg:
+        type: string
+  FileRecycleQry:
+    type: object
+    properties:
+      page:
+        type: integer
+        format: int32
+        description: 页码
+        example: 1
+        minimum: 1
+      pageSize:
+        type: integer
+        format: int32
+        description: 每页大小
+        example: 20
+        minimum: 1
+      orderBy:
+        type: string
+        description: 排序字段
+        example: updateTime
+      orderDirection:
+        type: string
+        description: 排序方向
+        enum:
+          - ASC
+          - DESC
+        example: DESC
+      keyword:
+        type: string
+  PageRecordObject:
+    type: object
+    properties:
+      records:
+        type: array
+        items: {}
+      total:
+        type: integer
+        format: int64
+  PageResultObject:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      data:
+        $ref: "#/schemas/PageRecordObject"
+  FileQry:
+    type: object
+    description: 文件列表查询参数
+    properties:
+      page:
+        type: integer
+        format: int32
+        description: 页码
+        example: 1
+        minimum: 1
+      pageSize:
+        type: integer
+        format: int32
+        description: 每页大小
+        example: 20
+        minimum: 1
+      orderBy:
+        type: string
+        description: 排序字段
+        example: updateTime
+      orderDirection:
+        type: string
+        description: 排序方向
+        enum:
+          - ASC
+          - DESC
+        example: DESC
+      parentId:
+        type: string
+        description: 父目录ID（空表示根目录）
+        example: "123"
+      keyword:
+        type: string
+        description: 文件名关键词（搜索用）
+        example: 工作文档
+      fileType:
+        type: string
+        description: 文件类型过滤
+        enum:
+          - ALL
+          - DOCUMENT
+          - IMAGE
+          - VIDEO
+          - AUDIO
+          - OTHER
+        example: IMAGE
+      isFavorite:
+        type: boolean
+        description: 是否收藏
+        example: true
+      isRecents:
+        type: boolean
+        description: 最近使用
+        example: true
+      isDir:
+        type: boolean
+        description: 是否目录
+        example: true
+  PageRecordFileVO:
+    type: object
+    properties:
+      records:
+        type: array
+        items:
+          $ref: "#/schemas/FileVO"
+      total:
+        type: integer
+        format: int64
+  PageResultFileVO:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      data:
+        $ref: "#/schemas/PageRecordFileVO"
+securitySchemes:
+  BearerAuth:
+    type: http
+    name: BearerAuth
+    in: header
+    scheme: Bearer
