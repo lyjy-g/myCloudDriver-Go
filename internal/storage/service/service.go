@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	storageModel "myclouddrive-go/internal/storage/model"
-	dbmodel "myclouddrive-go/internal/storage/model/model"
+	dbmodel "myclouddrive-go/internal/storage/model/dbmodel"
 )
 
 const platformCacheKey = "storage:platforms:active"

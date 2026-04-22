@@ -2,6 +2,15 @@ package code
 
 import "errors"
 
+var (
+	ErrObjectNotFound     = errors.New("storage: object not found")
+	ErrInvalidKey         = errors.New("storage: invalid key")
+	ErrDriverNotFound     = errors.New("storage: driver not found")
+	ErrSettingNotFound    = errors.New("storage: setting not found")
+	ErrSettingDisabled    = errors.New("storage: setting disabled")
+	ErrCapabilityNotMatch = errors.New("storage: capability not supported")
+)
+
 // Error 表示统一错误对象。
 type Error struct {
 	Code    Code
