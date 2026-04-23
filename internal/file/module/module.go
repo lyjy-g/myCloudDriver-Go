@@ -2,10 +2,12 @@ package module
 
 import (
 	"net/http"
+	"time"
 
 	"myclouddrive-go/internal/app"
 	"myclouddrive-go/internal/file/api"
 	"myclouddrive-go/internal/file/service"
+	storagesvc "myclouddrive-go/internal/storage/service"
 )
 
 // Module 是 file 服务模块占位。
@@ -23,7 +25,9 @@ func (m *Module) Models() []any {
 	return nil
 }
 
-func (m *Module) RegisterRoutes(mux *http.ServeMux, _ *app.Dependencies) error {
-	api.RegisterRoutes(mux, service.NewPlaceholderService())
+func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
+	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second)
+	fileService := service.NewFileService(storageService)
+	api.RegisterRoutes(mux, fileService)
 	return nil
 }

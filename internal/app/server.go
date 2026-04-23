@@ -3,15 +3,18 @@ package app
 import (
 	"fmt"
 	"log"
-	"myclouddrive-go/internal/framework/logx"
 	"net/http"
+	"os"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"myclouddrive-go/internal/framework/cache"
 	"myclouddrive-go/internal/framework/config"
+	"myclouddrive-go/internal/framework/logx"
 	"myclouddrive-go/internal/framework/orm"
+	"myclouddrive-go/internal/framework/security"
+	"myclouddrive-go/internal/framework/web"
 )
 
 // Module 定义服务模块扩展点。
@@ -65,7 +68,12 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 		log.Printf("module registered: %s", module.Name())
 	}
 
-	handler := logx.LoggingMiddleware(mux)
+	jwtSecret := os.Getenv("MYCLOUDDRIVE_JWT_SECRET")
+	jwtSvc := security.NewJWTService(jwtSecret)
+
+	handler := security.AuthMiddleware(jwtSvc, rdb)(mux)
+	handler = web.CORSMiddleware(web.DefaultCORSOptions())(handler)
+	handler = logx.LoggingMiddleware(handler)
 	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil
 }
 

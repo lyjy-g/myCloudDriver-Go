@@ -27,7 +27,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultVoid"
+                $ref: "#/components/schemas/ResultVoid"
   /apis/transfer/pause/{taskId}:
     post:
       tags:
@@ -46,7 +46,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultVoid"
+                $ref: "#/components/schemas/ResultVoid"
   /apis/transfer/merge/{taskId}:
     post:
       tags:
@@ -66,7 +66,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultString"
+                $ref: "#/components/schemas/ResultString"
   /apis/transfer/init:
     post:
       tags:
@@ -78,7 +78,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/InitUploadCmd"
+              $ref: "#/components/schemas/InitUploadCmd"
         required: true
       responses:
         "200":
@@ -86,7 +86,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultString"
+                $ref: "#/components/schemas/ResultString"
   /apis/transfer/init-download:
     post:
       tags:
@@ -98,7 +98,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/InitDownloadCmd"
+              $ref: "#/components/schemas/InitDownloadCmd"
         required: true
       responses:
         "200":
@@ -106,7 +106,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultInitDownloadResultVO"
+                $ref: "#/components/schemas/ResultInitDownloadResultVO"
   /apis/transfer/chunk:
     post:
       tags:
@@ -148,7 +148,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/transfer/check:
     post:
       tags:
@@ -160,7 +160,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/CheckUploadCmd"
+              $ref: "#/components/schemas/CheckUploadCmd"
         required: true
       responses:
         "200":
@@ -168,7 +168,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultCheckUploadResultVO"
+                $ref: "#/components/schemas/ResultCheckUploadResultVO"
   /apis/transfer/sse:
     get:
       tags:
@@ -188,7 +188,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/SseEmitter"
+                $ref: "#/components/schemas/SseEmitter"
   /apis/transfer/files:
     get:
       tags:
@@ -201,14 +201,14 @@ paths:
           in: query
           required: true
           schema:
-            $ref: "./components.yaml#/schemas/TransferFilesQry"
+            $ref: "#/components/schemas/TransferFilesQry"
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListFileTransferTaskVO"
+                $ref: "#/components/schemas/ResultListFileTransferTaskVO"
   /apis/transfer/download/{fileId}:
     get:
       tags:
@@ -250,7 +250,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultSetInteger"
+                $ref: "#/components/schemas/ResultSetInteger"
   /apis/transfer/download/chunk:
     get:
       tags:
@@ -263,14 +263,14 @@ paths:
           in: query
           required: true
           schema:
-            $ref: "./components.yaml#/schemas/DownloadChunkQry"
+            $ref: "#/components/schemas/DownloadChunkQry"
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/StreamingResponseBody"
+                $ref: "#/components/schemas/StreamingResponseBody"
   /apis/transfer/chunks/{taskId}:
     get:
       tags:
@@ -290,7 +290,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultSetInteger"
+                $ref: "#/components/schemas/ResultSetInteger"
   /apis/transfer/clears:
     delete:
       tags:
@@ -304,7 +304,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultSetInteger"
+                $ref: "#/components/schemas/ResultSetInteger"
   /apis/transfer/cancel/{taskId}:
     delete:
       tags:
@@ -323,6 +323,264 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultVoid"
+                $ref: "#/components/schemas/ResultVoid"
 components:
-  $ref: './components.yaml'
+  schemas:
+    ResultObject:
+      type: object
+      properties:
+        data: {}
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    ResultString:
+      type: object
+      properties:
+        data:
+          type: string
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    ResultVoid:
+      type: object
+      properties:
+        data: {}
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    InitUploadCmd:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        fileSize:
+          type: integer
+          format: int64
+        parentId:
+          type: string
+        totalChunks:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+          minLength: 1
+      required:
+      - chunkSize
+      - fileName
+      - fileSize
+      - mimeType
+      - totalChunks
+    InitDownloadCmd:
+      type: object
+      properties:
+        fileId:
+          type: string
+          minLength: 1
+        chunkSize:
+          type: integer
+          format: int64
+      required:
+      - fileId
+    InitDownloadResultVO:
+      type: object
+      properties:
+        taskId:
+          type: string
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        totalChunks:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+        downloadedChunks:
+          type: array
+          items:
+            type: integer
+            format: int32
+          uniqueItems: true
+    ResultInitDownloadResultVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/InitDownloadResultVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    CheckUploadCmd:
+      type: object
+      properties:
+        taskId:
+          type: string
+          minLength: 1
+        fileMd5:
+          type: string
+          minLength: 1
+        fileName:
+          type: string
+      required:
+      - fileMd5
+      - taskId
+    CheckUploadResultVO:
+      type: object
+      properties:
+        isQuickUpload:
+          type: boolean
+        fileId:
+          type: string
+        taskId:
+          type: string
+        uploadId:
+          type: string
+        message:
+          type: string
+    ResultCheckUploadResultVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/CheckUploadResultVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
+          type: integer
+          format: int64
+    TransferFilesQry:
+      type: object
+      properties:
+        statusType:
+          type: integer
+          format: int32
+    FileTransferTaskVO:
+      type: object
+      properties:
+        taskId:
+          type: string
+        taskType:
+          type: string
+          enum:
+          - upload
+          - download
+        userId:
+          type: string
+        parentId:
+          type: string
+        objectKey:
+          type: string
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        suffix:
+          type: string
+        totalChunks:
+          type: integer
+          format: int32
+        uploadedChunks:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+        storagePlatformSettingId:
+          type: string
+        status:
+          type: string
+          enum:
+          - initialized
+          - checking
+          - uploading
+          - merging
+          - downloading
+          - failed
+          - paused
+          - completed
+          - canceled
+        errorMsg:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        completeTime:
+          type: string
+          format: date-time
+        progress:
+          type: integer
+          format: int32
+        speed:
+          type: integer
+          format: int64
+        remainTime:
+          type: integer
+          format: int32
+        uploadedSize:
+          type: integer
+          format: int64
+        completeEventData: {}
+    ResultListFileTransferTaskVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileTransferTaskVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    ResultSetInteger:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: integer
+            format: int32
+          uniqueItems: true
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    DownloadChunkQry:
+      type: object
+      description: 下载分片查询参数
+      properties:
+        taskId:
+          type: string
+          description: 任务ID
+          example: task123
+          minLength: 1
+        chunkIndex:
+          type: integer
+          format: int32
+          description: 分片索引（从0开始）
+          example: 0
+          minimum: 0
+      required:
+      - chunkIndex
+      - taskId
+    StreamingResponseBody: {}

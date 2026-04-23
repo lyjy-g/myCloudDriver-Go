@@ -21,7 +21,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/auth/login:
     post:
       tags:
@@ -32,7 +32,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/LoginCmd"
+              $ref: "#/components/schemas/LoginCmd"
         required: true
       responses:
         "200":
@@ -40,7 +40,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/user/transfer/setting:
     get:
       tags:
@@ -53,7 +53,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultSysUserTransferSetting"
+                $ref: "#/components/schemas/ResultSysUserTransferSetting"
     put:
       tags:
         - 用户管理
@@ -63,7 +63,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/UserTransferSettingEditCmd"
+              $ref: "#/components/schemas/UserTransferSettingEditCmd"
         required: true
       responses:
         "200":
@@ -71,7 +71,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultSysUserTransferSetting"
+                $ref: "#/components/schemas/ResultSysUserTransferSetting"
   /apis/user/password:
     put:
       tags:
@@ -82,7 +82,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/PasswordEditCmd"
+              $ref: "#/components/schemas/PasswordEditCmd"
         required: true
       responses:
         "200":
@@ -90,7 +90,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/user/info:
     get:
       tags:
@@ -103,7 +103,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultSysUserVO"
+                $ref: "#/components/schemas/ResultSysUserVO"
     put:
       tags:
         - 用户管理
@@ -113,7 +113,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/UserEditInfoCmd"
+              $ref: "#/components/schemas/UserEditInfoCmd"
         required: true
       responses:
         "200":
@@ -121,7 +121,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/user/forget-password:
     put:
       tags:
@@ -132,7 +132,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/PasswordForgetEditCmd"
+              $ref: "#/components/schemas/PasswordForgetEditCmd"
         required: true
       responses:
         "200":
@@ -140,7 +140,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/user/register:
     post:
       tags:
@@ -151,7 +151,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/UserRegisterCmd"
+              $ref: "#/components/schemas/UserRegisterCmd"
         required: true
       responses:
         "200":
@@ -159,7 +159,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/user/forget-password/code/{mail}:
     get:
       tags:
@@ -178,6 +178,438 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
+  /apis/user/workspaces:
+    get:
+      tags:
+        - 用户工作空间
+      summary: 获取当前用户可访问工作空间列表
+      operationId: listUserWorkspaces
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        workspaceType:
+                          type: string
+                          enum: [personal, org]
+                        role:
+                          type: string
+                          enum: [owner, admin, member]
+                        isDefault:
+                          type: boolean
+    post:
+      tags:
+        - 用户工作空间
+      summary: 创建组织工作空间
+      operationId: createOrgWorkspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: 工作空间名称
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      workspaceType:
+                        type: string
+                        enum: [org]
+  /apis/user/default-workspace/{workspaceId}:
+    put:
+      tags:
+        - 用户工作空间
+      summary: 设置默认工作空间
+      operationId: setDefaultWorkspace
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      defaultWorkspaceId:
+                        type: string
+  /apis/user/workspaces/{workspaceId}/members:
+    get:
+      tags:
+        - 用户工作空间
+      summary: 获取工作空间成员
+      operationId: listWorkspaceMembers
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId:
+                          type: string
+                        role:
+                          type: string
+                          enum: [owner, admin, member]
+                        joinedAt:
+                          type: string
+                          format: date-time
+    post:
+      tags:
+        - 用户工作空间
+      summary: 添加工作空间成员
+      operationId: addWorkspaceMember
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, role]
+              properties:
+                userId:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, member]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      workspaceId:
+                        type: string
+                      userId:
+                        type: string
+                      role:
+                        type: string
+  /apis/user/workspaces/{workspaceId}/members/{userId}:
+    delete:
+      tags:
+        - 用户工作空间
+      summary: 移除工作空间成员
+      operationId: removeWorkspaceMember
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      workspaceId:
+                        type: string
+                      userId:
+                        type: string
 components:
-  $ref: './components.yaml'
+  schemas:
+    UserTransferSettingEditCmd:
+      type: object
+      properties:
+        downloadLocation:
+          type: string
+          minLength: 1
+        isDefaultDownloadLocation:
+          type: integer
+          format: int32
+          maximum: 1
+          minimum: 0
+        downloadSpeedLimit:
+          type: integer
+          format: int32
+          maximum: 200
+        concurrentUploadQuantity:
+          type: integer
+          format: int32
+          maximum: 3
+        concurrentDownloadQuantity:
+          type: integer
+          format: int32
+          maximum: 3
+        chunkSize:
+          type: integer
+          format: int64
+      required:
+      - chunkSize
+      - concurrentDownloadQuantity
+      - concurrentUploadQuantity
+      - downloadLocation
+      - downloadSpeedLimit
+      - isDefaultDownloadLocation
+    ResultSysUserTransferSetting:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/SysUserTransferSetting'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    SysUserTransferSetting:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        downloadLocation:
+          type: string
+        isDefaultDownloadLocation:
+          type: integer
+          format: int32
+        downloadSpeedLimit:
+          type: integer
+          format: int32
+        concurrentUploadQuantity:
+          type: integer
+          format: int32
+        concurrentDownloadQuantity:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+    PasswordEditCmd:
+      type: object
+      properties:
+        oldPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 1
+        confirmPassword:
+          type: string
+          minLength: 1
+      required:
+      - confirmPassword
+      - newPassword
+      - oldPassword
+    ResultObject:
+      type: object
+      properties:
+        data: {}
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    UserEditInfoCmd:
+      type: object
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+      required:
+      - nickname
+    PasswordForgetEditCmd:
+      type: object
+      properties:
+        mail:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 1
+        confirmPassword:
+          type: string
+          minLength: 1
+      required:
+      - code
+      - confirmPassword
+      - mail
+      - newPassword
+    UserRegisterCmd:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+        confirmPassword:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          minLength: 1
+        nickname:
+          type: string
+          minLength: 1
+        avatar:
+          type: string
+      required:
+      - confirmPassword
+      - email
+      - nickname
+      - password
+      - username
+    LoginCmd:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+        isRemember:
+          type: boolean
+      required:
+      - password
+      - username
+    ResultSysUserVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/SysUserVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    SysUserVO:
+      type: object
+      description: 用户
+      properties:
+        id:
+          type: string
+          description: id
+        username:
+          type: string
+          description: 用户名
+        nickname:
+          type: string
+          description: 昵称
+        avatar:
+          type: string
+          description: 头像
+        email:
+          type: string
+          description: 邮箱地址
+        status:
+          type: integer
+          format: int32
+          description: 状态
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新时间
+        lastLoginAt:
+          type: string
+          format: date-time
+          description: 最后登录时间

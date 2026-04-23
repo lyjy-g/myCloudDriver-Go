@@ -19,7 +19,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/StorageSettingEditCmd"
+              $ref: "#/components/schemas/StorageSettingEditCmd"
         required: true
       responses:
         "200":
@@ -27,7 +27,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultStorageSetting"
+                $ref: "#/components/schemas/ResultStorageSetting"
     post:
       tags:
         - 存储平台管理
@@ -37,7 +37,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/StorageSettingAddCmd"
+              $ref: "#/components/schemas/StorageSettingAddCmd"
         required: true
       responses:
         "200":
@@ -45,7 +45,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultStorageSetting"
+                $ref: "#/components/schemas/ResultStorageSetting"
   /apis/storage/settings/{id}/{action}:
     post:
       tags:
@@ -70,7 +70,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultStorageSetting"
+                $ref: "#/components/schemas/ResultStorageSetting"
   /apis/storage/platforms:
     get:
       tags:
@@ -83,7 +83,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListStoragePlatformVO"
+                $ref: "#/components/schemas/ResultListStoragePlatformVO"
   /apis/storage/platform/{identifier}:
     get:
       tags:
@@ -102,7 +102,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultStoragePlatform"
+                $ref: "#/components/schemas/ResultStoragePlatform"
   /apis/storage/platform/settings:
     get:
       tags:
@@ -115,7 +115,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListStorageSettingUserVO"
+                $ref: "#/components/schemas/ResultListStorageSettingUserVO"
   /apis/storage/active-platforms:
     get:
       tags:
@@ -128,7 +128,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListStorageActivePlatformsVO"
+                $ref: "#/components/schemas/ResultListStorageActivePlatformsVO"
   /apis/storage/settings/{id}:
     delete:
       tags:
@@ -147,6 +147,198 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultStorageSetting"
+                $ref: "#/components/schemas/ResultStorageSetting"
 components:
-  $ref: './components.yaml'
+  schemas:
+    StorageSettingEditCmd:
+      type: object
+      properties:
+        settingId:
+          type: string
+          minLength: 1
+        platformIdentifier:
+          type: string
+          minLength: 1
+        configData:
+          type: string
+          minLength: 1
+        remark:
+          type: string
+      required:
+      - configData
+      - platformIdentifier
+      - settingId
+    ResultStorageSetting:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/StorageSetting'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    StorageSetting:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+        platformIdentifier:
+          type: string
+        configData:
+          type: string
+        enabled:
+          type: integer
+          format: int32
+        userId:
+          type: string
+        remark:
+          type: string
+        deleted:
+          type: integer
+          format: int32
+    StorageSettingAddCmd:
+      type: object
+      properties:
+        platformIdentifier:
+          type: string
+          minLength: 1
+        configData:
+          type: string
+          minLength: 1
+        remark:
+          type: string
+      required:
+      - configData
+      - platformIdentifier
+    ResultListStoragePlatformVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoragePlatformVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    StoragePlatformVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        identifier:
+          type: string
+        configScheme:
+          type: string
+        icon:
+          type: string
+        link:
+          type: string
+        desc:
+          type: string
+        isDefault:
+          type: integer
+          format: int32
+    ResultStoragePlatform:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/StoragePlatform'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    StoragePlatform:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        identifier:
+          type: string
+        configScheme:
+          type: string
+        icon:
+          type: string
+        link:
+          type: string
+        isDefault:
+          type: integer
+          format: int32
+        desc:
+          type: string
+    ResultListStorageSettingUserVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageSettingUserVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    StorageSettingUserVO:
+      type: object
+      properties:
+        id:
+          type: string
+        storagePlatform:
+          $ref: '#/components/schemas/StoragePlatformVO'
+        configData:
+          type: string
+        enabled:
+          type: integer
+          format: int32
+        userId:
+          type: string
+        remark:
+          type: string
+    ResultListStorageActivePlatformsVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageActivePlatformsVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    StorageActivePlatformsVO:
+      type: object
+      properties:
+        settingId:
+          type: string
+        platformIdentifier:
+          type: string
+        platformName:
+          type: string
+        platformIcon:
+          type: string
+        remark:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        isEnabled:
+          type: boolean

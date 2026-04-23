@@ -21,14 +21,14 @@ paths:
           in: query
           required: true
           schema:
-            $ref: "./components.yaml#/schemas/FileHomeUsedBytesQry"
+            $ref: "#/components/schemas/FileHomeUsedBytesQry"
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileHomeVO"
+                $ref: "#/components/schemas/ResultFileHomeVO"
   /apis/file/{fileId}/rename:
     put:
       tags:
@@ -46,7 +46,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/RenameFileCmd"
+              $ref: "#/components/schemas/RenameFileCmd"
         required: true
       responses:
         "200":
@@ -54,7 +54,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/file/recycles:
     put:
       tags:
@@ -76,7 +76,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
     delete:
       tags:
         - 文件管理
@@ -97,7 +97,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/file/moves:
     put:
       tags:
@@ -109,7 +109,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/MoveFileCmd"
+              $ref: "#/components/schemas/MoveFileCmd"
         required: true
       responses:
         "200":
@@ -117,7 +117,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /preview/token/{fileId}:
     post:
       tags:
@@ -135,7 +135,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultString"
+                $ref: "#/components/schemas/ResultString"
   /archive/preview/token/{archiveFileId}:
     post:
       tags:
@@ -158,7 +158,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultString"
+                $ref: "#/components/schemas/ResultString"
   /apis/file/favorites:
     post:
       tags:
@@ -180,7 +180,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
     delete:
       tags:
         - 文件管理
@@ -201,7 +201,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/file/directory:
     post:
       tags:
@@ -213,7 +213,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/CreateDirectoryCmd"
+              $ref: "#/components/schemas/CreateDirectoryCmd"
         required: true
       responses:
         "200":
@@ -221,7 +221,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileInfo"
+                $ref: "#/components/schemas/ResultFileInfo"
   /apis/file/{fileId}:
     get:
       tags:
@@ -241,7 +241,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileDetailVO"
+                $ref: "#/components/schemas/ResultFileDetailVO"
   /apis/file/url/{fileId}:
     get:
       tags:
@@ -269,7 +269,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultString"
+                $ref: "#/components/schemas/ResultString"
   /apis/file/recycle/pages:
     get:
       tags:
@@ -282,14 +282,14 @@ paths:
           in: query
           required: true
           schema:
-            $ref: "./components.yaml#/schemas/FileRecycleQry"
+            $ref: "#/components/schemas/FileRecycleQry"
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/PageResultObject"
+                $ref: "#/components/schemas/PageResultObject"
   /apis/file/list:
     get:
       tags:
@@ -302,14 +302,14 @@ paths:
           in: query
           required: true
           schema:
-            $ref: "./components.yaml#/schemas/FileQry"
+            $ref: "#/components/schemas/FileQry"
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/PageResultFileVO"
+                $ref: "#/components/schemas/PageResultFileVO"
   /apis/file/dirs:
     get:
       tags:
@@ -329,7 +329,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListFileVO"
+                $ref: "#/components/schemas/ResultListFileVO"
   /apis/file/directory/{dirId}/path:
     get:
       tags:
@@ -349,7 +349,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListFileVO"
+                $ref: "#/components/schemas/ResultListFileVO"
   /api/file/stream/preview/{fileId}:
     get:
       tags:
@@ -372,7 +372,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/StreamingResponseBody"
+                $ref: "#/components/schemas/StreamingResponseBody"
   /api/file/stream/preview/archive/inner/{tempId}:
     get:
       tags:
@@ -390,7 +390,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/StreamingResponseBody"
+                $ref: "#/components/schemas/StreamingResponseBody"
   /apis/file:
     delete:
       tags:
@@ -412,7 +412,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
   /apis/file/recycles/clear:
     delete:
       tags:
@@ -426,6 +426,364 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultObject"
+                $ref: "#/components/schemas/ResultObject"
 components:
-  $ref: './components.yaml'
+  schemas:
+    ResultObject:
+      type: object
+      properties:
+        data: {}
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    RenameFileCmd:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+      required:
+      - displayName
+    MoveFileCmd:
+      type: object
+      properties:
+        dirId:
+          type: string
+        fileIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+      required:
+      - fileIds
+    ResultString:
+      type: object
+      properties:
+        data:
+          type: string
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    CreateDirectoryCmd:
+      type: object
+      properties:
+        folderName:
+          type: string
+          minLength: 1
+          title: 目录名称
+        parentId:
+          type: string
+          title: 父目录ID
+      required:
+      - folderName
+    FileInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        objectKey:
+          type: string
+        originalName:
+          type: string
+        displayName:
+          type: string
+        suffix:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        isDir:
+          type: boolean
+        parentId:
+          type: string
+        userId:
+          type: string
+        contentMd5:
+          type: string
+        storagePlatformSettingId:
+          type: string
+        uploadTime:
+          type: string
+          format: date-time
+        updateTime:
+          type: string
+          format: date-time
+        lastAccessTime:
+          type: string
+          format: date-time
+        isDeleted:
+          type: boolean
+        deletedTime:
+          type: string
+          format: date-time
+    ResultFileInfo:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FileInfo'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    StreamingResponseBody: {}
+    FileVO:
+      type: object
+      properties:
+        id:
+          type: string
+        objectKey:
+          type: string
+        originalName:
+          type: string
+        displayName:
+          type: string
+        suffix:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        isDir:
+          type: boolean
+        parentId:
+          type: string
+        userId:
+          type: string
+        thumbnailUrl:
+          type: string
+        uploadTime:
+          type: string
+          format: date-time
+        updateTime:
+          type: string
+          format: date-time
+        lastAccessTime:
+          type: string
+          format: date-time
+        isFavorite:
+          type: boolean
+    ResultListFileVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileHomeUsedBytesQry:
+      type: object
+      description: 首页存储增长查询条件
+      properties:
+        unit:
+          type: integer
+          format: int32
+          description: 单位，1:KB, 2:MB, 3:GB
+        dateType:
+          type: integer
+          format: int32
+          description: 日期类型, 0:近三个月, 1:近30天, 2:近7天
+    FileHomeUsedBytesVO:
+      type: object
+      properties:
+        date:
+          type: string
+        usedBytes:
+          type: number
+          format: double
+    FileHomeVO:
+      type: object
+      properties:
+        usedStorage:
+          type: number
+          format: double
+        usedBytes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileHomeUsedBytesVO'
+        recentFiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileVO'
+        unit:
+          type: string
+    ResultFileHomeVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FileHomeVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileDetailVO:
+      type: object
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        suffix:
+          type: string
+        size:
+          type: integer
+          format: int64
+        includeFiles:
+          type: integer
+          format: int32
+        includeFolders:
+          type: integer
+          format: int32
+        isDir:
+          type: boolean
+        thumbnailUrl:
+          type: string
+        uploadTime:
+          type: string
+          format: date-time
+        lastAccessTime:
+          type: string
+          format: date-time
+    ResultFileDetailVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FileDetailVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileRecycleQry:
+      type: object
+      properties:
+        page:
+          type: integer
+          format: int32
+          description: 页码
+          example: 1
+          minimum: 1
+        pageSize:
+          type: integer
+          format: int32
+          description: 每页大小
+          example: 20
+          minimum: 1
+        orderBy:
+          type: string
+          description: 排序字段
+          example: updateTime
+        orderDirection:
+          type: string
+          description: 排序方向
+          enum:
+          - ASC
+          - DESC
+          example: DESC
+        keyword:
+          type: string
+    PageRecordObject:
+      type: object
+      properties:
+        records:
+          type: array
+          items: {}
+        total:
+          type: integer
+          format: int64
+    PageResultObject:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: '#/components/schemas/PageRecordObject'
+    FileQry:
+      type: object
+      description: 文件列表查询参数
+      properties:
+        page:
+          type: integer
+          format: int32
+          description: 页码
+          example: 1
+          minimum: 1
+        pageSize:
+          type: integer
+          format: int32
+          description: 每页大小
+          example: 20
+          minimum: 1
+        orderBy:
+          type: string
+          description: 排序字段
+          example: updateTime
+        orderDirection:
+          type: string
+          description: 排序方向
+          enum:
+          - ASC
+          - DESC
+          example: DESC
+        parentId:
+          type: string
+          description: 父目录ID（空表示根目录）
+          example: '123'
+        keyword:
+          type: string
+          description: 文件名关键词（搜索用）
+          example: 工作文档
+        fileType:
+          type: string
+          description: 文件类型过滤
+          enum:
+          - ALL
+          - DOCUMENT
+          - IMAGE
+          - VIDEO
+          - AUDIO
+          - OTHER
+          example: IMAGE
+        isFavorite:
+          type: boolean
+          description: 是否收藏
+          example: true
+        isRecents:
+          type: boolean
+          description: 最近使用
+          example: true
+        isDir:
+          type: boolean
+          description: 是否目录
+          example: true
+    PageRecordFileVO:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileVO'
+        total:
+          type: integer
+          format: int64
+    PageResultFileVO:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: '#/components/schemas/PageRecordFileVO'

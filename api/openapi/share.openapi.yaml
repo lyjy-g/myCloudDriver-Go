@@ -20,7 +20,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/VerifyShareCodeCmd"
+              $ref: "#/components/schemas/VerifyShareCodeCmd"
         required: true
       responses:
         "200":
@@ -28,7 +28,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultBoolean"
+                $ref: "#/components/schemas/ResultBoolean"
   /apis/share/create:
     post:
       tags:
@@ -40,7 +40,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "./components.yaml#/schemas/CreateShareCmd"
+              $ref: "#/components/schemas/CreateShareCmd"
         required: true
       responses:
         "200":
@@ -48,7 +48,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+                $ref: "#/components/schemas/ResultFileShareVO"
   /apis/share/{shareId}:
     get:
       tags:
@@ -68,7 +68,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+                $ref: "#/components/schemas/ResultFileShareVO"
   /apis/share/{shareId}/items:
     get:
       tags:
@@ -93,7 +93,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListFileVO"
+                $ref: "#/components/schemas/ResultListFileVO"
   /apis/share/{shareId}/info:
     get:
       tags:
@@ -113,7 +113,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileShareThinVO"
+                $ref: "#/components/schemas/ResultFileShareThinVO"
   /apis/share/{shareId}/download/{fileId}:
     get:
       tags:
@@ -159,7 +159,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultListFileShareAccessRecordVO"
+                $ref: "#/components/schemas/ResultListFileShareAccessRecordVO"
   /apis/share/pages:
     get:
       tags:
@@ -172,14 +172,14 @@ paths:
           in: query
           required: true
           schema:
-            $ref: "./components.yaml#/schemas/FileShareQry"
+            $ref: "#/components/schemas/FileShareQry"
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/PageResultFileShareVO"
+                $ref: "#/components/schemas/PageResultFileShareVO"
   /apis/share/clears:
     delete:
       tags:
@@ -193,7 +193,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+                $ref: "#/components/schemas/ResultFileShareVO"
   /apis/share/cancels:
     delete:
       tags:
@@ -215,6 +215,254 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "./components.yaml#/schemas/ResultFileShareVO"
+                $ref: "#/components/schemas/ResultFileShareVO"
 components:
-  $ref: './components.yaml'
+  schemas:
+    VerifyShareCodeCmd:
+      type: object
+      properties:
+        shareId:
+          type: string
+          minLength: 1
+        shareCode:
+          type: string
+          minLength: 1
+      required:
+      - shareCode
+      - shareId
+    ResultBoolean:
+      type: object
+      properties:
+        data:
+          type: boolean
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    CreateShareCmd:
+      type: object
+      properties:
+        fileIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        shareName:
+          type: string
+        expireType:
+          type: integer
+          format: int32
+        expireTime:
+          type: string
+          format: date-time
+        scope:
+          type: string
+        needShareCode:
+          type: boolean
+        maxViewCount:
+          type: integer
+          format: int32
+        maxDownloadCount:
+          type: integer
+          format: int32
+      required:
+      - fileIds
+    FileShareVO:
+      type: object
+      properties:
+        id:
+          type: string
+        shareName:
+          type: string
+        shareCode:
+          type: string
+        expireTime:
+          type: string
+          format: date-time
+        scope:
+          type: string
+        isPermanent:
+          type: boolean
+        viewCount:
+          type: integer
+          format: int32
+        downloadCount:
+          type: integer
+          format: int32
+        maxViewCount:
+          type: integer
+          format: int32
+        maxDownloadCount:
+          type: integer
+          format: int32
+        fileCount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    ResultFileShareVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FileShareVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileVO:
+      type: object
+      properties:
+        id:
+          type: string
+        objectKey:
+          type: string
+        originalName:
+          type: string
+        displayName:
+          type: string
+        suffix:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        isDir:
+          type: boolean
+        parentId:
+          type: string
+        userId:
+          type: string
+        thumbnailUrl:
+          type: string
+        uploadTime:
+          type: string
+          format: date-time
+        updateTime:
+          type: string
+          format: date-time
+        lastAccessTime:
+          type: string
+          format: date-time
+        isFavorite:
+          type: boolean
+    ResultListFileVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileShareThinVO:
+      type: object
+      properties:
+        id:
+          type: string
+        shareName:
+          type: string
+        expireTime:
+          type: string
+          format: date-time
+        scope:
+          type: string
+        isExpire:
+          type: boolean
+        fileCount:
+          type: integer
+          format: int64
+        hasCheckCode:
+          type: boolean
+    ResultFileShareThinVO:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FileShareThinVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileShareAccessRecordVO:
+      type: object
+      properties:
+        id:
+          type: string
+        shareId:
+          type: string
+        accessIp:
+          type: string
+        accessAddress:
+          type: string
+        browser:
+          type: string
+        os:
+          type: string
+        accessTime:
+          type: string
+          format: date-time
+    ResultListFileShareAccessRecordVO:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileShareAccessRecordVO'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileShareQry:
+      type: object
+      properties:
+        page:
+          type: integer
+          format: int32
+          description: 页码
+          example: 1
+          minimum: 1
+        pageSize:
+          type: integer
+          format: int32
+          description: 每页大小
+          example: 20
+          minimum: 1
+        orderBy:
+          type: string
+          description: 排序字段
+          example: updateTime
+        orderDirection:
+          type: string
+          description: 排序方向
+          enum:
+          - ASC
+          - DESC
+          example: DESC
+        keyword:
+          type: string
+    PageRecordFileShareVO:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileShareVO'
+        total:
+          type: integer
+          format: int64
+    PageResultFileShareVO:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: '#/components/schemas/PageRecordFileShareVO'

@@ -1,0 +1,1017 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React from "react";
+import { Button, Space } from "antd";
+import {
+  clearAuthToken,
+  createShare,
+  createDirectory,
+  fetchActiveWorkspace,
+  fetchCurrentUser,
+  deleteDirectory,
+  deleteFile,
+  activateStorageSetting,
+  fetchEntriesByParent,
+  fetchPlatforms,
+  fetchStorageSettings,
+  fetchMyShares,
+  fetchShareDetail,
+  fetchWorkspaces,
+  fetchRecycleBin,
+  getAuthToken,
+  login,
+  logout,
+  mergeUpload,
+  moveFile,
+  precheckUpload,
+  rebuildFileIndexes,
+  renameDirectory,
+  renameFile,
+  restoreRecord,
+  saveAuthToken,
+  updateActiveWorkspace,
+  updateActiveStorage,
+  updateShare,
+  uploadPart
+} from "../api/storage.js";
+import { DEFAULT_CHUNK_SIZE, ROOT_PARENT_ID } from "../constants/appConfig.js";
+import { calculateHash } from "../utils/hash.js";
+import { formatBytes } from "../utils/format.js";
+import { confirmAction, promptText } from "../utils/dialogs.jsx";
+
+function normalizeWorkspace(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  return {
+    workspaceId: item.workspaceId || item.id || "",
+    workspaceName: item.workspaceName || item.name || item.id || "",
+    workspaceType: item.workspaceType || "personal",
+    role: item.role || "member",
+    isDefault: Boolean(item.isDefault)
+  };
+}
+
+function normalizeStorage(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  return {
+    settingId: item.settingId || item.id || "local-default",
+    identifier: item.identifier || item.platformIdentifier || "Local",
+    name: item.name || item.identifier || item.platformIdentifier || "Local",
+    active: Boolean(item.active),
+    basePath: item.basePath || "",
+    baseUrl: item.baseUrl || ""
+  };
+}
+
+function normalizeFileRecord(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const directory = Boolean(item.directory ?? item.is_dir ?? item.isDir);
+  return {
+    fileId: item.fileId || item.id || "",
+    fileName: item.fileName || item.name || item.display_name || item.displayName || "",
+    fileSize: Number(item.fileSize ?? item.size ?? 0),
+    fileHash: item.fileHash || item.contentMd5 || item.content_md5 || "",
+    directory,
+    raw: item
+  };
+}
+
+/**
+ * 网盘页面控制器。
+ *
+ * @param {string} normalizedBaseUrl 标准化地址
+ * @param {{notifyError: Function, notifySuccess: Function, notifyWarning: Function}} notifier 通知能力
+ * @returns {object} 页面状态与动作
+ */
+export function useCloudDriveController(normalizedBaseUrl, notifier) {
+  const { notifyError, notifySuccess, notifyWarning } = notifier;
+
+  const [activeMenu, setActiveMenu] = useState("files");
+  const [files, setFiles] = useState([]);
+  const [shares, setShares] = useState([]);
+  const [currentParentId, setCurrentParentId] = useState(ROOT_PARENT_ID);
+  const [directoryTrail, setDirectoryTrail] = useState([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+  const [platforms, setPlatforms] = useState([]);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWorkspace, setActiveWorkspace] = useState(null);
+  const [activeStorage, setActiveStorage] = useState(null);
+  const [storageSettings, setStorageSettings] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [storageForm, setStorageForm] = useState({
+    settingId: "local-default",
+    identifier: "Local",
+    basePath: "",
+    baseUrl: ""
+  });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const previousStorageSettingIdRef = useRef("");
+
+  const loadStorageMeta = useCallback(async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const [platformData, settingData] = await Promise.all([
+        fetchPlatforms(normalizedBaseUrl),
+        fetchStorageSettings(normalizedBaseUrl)
+      ]);
+      const [workspaceListData, activeWorkspaceData] = await Promise.all([
+        fetchWorkspaces(normalizedBaseUrl),
+        fetchActiveWorkspace(normalizedBaseUrl)
+      ]);
+      const platformItems = platformData?.data || platformData || [];
+      setPlatforms(Array.isArray(platformItems) ? platformItems : []);
+
+      const workspaceItems = (workspaceListData?.data || workspaceListData || [])
+        .map(normalizeWorkspace)
+        .filter(Boolean);
+      setWorkspaces(workspaceItems);
+
+      const activeWorkspaceRaw = normalizeWorkspace(activeWorkspaceData?.data || activeWorkspaceData);
+      setActiveWorkspace(activeWorkspaceRaw ?? workspaceItems.find((item) => item.isDefault) ?? workspaceItems[0] ?? null);
+
+      const settingItems = (settingData?.data || settingData || [])
+        .map(normalizeStorage)
+        .filter(Boolean);
+      setStorageSettings(settingItems);
+      const active = settingItems.find((item) => item.active) || settingItems[0] || null;
+      setActiveStorage(active);
+      setStorageForm({
+        settingId: active?.settingId || "local-default",
+        identifier: active?.identifier || "Local",
+        basePath: active?.basePath || "",
+        baseUrl: active?.baseUrl || ""
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl]);
+
+  const checkAuth = useCallback(async () => {
+    const tokenSnapshot = getAuthToken();
+    try {
+      const response = await fetchCurrentUser(normalizedBaseUrl);
+      const user = response?.data || response;
+      setCurrentUser({
+        ...user,
+        displayName: user?.nickname || user?.displayName || user?.username
+      });
+      setAuthenticated(true);
+      return true;
+    } catch (_) {
+      if (tokenSnapshot && tokenSnapshot === getAuthToken()) {
+        clearAuthToken();
+      }
+      setCurrentUser(null);
+      setAuthenticated(false);
+      return false;
+    }
+  }, [normalizedBaseUrl]);
+
+  const handleLogin = useCallback(async (username, password) => {
+    setError("");
+    setLoading(true);
+    try {
+      const response = await login(normalizedBaseUrl, { username, password });
+      const payload = response.data || response;
+      saveAuthToken(payload.token);
+      const isAuthed = await checkAuth();
+      if (!isAuthed) {
+        throw new Error("登录校验失败，请重试");
+      }
+      setCurrentParentId(ROOT_PARENT_ID);
+      setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+      await loadStorageMeta();
+      notifySuccess("登录成功");
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "登录失败");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, checkAuth, loadStorageMeta, notifySuccess]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout(normalizedBaseUrl);
+    } catch (_) {
+      // 忽略服务端登出异常，前端仍执行本地清理。
+    }
+    clearAuthToken();
+    setCurrentUser(null);
+    setAuthenticated(false);
+    setFiles([]);
+    setActiveStorage(null);
+    setActiveWorkspace(null);
+    notifySuccess("已退出登录");
+  }, [normalizedBaseUrl, notifySuccess]);
+
+  const loadFilesByParent = useCallback(async (parentId) => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await fetchEntriesByParent(normalizedBaseUrl, parentId);
+      const payload = result?.data || result;
+      const items = payload?.items || payload || [];
+      setFiles((Array.isArray(items) ? items : []).map(normalizeFileRecord).filter(Boolean));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl]);
+
+  const loadFiles = useCallback(async () => {
+    await loadFilesByParent(currentParentId);
+  }, [loadFilesByParent, currentParentId]);
+
+  const loadRecycleBin = useCallback(async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await fetchRecycleBin(normalizedBaseUrl);
+      const payload = result?.data || result;
+      const items = payload?.items || payload || [];
+      setFiles((Array.isArray(items) ? items : []).map(normalizeFileRecord).filter(Boolean));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载回收站失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl]);
+
+  const loadShares = useCallback(async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await fetchMyShares(normalizedBaseUrl);
+      const items = result?.data || result || [];
+      setShares(Array.isArray(items) ? items : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载分享列表失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl]);
+
+  const openDirectory = useCallback((record) => {
+    if (!record?.directory) {
+      return;
+    }
+    setCurrentParentId(record.fileId);
+    setDirectoryTrail((previous) => [...previous, { id: record.fileId, name: record.fileName }]);
+  }, []);
+
+  const jumpToDirectory = useCallback((index) => {
+    setDirectoryTrail((previous) => {
+      const nextTrail = previous.slice(0, index + 1);
+      const last = nextTrail[nextTrail.length - 1];
+      setCurrentParentId(last?.id || ROOT_PARENT_ID);
+      return nextTrail;
+    });
+  }, []);
+
+  const updateStorageFormField = useCallback((key, value) => {
+    setStorageForm((previous) => ({
+      ...previous,
+      [key]: value
+    }));
+  }, []);
+
+  const handleCreateFolder = useCallback(async () => {
+    const folderName = await promptText({
+      title: "新建目录",
+      label: "请输入目录名称",
+      placeholder: "例如：项目资料",
+      required: true
+    });
+    if (!folderName) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await createDirectory(normalizedBaseUrl, {
+        name: folderName,
+        parentId: currentParentId
+      });
+      await loadFiles();
+      notifySuccess("目录创建成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "创建目录失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, currentParentId, loadFiles, notifySuccess]);
+
+  const handleRenameFolder = useCallback(async (record) => {
+    if (!record?.directory) {
+      return;
+    }
+    const nextName = await promptText({
+      title: "重命名目录",
+      label: "目录新名称",
+      initialValue: record.fileName,
+      required: true
+    });
+    if (!nextName) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await renameDirectory(normalizedBaseUrl, record.fileId, nextName);
+      await loadFiles();
+      notifySuccess("目录重命名成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重命名目录失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadFiles, notifySuccess]);
+
+  const handleRenameFile = useCallback(async (record) => {
+    if (record?.directory) {
+      return;
+    }
+    const nextName = await promptText({
+      title: "重命名文件",
+      label: "文件新名称",
+      initialValue: record.fileName,
+      required: true
+    });
+    if (!nextName) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await renameFile(normalizedBaseUrl, record.fileId, nextName);
+      await loadFiles();
+      notifySuccess("文件重命名成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重命名文件失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadFiles, notifySuccess]);
+
+  const handleMoveFile = useCallback(async (record) => {
+    if (record?.directory) {
+      return;
+    }
+    const targetParentId = await promptText({
+      title: "移动文件",
+      label: "目标目录ID",
+      initialValue: ROOT_PARENT_ID,
+      required: true
+    });
+    if (!targetParentId) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await moveFile(normalizedBaseUrl, record.fileId, targetParentId);
+      await loadFiles();
+      notifySuccess("文件移动成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "移动文件失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadFiles, notifySuccess]);
+
+  const handleDeleteFolder = useCallback(async (record) => {
+    if (!record?.directory) {
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: "删除目录",
+      content: `将目录「${record.fileName}」移动到回收站，是否继续？`,
+      okText: "移动到回收站",
+      cancelText: "取消",
+      okType: "danger"
+    });
+    if (!confirmed) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await deleteDirectory(normalizedBaseUrl, record.fileId, true, true);
+      await loadFiles();
+      notifySuccess("目录删除成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除目录失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadFiles, notifySuccess]);
+
+  const handleDeleteFile = useCallback(async (record) => {
+    if (record?.directory) {
+      return;
+    }
+    const softDelete = await confirmAction({
+      title: "删除文件",
+      content: `将文件「${record.fileName}」移动到回收站，是否继续？`,
+      okText: "移动到回收站",
+      cancelText: "取消",
+      okType: "danger"
+    });
+    if (!softDelete) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await deleteFile(normalizedBaseUrl, record.fileId, softDelete);
+      await loadFiles();
+      notifySuccess("文件删除成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除文件失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadFiles, notifySuccess]);
+
+  const handleRestore = useCallback(async (record) => {
+    setError("");
+    setLoading(true);
+    try {
+      await restoreRecord(normalizedBaseUrl, record.fileId);
+      await loadRecycleBin();
+      notifySuccess("恢复成功");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "恢复失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadRecycleBin, notifySuccess]);
+
+  const handleCreateShare = useCallback(async (record) => {
+    if (!record || record.directory) {
+      return;
+    }
+    const shareName = await promptText({
+      title: "创建分享",
+      label: "分享名称",
+      initialValue: `${record.fileName} 的分享`,
+      required: true
+    });
+    if (shareName == null) {
+      return;
+    }
+    const shareCodeInput = await promptText({
+      title: "创建分享",
+      label: "提取码（留空自动生成）",
+      initialValue: "",
+      placeholder: "例如：AB12CD",
+      required: false
+    });
+    if (shareCodeInput == null) {
+      return;
+    }
+    const expireHoursInput = await promptText({
+      title: "创建分享",
+      label: "有效期小时（留空表示不过期）",
+      initialValue: "24",
+      required: false
+    });
+    if (expireHoursInput == null) {
+      return;
+    }
+
+    let expireSeconds;
+    const trimmedExpire = expireHoursInput.trim();
+    if (trimmedExpire) {
+      const parsedHours = Number(trimmedExpire);
+      if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+        notifyWarning("有效期小时数必须是正数");
+        return;
+      }
+      expireSeconds = Math.floor(parsedHours * 3600);
+    }
+
+    setError("");
+    setLoading(true);
+    try {
+      const result = await createShare(normalizedBaseUrl, {
+        shareName: shareName || `${record.fileName} 的分享`,
+        fileIds: [record.fileId],
+        shareCode: shareCodeInput || undefined,
+        expireSeconds
+      });
+      const payload = result.data || result;
+      const shareCode = payload?.shareCode || "(自动生成失败)";
+      const shareLink = `${window.location.origin}${payload?.accessPath || ""}`;
+      if (navigator?.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(`分享ID: ${payload.shareId}\n提取码: ${shareCode}\n访问接口: ${shareLink}`);
+        } catch (_) {
+          // 剪贴板失败不影响主流程。
+        }
+      }
+      notifySuccess(`分享已创建：${payload.shareId}（提取码：${shareCode}）`);
+      await loadShares();
+      setActiveMenu("shares");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "创建分享失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadShares, notifySuccess, notifyWarning]);
+
+  const handleAccessShare = useCallback(async (record) => {
+    if (!record?.shareId) {
+      return;
+    }
+    window.open(`${window.location.origin}/share/${record.shareId}`, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const handleEditShare = useCallback(async (record) => {
+    if (!record?.shareId) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const detailResp = await fetchShareDetail(normalizedBaseUrl, record.shareId);
+      const detail = detailResp.data || detailResp;
+
+      const nextName = await promptText({
+        title: "编辑分享",
+        label: "分享名称",
+        initialValue: detail.shareName || "",
+        required: true
+      });
+      if (nextName == null) {
+        return;
+      }
+      const nextCode = await promptText({
+        title: "编辑分享",
+        label: "提取码（留空自动生成）",
+        initialValue: detail.shareCode || "",
+        required: false
+      });
+      if (nextCode == null) {
+        return;
+      }
+      const now = Date.now();
+      const currentExpireHours = detail.expireTime
+        ? Math.max(1, Math.round((new Date(detail.expireTime).getTime() - now) / 3600000))
+        : "";
+      const nextExpireHours = await promptText({
+        title: "编辑分享",
+        label: "有效期小时（留空=不过期）",
+        initialValue: String(currentExpireHours),
+        required: false
+      });
+      if (nextExpireHours == null) {
+        return;
+      }
+      const fileIdsText = await promptText({
+        title: "编辑分享",
+        label: "文件ID列表（英文逗号分隔）",
+        initialValue: (detail.fileIds || []).join(","),
+        required: true
+      });
+      if (fileIdsText == null) {
+        return;
+      }
+      const allowDownload = await confirmAction({
+        title: "编辑分享",
+        content: "是否允许下载？选择“允许”后公开页可直接下载。",
+        okText: "允许下载",
+        cancelText: "仅预览"
+      });
+
+      const fileIds = fileIdsText.split(",").map((item) => item.trim()).filter(Boolean);
+      if (fileIds.length === 0) {
+        notifyWarning("至少保留一个文件");
+        return;
+      }
+      const trimmedExpire = nextExpireHours.trim();
+      let expireSeconds;
+      if (trimmedExpire) {
+        const parsed = Number(trimmedExpire);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          notifyWarning("有效期小时必须是正数");
+          return;
+        }
+        expireSeconds = Math.floor(parsed * 3600);
+      }
+
+      await updateShare(normalizedBaseUrl, record.shareId, {
+        shareName: nextName || detail.shareName,
+        shareCode: nextCode,
+        expireSeconds,
+        allowDownload,
+        fileIds
+      });
+      notifySuccess("分享已更新");
+      await loadShares();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "编辑分享失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadShares, notifySuccess, notifyWarning]);
+
+  const handleApplyStorageConfig = useCallback(async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await updateActiveStorage(normalizedBaseUrl, {
+        settingId: storageForm.settingId,
+        identifier: storageForm.identifier,
+        basePath: storageForm.basePath,
+        baseUrl: storageForm.baseUrl
+      });
+      setCurrentParentId(ROOT_PARENT_ID);
+      setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+      await loadStorageMeta();
+      if (activeMenu === "files") {
+        await loadFilesByParent(ROOT_PARENT_ID);
+      }
+      if (activeMenu === "trash") {
+        await loadRecycleBin();
+      }
+      notifySuccess("存储配置已应用");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存存储配置失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [storageForm, normalizedBaseUrl, loadStorageMeta, activeMenu, loadFilesByParent, loadRecycleBin, notifySuccess]);
+
+  const handleEditStorageSetting = useCallback((settingId) => {
+    if (!settingId) {
+      return;
+    }
+    const target = storageSettings.find((item) => item.settingId === settingId);
+    if (!target) {
+      return;
+    }
+    setStorageForm({
+      settingId: target.settingId || "",
+      identifier: target.identifier || "Local",
+      basePath: target.basePath || "",
+      baseUrl: target.baseUrl || ""
+    });
+    notifySuccess(`已载入配置：${target.settingId}`);
+  }, [storageSettings, notifySuccess]);
+
+  const handleCreateStorageDraft = useCallback(() => {
+    setStorageForm((previous) => ({
+      ...previous,
+      settingId: ""
+    }));
+    notifySuccess("已切换到新建配置模式，保存时将创建新配置");
+  }, [notifySuccess]);
+
+  const handleActivateStorageSetting = useCallback(async (settingId) => {
+    if (!settingId) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await activateStorageSetting(normalizedBaseUrl, settingId);
+      await loadStorageMeta();
+      if (activeMenu === "files") {
+        await loadFilesByParent(ROOT_PARENT_ID);
+      }
+      if (activeMenu === "trash") {
+        await loadRecycleBin();
+      }
+      notifySuccess(`已启用配置：${settingId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "启用配置失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, loadStorageMeta, activeMenu, loadFilesByParent, loadRecycleBin, notifySuccess]);
+
+  const handleSwitchWorkspace = useCallback(async (workspaceId) => {
+    if (!workspaceId || workspaceId === activeWorkspace?.workspaceId) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await updateActiveWorkspace(normalizedBaseUrl, { workspaceId });
+      const switched = workspaces.find((item) => item.workspaceId === workspaceId) || { workspaceId };
+      setActiveWorkspace(switched);
+      setCurrentParentId(ROOT_PARENT_ID);
+      setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+      await loadStorageMeta();
+      if (activeMenu === "files") {
+        await loadFilesByParent(ROOT_PARENT_ID);
+      }
+      if (activeMenu === "trash") {
+        await loadRecycleBin();
+      }
+      notifySuccess(`已切换到空间：${switched.workspaceName || switched.workspaceId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "切换工作空间失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeWorkspace, workspaces, normalizedBaseUrl, loadStorageMeta, activeMenu, loadFilesByParent, loadRecycleBin, notifySuccess]);
+
+  const handleRebuildIndexes = useCallback(async () => {
+    const confirmed = window.confirm("确认重建 mcd_file_record 索引？\n该操作会短暂占用数据库资源。");
+    if (!confirmed) {
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const response = await rebuildFileIndexes(normalizedBaseUrl);
+      const payload = response?.data || response;
+      const rebuild = payload?.rebuild || payload;
+      const reconcile = payload?.reconcile || null;
+      if (activeMenu === "files") {
+        await loadFiles();
+      }
+      if (activeMenu === "trash") {
+        await loadRecycleBin();
+      }
+      notifySuccess(
+        `索引重建完成（表: ${rebuild.tableName}，删:${(rebuild.droppedIndexes || []).length}，建:${(rebuild.createdIndexes || []).length}，修复:${rebuild.repairedRows || 0}`
+        + `${reconcile ? `，校准: 删${reconcile.markedDeletedRows} / 增${reconcile.insertedRows} / 改${reconcile.updatedRows}` : ""}）`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重建索引失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizedBaseUrl, activeMenu, loadFiles, loadRecycleBin, notifySuccess]);
+
+  const handleUpload = useCallback(async () => {
+    if (!selectedFile) {
+      notifyWarning("请先选择文件");
+      return;
+    }
+    setError("");
+    setUploadProgress(0);
+    setLoading(true);
+    try {
+      const fileHash = await calculateHash(selectedFile);
+      const totalParts = Math.ceil(selectedFile.size / DEFAULT_CHUNK_SIZE);
+      const precheckResult = await precheckUpload(normalizedBaseUrl, {
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        fileHash,
+        totalParts,
+        contentType: selectedFile.type,
+        parentId: currentParentId
+      });
+
+      const precheckData = precheckResult.data || precheckResult;
+      if (precheckData.skipUpload) {
+        setUploadProgress(100);
+        await loadFiles();
+        notifySuccess("秒传成功");
+        return;
+      }
+
+      const uploadId = precheckData.uploadId;
+      for (let partNumber = 1; partNumber <= totalParts; partNumber += 1) {
+        const start = (partNumber - 1) * DEFAULT_CHUNK_SIZE;
+        const end = Math.min(selectedFile.size, partNumber * DEFAULT_CHUNK_SIZE);
+        const chunk = selectedFile.slice(start, end);
+        await uploadPart(normalizedBaseUrl, {
+          uploadId,
+          partNumber,
+          totalParts,
+          fileHash,
+          file: chunk
+        });
+        setUploadProgress(Math.round((partNumber / totalParts) * 100));
+      }
+
+      await mergeUpload(normalizedBaseUrl, { uploadId });
+      setUploadProgress(100);
+      await loadFiles();
+      notifySuccess("文件上传完成");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "上传失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedFile, normalizedBaseUrl, currentParentId, loadFiles, notifyWarning, notifySuccess]);
+
+  const columns = useMemo(() => {
+    const renderFileName = (value, record) => {
+      if (record.directory) {
+        return (
+          <button type="button" className="text-blue-600 hover:underline" onClick={() => openDirectory(record)}>
+            📁 {value}
+          </button>
+        );
+      }
+      return value;
+    };
+
+    const renderFileSize = (value, record) => (record?.directory ? "-" : formatBytes(value));
+
+    const renderFileHash = (value, record) => (record?.directory ? <span className="mcd-muted">目录</span> : <span className="mcd-muted">{value}</span>);
+
+    return [
+      { title: "文件名", dataIndex: "fileName", key: "fileName", render: renderFileName },
+      { title: "大小", dataIndex: "fileSize", key: "fileSize", render: renderFileSize },
+      { title: "哈希", dataIndex: "fileHash", key: "fileHash", render: renderFileHash },
+      {
+        title: "操作",
+        key: "actions",
+        render: (_, record) => (
+          activeMenu === "trash" ? (
+            <Button size="small" onClick={() => handleRestore(record)}>恢复</Button>
+          ) : record.directory ? (
+            <Space>
+              <Button size="small" onClick={() => handleRenameFolder(record)}>重命名</Button>
+              <Button size="small" danger onClick={() => handleDeleteFolder(record)}>删除</Button>
+            </Space>
+          ) : (
+            <Space>
+              <Button size="small" onClick={() => handleRenameFile(record)}>重命名</Button>
+              <Button size="small" onClick={() => handleMoveFile(record)}>移动</Button>
+              <Button size="small" type="primary" ghost onClick={() => handleCreateShare(record)}>分享</Button>
+              <Button size="small" danger onClick={() => handleDeleteFile(record)}>删除</Button>
+            </Space>
+          )
+        )
+      }
+    ];
+  }, [activeMenu, openDirectory, handleRestore, handleRenameFolder, handleDeleteFolder, handleRenameFile, handleMoveFile, handleCreateShare, handleDeleteFile]);
+
+  const shareColumns = useMemo(() => ([
+    { title: "分享ID", dataIndex: "shareId", key: "shareId" },
+    { title: "名称", dataIndex: "shareName", key: "shareName" },
+    { title: "提取码", dataIndex: "shareCode", key: "shareCode", render: (value) => value || "无" },
+    { title: "下载", dataIndex: "allowDownload", key: "allowDownload", render: (value) => (value ? "允许" : "禁止") },
+    {
+      title: "访问次数",
+      key: "views",
+      render: (_, record) => `${record.viewCount || 0} / 下载 ${record.downloadCount || 0}`
+    },
+    {
+      title: "状态",
+      key: "status",
+      render: (_, record) => (record.status === 0 ? "生效中" : "已失效")
+    },
+    {
+      title: "操作",
+      key: "actions",
+      render: (_, record) => (
+        <Space>
+          <Button
+            size="small"
+            onClick={async () => {
+              const link = `${window.location.origin}${record.accessPath}`;
+              if (navigator?.clipboard?.writeText) {
+                try {
+                  await navigator.clipboard.writeText(link);
+                  notifySuccess("分享链接已复制");
+                  return;
+                } catch (_) {
+                  // fallback
+                }
+              }
+              window.prompt("复制分享链接", link);
+            }}
+          >
+            查看链接
+          </Button>
+          <Button size="small" onClick={() => handleEditShare(record)}>
+            编辑
+          </Button>
+          <Button size="small" type="primary" onClick={() => handleAccessShare(record)}>
+            打开页面
+          </Button>
+        </Space>
+      )
+    }
+  ]), [handleEditShare, handleAccessShare, notifySuccess]);
+
+  useEffect(() => {
+    if (!authenticated) {
+      return;
+    }
+    if (activeMenu === "files") {
+      loadFiles();
+      return;
+    }
+    if (activeMenu === "trash") {
+      loadRecycleBin();
+      return;
+    }
+    if (activeMenu === "shares") {
+      loadShares();
+    }
+  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares]);
+
+  useEffect(() => {
+    const currentSettingId = activeStorage?.settingId || "";
+    if (!currentSettingId) {
+      return;
+    }
+    if (previousStorageSettingIdRef.current === currentSettingId) {
+      return;
+    }
+    previousStorageSettingIdRef.current = currentSettingId;
+    setCurrentParentId(ROOT_PARENT_ID);
+    setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+    if (activeMenu === "files") {
+      loadFilesByParent(ROOT_PARENT_ID);
+      return;
+    }
+    if (activeMenu === "trash") {
+      loadRecycleBin();
+    }
+  }, [activeStorage, activeMenu, loadFilesByParent, loadRecycleBin]);
+
+  useEffect(() => {
+    (async () => {
+      const isAuthed = await checkAuth();
+      if (isAuthed) {
+        await loadStorageMeta();
+      }
+    })();
+  }, [checkAuth, loadStorageMeta]);
+
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+    notifyError(error);
+    setError("");
+  }, [error, notifyError]);
+
+  return {
+    activeMenu,
+    files,
+    shares,
+    currentParentId,
+    directoryTrail,
+    platforms,
+    currentUser,
+    authenticated,
+    activeStorage,
+    workspaces,
+    activeWorkspace,
+    storageForm,
+    storageSettings,
+    drawerOpen,
+    selectedFile,
+    uploadProgress,
+    loading,
+    columns,
+    shareColumns,
+    setActiveMenu,
+    setDrawerOpen,
+    setSelectedFile,
+    loadStorageMeta,
+    handleLogin,
+    handleLogout,
+    loadFiles,
+    loadRecycleBin,
+    loadShares,
+    jumpToDirectory,
+    handleCreateFolder,
+    handleUpload,
+    updateStorageFormField,
+    handleApplyStorageConfig,
+    handleEditStorageSetting,
+    handleCreateStorageDraft,
+    handleActivateStorageSetting,
+    handleSwitchWorkspace,
+    handleRebuildIndexes,
+    handleBaseFileActions: {
+      renameFolder: handleRenameFolder,
+      deleteFolder: handleDeleteFolder,
+      renameFile: handleRenameFile,
+      moveFile: handleMoveFile,
+      deleteFile: handleDeleteFile,
+      restore: handleRestore
+    },
+    handleCreateShare,
+    handleAccessShare,
+    handleEditShare
+  };
+}

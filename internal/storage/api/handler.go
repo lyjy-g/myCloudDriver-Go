@@ -21,7 +21,7 @@ func NewHandler(svc *service.StorageService) *StorageHandler {
 func (h *StorageHandler) ListActivePlatforms(w http.ResponseWriter, r *http.Request) {
 	items, err := h.svc.ListActivePlatforms(r.Context())
 	if err != nil {
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: "OK", Message: "success", Data: toAPIPlatforms(items)})
@@ -30,7 +30,7 @@ func (h *StorageHandler) ListActivePlatforms(w http.ResponseWriter, r *http.Requ
 func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Request) {
 	items, err := h.svc.ListStoragePlatforms(r.Context())
 	if err != nil {
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: "OK", Message: "success", Data: toAPIPlatforms(items)})
@@ -39,11 +39,7 @@ func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Req
 func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r *http.Request, identifier gen.Identifier) {
 	item, err := h.svc.GetStoragePlatformByIdentifier(r.Context(), string(identifier))
 	if err != nil {
-		if code.Is(err, code.NotFound) {
-			web.WriteError(w, http.StatusNotFound, string(code.NotFound), "platform not found")
-			return
-		}
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, gen.PlatformResponse{Code: "OK", Message: "success", Data: toAPIPlatform(*item)})
@@ -52,7 +48,7 @@ func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r
 func (h *StorageHandler) ListStorageSettings(w http.ResponseWriter, r *http.Request) {
 	items, err := h.svc.ListStorageSettings(r.Context())
 	if err != nil {
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, gen.SettingListResponse{Code: "OK", Message: "success", Data: toAPISettings(items)})
@@ -69,7 +65,7 @@ func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Req
 		ConfigJSON: req.ConfigJson,
 	})
 	if err != nil {
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusCreated, gen.SettingResponse{Code: "OK", Message: "created", Data: toAPISetting(*item)})
@@ -78,11 +74,7 @@ func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Req
 func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Request, settingID gen.SettingId) {
 	err := h.svc.DeleteStorageSetting(r.Context(), string(settingID))
 	if err != nil {
-		if code.Is(err, code.NotFound) {
-			web.WriteError(w, http.StatusNotFound, string(code.NotFound), "setting not found")
-			return
-		}
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -98,11 +90,7 @@ func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Req
 		ConfigJSON: req.ConfigJson,
 	})
 	if err != nil {
-		if code.Is(err, code.NotFound) {
-			web.WriteError(w, http.StatusNotFound, string(code.NotFound), "setting not found")
-			return
-		}
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: "OK", Message: "success", Data: toAPISetting(*item)})
@@ -111,14 +99,31 @@ func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Req
 func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.Request, settingID gen.SettingId) {
 	item, err := h.svc.ActivateStorageSetting(r.Context(), string(settingID))
 	if err != nil {
-		if code.Is(err, code.NotFound) {
-			web.WriteError(w, http.StatusNotFound, string(code.NotFound), "setting not found")
-			return
-		}
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		writeStorageError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: "OK", Message: "success", Data: toAPISetting(*item)})
+}
+
+// ActivateOrDisableStorageSettingByAction 兼容 action 风格开关接口：1 启用，0 禁用。
+func (h *StorageHandler) ActivateOrDisableStorageSettingByAction(w http.ResponseWriter, r *http.Request, settingID gen.SettingId, action string) {
+	switch action {
+	case "1":
+		h.ActivateStorageSetting(w, r, settingID)
+	case "0":
+		item, err := h.svc.DisableStorageSetting(r.Context(), string(settingID))
+		if err != nil {
+			writeStorageError(w, err)
+			return
+		}
+		web.WriteJSON(w, http.StatusOK, gen.SettingResponse{
+			Code:    "OK",
+			Message: "success",
+			Data:    toAPISetting(*item),
+		})
+	default:
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "unsupported action, use 1(enable) or 0(disable)")
+	}
 }
 
 func toAPIPlatform(p model.Platform) gen.StoragePlatform {
@@ -154,4 +159,15 @@ func toAPISettings(items []model.Setting) []gen.StorageSetting {
 		result = append(result, toAPISetting(item))
 	}
 	return result
+}
+
+func writeStorageError(w http.ResponseWriter, err error) {
+	switch {
+	case code.Is(err, code.BadRequest):
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+	case code.Is(err, code.NotFound):
+		web.WriteError(w, http.StatusNotFound, string(code.NotFound), err.Error())
+	default:
+		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+	}
 }

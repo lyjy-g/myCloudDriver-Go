@@ -2,13 +2,15 @@ package module
 
 import (
 	"net/http"
+	"os"
 
 	"myclouddrive-go/internal/app"
+	"myclouddrive-go/internal/framework/security"
 	"myclouddrive-go/internal/user/api"
 	"myclouddrive-go/internal/user/service"
 )
 
-// Module 是 user 服务模块占位。
+// Module 是 user 服务模块。
 type Module struct{}
 
 func New() *Module {
@@ -23,7 +25,8 @@ func (m *Module) Models() []any {
 	return nil
 }
 
-func (m *Module) RegisterRoutes(mux *http.ServeMux, _ *app.Dependencies) error {
-	api.RegisterRoutes(mux, service.NewPlaceholderService())
+func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
+	jwtSvc := security.NewJWTService(os.Getenv("MYCLOUDDRIVE_JWT_SECRET"))
+	api.RegisterRoutes(mux, service.NewUserService(deps.DB, deps.Redis, jwtSvc))
 	return nil
 }

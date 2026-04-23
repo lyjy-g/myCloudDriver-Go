@@ -10,7 +10,8 @@ import (
 // ResolvedStorageConfig 表示已解析完成的运行时存储配置。
 type ResolvedStorageConfig struct {
 	SettingID          string
-	UserID             string
+	WorkspaceID        string
+	UserID             string // Deprecated: 保留字段，后续可移除
 	PlatformIdentifier PlatformIdentifier
 	ConfigData         []byte
 	Version            string

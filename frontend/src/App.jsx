@@ -1,0 +1,177 @@
+import { App as AntApp, Button, Card, Input, Space, Typography } from "antd";
+import React, { useState } from "react";
+import {
+  ICON_RAIL_ITEMS,
+  LOCAL_PATH_PRESETS,
+  QUICK_ACTIONS,
+  SIDEBAR_MENU_ITEMS,
+  TOP_PROMOS,
+  TYPE_FILTERS
+} from "./constants/appConfig.js";
+import { Toolbar } from "./components/files/Toolbar.jsx";
+import { FilesPanel } from "./components/files/FilesPanel.jsx";
+import { IconRail } from "./components/layout/IconRail.jsx";
+import { Sidebar } from "./components/layout/Sidebar.jsx";
+import { Topbar } from "./components/layout/Topbar.jsx";
+import { StorageSettingsPanel } from "./components/settings/StorageSettingsPanel.jsx";
+import { SharePublicPanel } from "./components/share/SharePublicPanel.jsx";
+import { UploadDrawerPanel } from "./components/upload/UploadDrawerPanel.jsx";
+import { useBaseUrl } from "./hooks/useBaseUrl.js";
+import { useCloudDriveController } from "./hooks/useCloudDriveController.jsx";
+import { useNotifier } from "./hooks/useNotifier.js";
+
+/**
+ * 网盘主界面。
+ *
+ * @returns {JSX.Element} 页面
+ */
+export default function App() {
+  const [loginForm, setLoginForm] = useState({ username: "myCloudDrive", password: "myCloudDrive" });
+  const { contextHolder, notifySuccess, notifyWarning, notifyError } = useNotifier();
+  const { normalizedBaseUrl } = useBaseUrl();
+
+  const controller = useCloudDriveController(normalizedBaseUrl, {
+    notifySuccess,
+    notifyWarning,
+    notifyError
+  });
+  const openStorageSettings = () => controller.setActiveMenu("workspace-settings");
+
+  const handleLoginSubmit = async () => {
+    await controller.handleLogin(loginForm.username, loginForm.password);
+  };
+
+  const sharePageMatch = window.location.pathname.match(/^\/share\/([A-Za-z0-9_-]+)$/);
+  if (sharePageMatch) {
+    return (
+      <AntApp>
+        {contextHolder}
+        <SharePublicPanel normalizedBaseUrl={normalizedBaseUrl} shareId={sharePageMatch[1]} />
+      </AntApp>
+    );
+  }
+
+  if (!controller.authenticated) {
+    return (
+      <AntApp>
+        {contextHolder}
+        <div className="mcd-login-shell">
+          <div className="mcd-login-glow" />
+          <Card title="MyCloudDrive 登录" className="mcd-login-card">
+            <Space direction="vertical" style={{ width: "100%" }} size="middle">
+              <Typography.Text type="secondary">个人云盘管理入口，支持工作空间与团队协作模式。</Typography.Text>
+              <Input
+                placeholder="用户名"
+                value={loginForm.username}
+                onChange={(event) => setLoginForm((prev) => ({ ...prev, username: event.target.value }))}
+              />
+              <Input.Password
+                placeholder="密码"
+                value={loginForm.password}
+                onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
+                onPressEnter={handleLoginSubmit}
+              />
+              <Button type="primary" className="mcd-primary-btn" onClick={handleLoginSubmit} loading={controller.loading}>
+                登录并进入控制台
+              </Button>
+            </Space>
+          </Card>
+        </div>
+      </AntApp>
+    );
+  }
+
+  return (
+    <AntApp>
+      {contextHolder}
+      <div className="mcd-shell">
+        <Topbar topPromos={TOP_PROMOS} />
+
+        <div className="mcd-body">
+          <Sidebar
+            activeMenu={controller.activeMenu}
+            onMenuClick={controller.setActiveMenu}
+            menuItems={SIDEBAR_MENU_ITEMS}
+            typeFilters={TYPE_FILTERS}
+            workspaces={controller.workspaces}
+            activeWorkspace={controller.activeWorkspace}
+            activeStorage={controller.activeStorage}
+            onSwitchWorkspace={controller.handleSwitchWorkspace}
+            onOpenStorageSettings={openStorageSettings}
+            onRefreshWorkspace={controller.loadStorageMeta}
+          />
+
+          <main className="mcd-main">
+            <Toolbar
+              quickActions={QUICK_ACTIONS}
+              activeMenu={controller.activeMenu}
+              activeWorkspace={controller.activeWorkspace}
+              activeStorage={controller.activeStorage}
+              currentUser={controller.currentUser}
+              onLogout={controller.handleLogout}
+              onUpload={() => controller.setDrawerOpen(true)}
+              onCreateFolder={controller.handleCreateFolder}
+              onRefreshFiles={controller.loadFiles}
+              onRefreshShares={controller.loadShares}
+              onRefreshTrash={controller.loadRecycleBin}
+              onOpenStorageSettings={openStorageSettings}
+            />
+
+            <FilesPanel
+              activeMenu={controller.activeMenu}
+              files={controller.files}
+              shares={controller.shares}
+              columns={controller.columns}
+              shareColumns={controller.shareColumns}
+              directoryTrail={controller.directoryTrail}
+              onJumpDirectory={controller.jumpToDirectory}
+              activeWorkspace={controller.activeWorkspace}
+              activeStorage={controller.activeStorage}
+              currentUser={controller.currentUser}
+              onOpenStorageSettings={openStorageSettings}
+              onOpenFiles={() => controller.setActiveMenu("files")}
+              onRefreshWorkspace={controller.loadStorageMeta}
+            />
+
+            <StorageSettingsPanel
+              visible={controller.activeMenu === "settings" || controller.activeMenu === "workspace-settings"}
+              workspaces={controller.workspaces}
+              activeWorkspace={controller.activeWorkspace}
+              platforms={controller.platforms}
+              storageSettings={controller.storageSettings}
+              storageForm={controller.storageForm}
+              loading={controller.loading}
+              normalizedBaseUrl={normalizedBaseUrl}
+              localPathPresets={LOCAL_PATH_PRESETS}
+              onRefresh={controller.loadStorageMeta}
+              onUpdateField={controller.updateStorageFormField}
+              onSwitchWorkspace={controller.handleSwitchWorkspace}
+              onApply={controller.handleApplyStorageConfig}
+              onEditSetting={controller.handleEditStorageSetting}
+              onCreateDraft={controller.handleCreateStorageDraft}
+              onActivateSetting={controller.handleActivateStorageSetting}
+              onRebuildIndexes={controller.handleRebuildIndexes}
+            />
+
+            <div className="mcd-footer-chat">
+              <div className="mcd-footer-bubble">知识搜索/问答/创作/AI全网搜索</div>
+              <div className="mcd-footer-actions">
+                <button type="button" className="mcd-footer-btn">↑</button>
+                <button type="button" className="mcd-footer-btn primary">✦</button>
+              </div>
+            </div>
+          </main>
+        </div>
+
+        <UploadDrawerPanel
+          open={controller.drawerOpen}
+          loading={controller.loading}
+          uploadProgress={controller.uploadProgress}
+          onClose={() => controller.setDrawerOpen(false)}
+          onFileChange={(event) => controller.setSelectedFile(event.target.files?.[0] || null)}
+          onUpload={controller.handleUpload}
+        />
+      </div>
+    </AntApp>
+  );
+}

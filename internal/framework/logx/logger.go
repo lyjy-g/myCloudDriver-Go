@@ -13,20 +13,12 @@ type Logger interface {
 }
 
 type loggingResponseWriter struct {
-	ResponseWriter http.ResponseWriter
-	status         int
+	http.ResponseWriter
+	status int
 }
 
-func (l loggingResponseWriter) Header() http.Header {
-	return l.ResponseWriter.Header()
-}
-
-func (l loggingResponseWriter) Write(bytes []byte) (int, error) {
-	return l.ResponseWriter.Write(bytes)
-}
-
-func (l loggingResponseWriter) WriteHeader(statusCode int) {
-	// 记录状态码
+func (l *loggingResponseWriter) WriteHeader(statusCode int) {
+	// 捕获响应状态码，避免默认 200 丢失。
 	l.status = statusCode
 	l.ResponseWriter.WriteHeader(statusCode)
 }
@@ -37,7 +29,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		// 记录请求开始时间
 		start := time.Now()
 
-		// 使用 loggingResponseWriter 捕获 HTTP 状态码
+		// 使用包装 writer 捕获 HTTP 状态码。
 		lrw := &loggingResponseWriter{ResponseWriter: w, status: http.StatusOK}
 
 		// 调用实际的 handler
