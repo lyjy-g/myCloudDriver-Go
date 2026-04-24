@@ -31,17 +31,8 @@ func DefaultCORSOptions() CORSOptions {
 // CORSMiddleware 提供通用 CORS 处理能力。
 func CORSMiddleware(options CORSOptions) func(http.Handler) http.Handler {
 	allowOrigins := options.AllowOrigins
-	if len(allowOrigins) == 0 {
-		allowOrigins = []string{"*"}
-	}
 	allowMethods := options.AllowMethods
-	if len(allowMethods) == 0 {
-		allowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-	}
 	allowHeaders := options.AllowHeaders
-	if len(allowHeaders) == 0 {
-		allowHeaders = []string{"Authorization", "Content-Type"}
-	}
 
 	methodsValue := strings.Join(allowMethods, ", ")
 	headersValue := strings.Join(allowHeaders, ", ")
