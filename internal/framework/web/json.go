@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -68,8 +69,11 @@ func normalizeErrorCode(code any) int {
 // WriteError 输出统一错误响应。
 // code 参数兼容 int 以及字符串错误码（如 BAD_REQUEST/NOT_FOUND）。
 func WriteError(w http.ResponseWriter, status int, code any, message string) {
+	normalizedCode := normalizeErrorCode(code)
+	// 统一在服务端输出错误日志，便于联调与排障。
+	log.Printf("http_error status=%d code=%d message=%q", status, normalizedCode, message)
 	WriteJSON(w, status, ErrorResponse{
-		Code:    normalizeErrorCode(code),
+		Code:    normalizedCode,
 		Message: message,
 	})
 }
