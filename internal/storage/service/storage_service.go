@@ -14,9 +14,9 @@ import (
 
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
+	pluginsvc "myclouddrive-go/internal/plugin/service"
 	storageModel "myclouddrive-go/internal/storage/model"
 	dbmodel "myclouddrive-go/internal/storage/model/dbmodel"
-	"myclouddrive-go/internal/storage/plugin/boot"
 )
 
 const platformCacheKey = "storage:platforms:active"
@@ -27,20 +27,24 @@ type StorageService struct {
 	db       *gorm.DB
 	rdb      redis.Cmdable
 	cacheTTL time.Duration
-	runtime  *boot.Runtime
+	runtime  *pluginsvc.Runtime
 }
 
-func NewService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration) *StorageService {
+func NewService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration, runtime *pluginsvc.Runtime) *StorageService {
+	if runtime == nil {
+		runtime = newStoreRuntime(db)
+	}
 	return &StorageService{
 		db:       db,
 		rdb:      rdb,
 		cacheTTL: cacheTTL,
-		runtime:  newStoreRuntime(db),
+		runtime:  runtime,
 	}
 }
 
-func newStoreRuntime(db *gorm.DB) *boot.Runtime {
-	return boot.NewRuntime(db, boot.NewDefaultManager(), currentWorkspaceID)
+func newStoreRuntime(db *gorm.DB) *pluginsvc.Runtime {
+	pluginsvc.Init(db)
+	return pluginsvc.GetRuntime(db)
 }
 
 // ObjectPutInput 是业务层写入对象入参，不暴露插件底层类型。
@@ -334,7 +338,7 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 
 // Put 将对象写入当前激活存储。
 func (s *StorageService) Put(ctx context.Context, in ObjectPutInput) (ObjectInfo, error) {
-	info, err := s.runtime.Put(ctx, in.Key, in.Reader, boot.PutOptions{
+	info, err := s.runtime.Put(ctx, in.Key, in.Reader, pluginsvc.PutOptions{
 		ContentType:   in.ContentType,
 		ContentLength: in.ContentLength,
 		Metadata:      in.Metadata,
@@ -378,7 +382,7 @@ func (s *StorageService) PresignUploadURL(ctx context.Context, key string, expir
 	return s.runtime.PresignPut(ctx, key, expire)
 }
 
-func toObjectInfo(info boot.ObjectInfo) ObjectInfo {
+func toObjectInfo(info pluginsvc.ObjectInfo) ObjectInfo {
 	return ObjectInfo{
 		Key:          info.Key,
 		Size:         info.Size,

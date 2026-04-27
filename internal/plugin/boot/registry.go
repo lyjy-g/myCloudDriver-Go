@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"myclouddrive-go/internal/storage/plugin"
+	"myclouddrive-go/internal/plugin"
 )
 
 // Registry 管理已注册的存储驱动。
@@ -33,13 +33,6 @@ func (r *Registry) Register(d plugin.Driver) error {
 
 	r.drivers[id] = d
 	return nil
-}
-
-// MustRegister 注册驱动，失败时直接 panic。
-func (r *Registry) MustRegister(d plugin.Driver) {
-	if err := r.Register(d); err != nil {
-		panic(err)
-	}
 }
 
 // Get 按平台标识获取驱动。

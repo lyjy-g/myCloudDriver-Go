@@ -10,7 +10,7 @@ import (
 	"io"
 	"mime"
 	"myclouddrive-go/internal/framework/code"
-	"myclouddrive-go/internal/storage/plugin"
+	"myclouddrive-go/internal/plugin"
 	"os"
 	"path/filepath"
 	"strings"

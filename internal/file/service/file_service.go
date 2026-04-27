@@ -38,7 +38,6 @@ type HomeInfo struct {
 }
 
 // StorageGateway 定义文件模块依赖的最小存储能力集合。
-// 面向接口而非具体实现，便于单测替身和后续替换实现。
 type StorageGateway interface {
 	PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error)
 	Get(ctx context.Context, key string) (io.ReadCloser, storagesvc.ObjectInfo, error)

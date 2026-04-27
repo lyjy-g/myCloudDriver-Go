@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"myclouddrive-go/internal/framework/code"
-	"myclouddrive-go/internal/storage/plugin"
+	"myclouddrive-go/internal/plugin"
 	"path"
 	"strings"
 	"time"

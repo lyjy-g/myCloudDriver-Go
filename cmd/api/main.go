@@ -5,6 +5,7 @@ import (
 
 	"myclouddrive-go/internal/app"
 	filemodule "myclouddrive-go/internal/file/module"
+	pluginmodule "myclouddrive-go/internal/plugin/module"
 	sharemodule "myclouddrive-go/internal/share/module"
 	storagemodule "myclouddrive-go/internal/storage/module"
 	usermodule "myclouddrive-go/internal/user/module"
@@ -16,6 +17,7 @@ const configPath = "configs/config.yaml"
 func main() {
 	srv, err := app.NewServer(
 		configPath,
+		pluginmodule.New(),
 		storagemodule.New(),
 		usermodule.New(),
 		filemodule.New(),

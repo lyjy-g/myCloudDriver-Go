@@ -7,6 +7,7 @@ import (
 	"myclouddrive-go/internal/app"
 	"myclouddrive-go/internal/file/api"
 	"myclouddrive-go/internal/file/service"
+	pluginsvc "myclouddrive-go/internal/plugin/service"
 	storagesvc "myclouddrive-go/internal/storage/service"
 )
 
@@ -26,7 +27,7 @@ func (m *Module) Models() []any {
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
-	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second)
+	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second, pluginsvc.GetRuntime(deps.DB))
 	fileService := service.NewFileService(storageService)
 	api.RegisterRoutes(mux, fileService)
 	return nil
