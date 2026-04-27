@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type StorageService struct {
 	db       *gorm.DB
 	rdb      redis.Cmdable
 	cacheTTL time.Duration
-	plugins  *boot.Manager
+	runtime  *boot.Runtime
 }
 
 func NewService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration) *StorageService {
@@ -34,8 +35,30 @@ func NewService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration) *Storage
 		db:       db,
 		rdb:      rdb,
 		cacheTTL: cacheTTL,
-		plugins:  boot.NewDefaultManager(),
+		runtime:  newStoreRuntime(db),
 	}
+}
+
+func newStoreRuntime(db *gorm.DB) *boot.Runtime {
+	return boot.NewRuntime(db, boot.NewDefaultManager(), currentWorkspaceID)
+}
+
+// ObjectPutInput 是业务层写入对象入参，不暴露插件底层类型。
+type ObjectPutInput struct {
+	Key           string
+	Reader        io.Reader
+	ContentType   string
+	ContentLength *int64
+	Metadata      map[string]string
+}
+
+// ObjectInfo 是业务层对象元信息。
+type ObjectInfo struct {
+	Key          string
+	Size         int64
+	ContentType  string
+	ETag         string
+	LastModified *time.Time
 }
 
 func (s *StorageService) ListActivePlatforms(ctx context.Context) ([]storageModel.Platform, error) {
@@ -191,7 +214,7 @@ func (s *StorageService) UpdateStorageSetting(ctx context.Context, settingID str
 	if result.RowsAffected == 0 {
 		return nil, code.New(code.NotFound, "setting not found")
 	}
-	s.plugins.Invalidate(settingID)
+	s.runtime.Invalidate(settingID)
 
 	var row dbmodel.StorageSetting
 	if err := s.db.WithContext(ctx).
@@ -223,7 +246,7 @@ func (s *StorageService) DeleteStorageSetting(ctx context.Context, settingID str
 	if result.RowsAffected == 0 {
 		return code.New(code.NotFound, "setting not found")
 	}
-	s.plugins.Invalidate(settingID)
+	s.runtime.Invalidate(settingID)
 	return nil
 }
 
@@ -250,7 +273,7 @@ func (s *StorageService) ActivateStorageSetting(ctx context.Context, settingID s
 	if err != nil {
 		return nil, fmt.Errorf("activate setting: %w", err)
 	}
-	s.plugins.Invalidate(settingID)
+	s.runtime.Invalidate(settingID)
 
 	if s.rdb != nil {
 		_ = s.rdb.Del(ctx, platformCacheKey).Err()
@@ -287,7 +310,7 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 	if res.RowsAffected == 0 {
 		return nil, code.New(code.NotFound, "setting not found")
 	}
-	s.plugins.Invalidate(settingID)
+	s.runtime.Invalidate(settingID)
 	if s.rdb != nil {
 		_ = s.rdb.Del(ctx, platformCacheKey).Err()
 	}
@@ -307,6 +330,62 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 		ConfigJSON: &cfg,
 		UpdatedAt:  &ts,
 	}, nil
+}
+
+// Put 将对象写入当前激活存储。
+func (s *StorageService) Put(ctx context.Context, in ObjectPutInput) (ObjectInfo, error) {
+	info, err := s.runtime.Put(ctx, in.Key, in.Reader, boot.PutOptions{
+		ContentType:   in.ContentType,
+		ContentLength: in.ContentLength,
+		Metadata:      in.Metadata,
+	})
+	if err != nil {
+		return ObjectInfo{}, err
+	}
+	return toObjectInfo(info), nil
+}
+
+// Get 从当前激活存储读取对象。
+func (s *StorageService) Get(ctx context.Context, key string) (io.ReadCloser, ObjectInfo, error) {
+	rc, info, err := s.runtime.Get(ctx, key)
+	if err != nil {
+		return nil, ObjectInfo{}, err
+	}
+	return rc, toObjectInfo(info), nil
+}
+
+// Delete 删除当前激活存储对象。
+func (s *StorageService) Delete(ctx context.Context, key string) error {
+	return s.runtime.Delete(ctx, key)
+}
+
+// Stat 查询当前激活存储对象元数据。
+func (s *StorageService) Stat(ctx context.Context, key string) (ObjectInfo, error) {
+	info, err := s.runtime.Stat(ctx, key)
+	if err != nil {
+		return ObjectInfo{}, err
+	}
+	return toObjectInfo(info), nil
+}
+
+// PresignDownloadURL 生成下载预签名 URL。
+func (s *StorageService) PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error) {
+	return s.runtime.PresignGet(ctx, key, expire)
+}
+
+// PresignUploadURL 生成上传预签名 URL。
+func (s *StorageService) PresignUploadURL(ctx context.Context, key string, expire time.Duration) (string, error) {
+	return s.runtime.PresignPut(ctx, key, expire)
+}
+
+func toObjectInfo(info boot.ObjectInfo) ObjectInfo {
+	return ObjectInfo{
+		Key:          info.Key,
+		Size:         info.Size,
+		ContentType:  info.ContentType,
+		ETag:         info.ETag,
+		LastModified: info.LastModified,
+	}
 }
 
 func normalizeJSON(raw string) string {

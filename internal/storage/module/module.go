@@ -7,7 +7,7 @@ import (
 	"myclouddrive-go/internal/app"
 	storageapi "myclouddrive-go/internal/storage/api"
 	dbmodel "myclouddrive-go/internal/storage/model/dbmodel"
-	"myclouddrive-go/internal/storage/service"
+	storageService "myclouddrive-go/internal/storage/service"
 )
 
 // Module 是 storage 服务模块。
@@ -28,7 +28,7 @@ func (m *Module) Models() []any {
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
-	svc := service.NewService(deps.DB, deps.Redis, m.cacheTTL)
+	svc := storageService.NewService(deps.DB, deps.Redis, m.cacheTTL)
 	storageapi.RegisterRoutes(mux, svc)
 	return nil
 }
