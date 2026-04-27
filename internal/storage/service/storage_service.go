@@ -15,9 +15,7 @@ import (
 	"myclouddrive-go/internal/framework/security"
 	storageModel "myclouddrive-go/internal/storage/model"
 	dbmodel "myclouddrive-go/internal/storage/model/dbmodel"
-	"myclouddrive-go/internal/storage/plugin"
-	"myclouddrive-go/internal/storage/plugin/local"
-	"myclouddrive-go/internal/storage/plugin/s3"
+	"myclouddrive-go/internal/storage/plugin/boot"
 )
 
 const platformCacheKey = "storage:platforms:active"
@@ -28,19 +26,15 @@ type StorageService struct {
 	db       *gorm.DB
 	rdb      redis.Cmdable
 	cacheTTL time.Duration
-	plugins  *plugin.Manager
+	plugins  *boot.Manager
 }
 
 func NewService(db *gorm.DB, rdb redis.Cmdable, cacheTTL time.Duration) *StorageService {
-	registry := plugin.NewRegistry()
-	registry.MustRegister(local.NewDriver())
-	registry.MustRegister(s3.NewDriver())
-
 	return &StorageService{
 		db:       db,
 		rdb:      rdb,
 		cacheTTL: cacheTTL,
-		plugins:  plugin.NewManager(registry),
+		plugins:  boot.NewDefaultManager(),
 	}
 }
 

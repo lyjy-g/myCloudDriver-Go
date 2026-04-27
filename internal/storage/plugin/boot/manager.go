@@ -1,4 +1,4 @@
-package plugin
+package boot
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"myclouddrive-go/internal/framework/code"
+	"myclouddrive-go/internal/storage/plugin"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -13,10 +14,11 @@ import (
 // cachedStore 表示缓存中的已构建存储实例。
 type cachedStore struct {
 	fingerprint string
-	store       Store
+	store       plugin.Store
 }
 
 // Manager 负责存储实例的懒加载、缓存与失效。
+// 该结构位于 boot 包，集中承载“插件启动控制”职责。
 type Manager struct {
 	registry *Registry
 
@@ -35,7 +37,7 @@ func NewManager(registry *Registry) *Manager {
 }
 
 // Resolve 根据配置解析并返回可复用的 Store 实例。
-func (m *Manager) Resolve(ctx context.Context, cfg ResolvedStorageConfig) (Store, error) {
+func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig) (plugin.Store, error) {
 	fp := cfg.Version
 
 	m.mu.RLock()
@@ -80,7 +82,7 @@ func (m *Manager) Resolve(ctx context.Context, cfg ResolvedStorageConfig) (Store
 		return nil, err
 	}
 
-	return v.(Store), nil
+	return v.(plugin.Store), nil
 }
 
 // Invalidate 使指定配置对应的缓存实例失效。
