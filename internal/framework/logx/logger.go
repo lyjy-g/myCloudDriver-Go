@@ -35,13 +35,30 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		// 调用实际的 handler
 		next.ServeHTTP(lrw, req)
 
-		// 日志输出请求信息
+		duration := time.Since(start)
+		// 4xx/5xx 额外输出错误上下文，便于快速排查。
+		if lrw.status >= http.StatusBadRequest {
+			log.Printf(
+				"http_request_error method=%s path=%s query=%q status=%d duration=%s remote=%s ua=%q referer=%q",
+				req.Method,
+				req.URL.Path,
+				req.URL.RawQuery,
+				lrw.status,
+				duration,
+				req.RemoteAddr,
+				req.UserAgent(),
+				req.Referer(),
+			)
+			return
+		}
+
+		// 普通请求日志
 		log.Printf(
-			"method=%s path=%s status=%d duration=%s remote=%s",
+			"http_request method=%s path=%s status=%d duration=%s remote=%s",
 			req.Method,
 			req.URL.Path,
 			lrw.status,
-			time.Since(start),
+			duration,
 			req.RemoteAddr,
 		)
 	})

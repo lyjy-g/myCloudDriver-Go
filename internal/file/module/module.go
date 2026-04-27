@@ -27,7 +27,7 @@ func (m *Module) Models() []any {
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
-	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second, pluginsvc.GetRuntime(deps.DB))
+	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second, pluginsvc.GetRunManager(deps.DB))
 	fileService := service.NewFileService(storageService)
 	api.RegisterRoutes(mux, fileService)
 	return nil

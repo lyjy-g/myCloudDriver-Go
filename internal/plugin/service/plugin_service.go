@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	runtimeOnce sync.Once
-	runtimeInst *Runtime
+	syncOnce     sync.Once
+	runStoreInst *RunManager
 )
 
 // PutOptions 是存储写入选项（业务层可感知字段）。
@@ -40,44 +40,44 @@ type ObjectInfo struct {
 	LastModified *time.Time
 }
 
-// Runtime 负责将“工作空间配置”解析为具体 Store，并提供统一对象操作能力。
-type Runtime struct {
-	db                  *gorm.DB
-	manager             *boot.Manager
-	workspaceIDResolver func(context.Context) string
+// RunManager 负责将“工作空间配置”解析为具体 Store，并提供统一对象操作能力。
+type RunManager struct {
+	db          *gorm.DB
+	manager     *boot.Manager
+	workspaceID func(context.Context) string
 }
 
-// NewRuntime 创建插件运行时服务。
-func NewRuntime(db *gorm.DB, manager *boot.Manager, workspaceIDResolver func(context.Context) string) *Runtime {
-	return &Runtime{
-		db:                  db,
-		manager:             manager,
-		workspaceIDResolver: workspaceIDResolver,
+// NewRunManager 创建插件运行时服务。
+func NewRunManager(db *gorm.DB, manager *boot.Manager, workspaceIDResolver func(context.Context) string) *RunManager {
+	return &RunManager{
+		db:          db,
+		manager:     manager,
+		workspaceID: workspaceIDResolver,
 	}
 }
 
-// Init 初始化插件运行时单例。
-func Init(db *gorm.DB) {
-	runtimeOnce.Do(func() {
-		runtimeInst = NewRuntime(db, boot.NewDefaultManager(), currentWorkspaceID)
+// GetRunManager 返回插件运行时实例；若未初始化会按需初始化。
+func GetRunManager(db *gorm.DB) *RunManager {
+	syncOnce.Do(func() {
+		runStoreInst = NewRunManager(db, boot.NewDefaultManager(), currentWorkspaceID)
 	})
+	return runStoreInst
 }
 
-// GetRuntime 返回插件运行时实例；若未初始化会按需初始化。
-func GetRuntime(db *gorm.DB) *Runtime {
-	Init(db)
-	return runtimeInst
+// InitRunStore 兼容模块初始化调用；内部复用 GetRunManager 的懒加载逻辑。
+func InitRunStore(db *gorm.DB) {
+	_ = GetRunManager(db)
 }
 
 // Invalidate 主动失效指定配置对应的缓存实例。
-func (r *Runtime) Invalidate(settingID string) {
+func (r *RunManager) Invalidate(settingID string) {
 	r.manager.Invalidate(settingID)
 }
 
 // Put 使用当前工作空间激活的配置写入对象。
-func (r *Runtime) Put(ctx context.Context, key string, reader io.Reader, opts PutOptions) (ObjectInfo, error) {
+func (r *RunManager) Put(ctx context.Context, key string, reader io.Reader, opts PutOptions) (ObjectInfo, error) {
 	var out ObjectInfo
-	err := r.withActiveStore(ctx, func(store plugin.Store) error {
+	err := r.withActiveStore(ctx, func(store plugin.StorePower) error {
 		info, err := store.Put(ctx, plugin.Key(key), reader, plugin.PutOptions{
 			ContentType:   opts.ContentType,
 			ContentLength: opts.ContentLength,
@@ -93,12 +93,12 @@ func (r *Runtime) Put(ctx context.Context, key string, reader io.Reader, opts Pu
 }
 
 // Get 使用当前工作空间激活的配置读取对象。
-func (r *Runtime) Get(ctx context.Context, key string) (io.ReadCloser, ObjectInfo, error) {
+func (r *RunManager) Get(ctx context.Context, key string) (io.ReadCloser, ObjectInfo, error) {
 	var (
 		body io.ReadCloser
 		out  ObjectInfo
 	)
-	err := r.withActiveStore(ctx, func(store plugin.Store) error {
+	err := r.withActiveStore(ctx, func(store plugin.StorePower) error {
 		rc, info, err := store.Get(ctx, plugin.Key(key))
 		if err != nil {
 			return err
@@ -114,16 +114,16 @@ func (r *Runtime) Get(ctx context.Context, key string) (io.ReadCloser, ObjectInf
 }
 
 // Delete 使用当前工作空间激活的配置删除对象。
-func (r *Runtime) Delete(ctx context.Context, key string) error {
-	return r.withActiveStore(ctx, func(store plugin.Store) error {
+func (r *RunManager) Delete(ctx context.Context, key string) error {
+	return r.withActiveStore(ctx, func(store plugin.StorePower) error {
 		return store.Delete(ctx, plugin.Key(key))
 	})
 }
 
 // Stat 使用当前工作空间激活的配置查询对象元信息。
-func (r *Runtime) Stat(ctx context.Context, key string) (ObjectInfo, error) {
+func (r *RunManager) Stat(ctx context.Context, key string) (ObjectInfo, error) {
 	var out ObjectInfo
-	err := r.withActiveStore(ctx, func(store plugin.Store) error {
+	err := r.withActiveStore(ctx, func(store plugin.StorePower) error {
 		info, err := store.Stat(ctx, plugin.Key(key))
 		if err != nil {
 			return err
@@ -135,7 +135,7 @@ func (r *Runtime) Stat(ctx context.Context, key string) (ObjectInfo, error) {
 }
 
 // PresignGet 使用当前工作空间激活配置生成下载预签名地址。
-func (r *Runtime) PresignGet(ctx context.Context, key string, expire time.Duration) (string, error) {
+func (r *RunManager) PresignGet(ctx context.Context, key string, expire time.Duration) (string, error) {
 	store, err := r.resolveActiveStore(ctx)
 	if err != nil {
 		return "", err
@@ -148,7 +148,7 @@ func (r *Runtime) PresignGet(ctx context.Context, key string, expire time.Durati
 }
 
 // PresignPut 使用当前工作空间激活配置生成上传预签名地址。
-func (r *Runtime) PresignPut(ctx context.Context, key string, expire time.Duration) (string, error) {
+func (r *RunManager) PresignPut(ctx context.Context, key string, expire time.Duration) (string, error) {
 	store, err := r.resolveActiveStore(ctx)
 	if err != nil {
 		return "", err
@@ -160,7 +160,7 @@ func (r *Runtime) PresignPut(ctx context.Context, key string, expire time.Durati
 	return signed.PresignPut(ctx, plugin.Key(key), expire)
 }
 
-func (r *Runtime) resolveActiveStore(ctx context.Context) (plugin.Store, error) {
+func (r *RunManager) resolveActiveStore(ctx context.Context) (plugin.StorePower, error) {
 	row, err := r.getWorkspaceActiveSetting(ctx)
 	if err != nil {
 		return nil, err
@@ -169,7 +169,7 @@ func (r *Runtime) resolveActiveStore(ctx context.Context) (plugin.Store, error) 
 }
 
 // withActiveStore 统一处理“获取当前激活 store + 执行业务动作”流程，减少重复代码。
-func (r *Runtime) withActiveStore(ctx context.Context, fn func(store plugin.Store) error) error {
+func (r *RunManager) withActiveStore(ctx context.Context, fn func(store plugin.StorePower) error) error {
 	store, err := r.resolveActiveStore(ctx)
 	if err != nil {
 		return err
@@ -177,8 +177,8 @@ func (r *Runtime) withActiveStore(ctx context.Context, fn func(store plugin.Stor
 	return fn(store)
 }
 
-func (r *Runtime) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.StorageSetting, error) {
-	workspaceID := r.workspaceIDResolver(ctx)
+func (r *RunManager) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.StorageSetting, error) {
+	workspaceID := r.workspaceID(ctx)
 	q := modelgen.Use(r.db)
 	ss := q.StorageSetting
 
@@ -199,7 +199,7 @@ func (r *Runtime) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.Storag
 	return *row, nil
 }
 
-func (r *Runtime) resolveStoreBySetting(ctx context.Context, row dbmodel.StorageSetting) (plugin.Store, error) {
+func (r *RunManager) resolveStoreBySetting(ctx context.Context, row dbmodel.StorageSetting) (plugin.StorePower, error) {
 	cfg := plugin.ResolvedStorageConfig{
 		SettingID:          row.ID,
 		WorkspaceID:        row.WorkspaceID,
@@ -226,7 +226,7 @@ func toRuntimeObjectInfo(info plugin.ObjectInfo) ObjectInfo {
 }
 
 func currentWorkspaceID(ctx context.Context) string {
-	if p, ok := security.PrincipalFromContext(ctx); ok && strings.TrimSpace(p.WorkspaceID) != "" {
+	if p, ok := security.GetCtxInfo(ctx); ok && strings.TrimSpace(p.WorkspaceID) != "" {
 		return p.WorkspaceID
 	}
 	return "ws_01jrvgs943q0f43h0aa5mjde0y_personal"

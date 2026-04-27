@@ -13,8 +13,8 @@ import (
 
 // cachedStore 表示缓存中的已构建存储实例。
 type cachedStore struct {
-	fingerprint string
-	store       plugin.Store
+	storeInfo  plugin.StoreInfo
+	storePower plugin.StorePower
 }
 
 // Manager 负责存储实例的懒加载、缓存与失效。
@@ -22,7 +22,8 @@ type cachedStore struct {
 type Manager struct {
 	registry *Registry
 
-	mu    sync.RWMutex
+	mu sync.RWMutex
+
 	cache map[string]cachedStore
 
 	sf singleflight.Group
@@ -37,21 +38,23 @@ func NewManager(registry *Registry) *Manager {
 }
 
 // Resolve 根据配置解析并返回可复用的 Store 实例。
-func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig) (plugin.Store, error) {
-	fp := cfg.Version
-
+func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
 	m.mu.RLock()
-	if cs, ok := m.cache[cfg.SettingID]; ok && cs.fingerprint == fp {
+	if cs, ok := m.cache[cfg.SettingID]; ok &&
+		cs.storeInfo != nil &&
+		cs.storeInfo.PlatformIdentifier() == cfg.PlatformIdentifier {
 		m.mu.RUnlock()
-		return cs.store, nil
+		return cs.storePower, nil
 	}
 	m.mu.RUnlock()
 
-	v, err, _ := m.sf.Do(cfg.SettingID+":"+fp, func() (any, error) {
+	v, err, _ := m.sf.Do(cfg.SettingID, func() (any, error) {
 		m.mu.RLock()
-		if cs, ok := m.cache[cfg.SettingID]; ok && cs.fingerprint == fp {
+		if cs, ok := m.cache[cfg.SettingID]; ok &&
+			cs.storeInfo != nil &&
+			cs.storeInfo.PlatformIdentifier() == cfg.PlatformIdentifier {
 			m.mu.RUnlock()
-			return cs.store, nil
+			return cs.storePower, nil
 		}
 		m.mu.RUnlock()
 
@@ -71,8 +74,8 @@ func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig)
 
 		m.mu.Lock()
 		m.cache[cfg.SettingID] = cachedStore{
-			fingerprint: fp,
-			store:       store,
+			storeInfo:  d,
+			storePower: store,
 		}
 		m.mu.Unlock()
 
@@ -82,7 +85,7 @@ func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig)
 		return nil, err
 	}
 
-	return v.(plugin.Store), nil
+	return v.(plugin.StorePower), nil
 }
 
 // Invalidate 使指定配置对应的缓存实例失效。

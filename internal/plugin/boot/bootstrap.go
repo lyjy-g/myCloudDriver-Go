@@ -9,7 +9,13 @@ import (
 // 统一放在 boot 包，避免启动逻辑分散在 service 层。
 func NewDefaultManager() *Manager {
 	registry := NewRegistry()
-	registry.Register(local.NewDriver())
-	registry.Register(s3.NewDriver())
+	err := registry.Register(local.NewDriver())
+	if err != nil {
+		return nil
+	}
+	err = registry.Register(s3.NewDriver())
+	if err != nil {
+		return nil
+	}
 	return NewManager(registry)
 }

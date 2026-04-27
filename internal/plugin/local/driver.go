@@ -54,7 +54,7 @@ func (d *Driver) ValidateConfig(_ context.Context, raw []byte) error {
 }
 
 // Build 基于配置构建 Store。
-func (d *Driver) Build(_ context.Context, cfg plugin.ResolvedStorageConfig) (plugin.Store, error) {
+func (d *Driver) Build(_ context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
 	parsed, err := parseConfig(cfg.ConfigData)
 	if err != nil {
 		return nil, err

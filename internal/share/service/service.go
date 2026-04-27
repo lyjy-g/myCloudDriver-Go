@@ -30,7 +30,7 @@ func (s *ShareService) Ping(_ context.Context) (string, error) {
 }
 
 func currentUserID(ctx context.Context) (string, error) {
-	p, ok := security.PrincipalFromContext(ctx)
+	p, ok := security.GetCtxInfo(ctx)
 	if !ok || strings.TrimSpace(p.UserID) == "" {
 		return "", code.New(code.NoPermission, "login required")
 	}

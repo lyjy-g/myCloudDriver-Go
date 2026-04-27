@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -88,10 +89,10 @@ func randomID(prefix string) string {
 }
 
 // requirePrincipal 从上下文中提取登录主体并做登录态校验。
-func requirePrincipal(ctx context.Context) (security.Principal, error) {
-	p, ok := security.PrincipalFromContext(ctx)
+func requirePrincipal(ctx context.Context) (security.CtxInfo, error) {
+	p, ok := security.GetCtxInfo(ctx)
 	if !ok || strings.TrimSpace(p.UserID) == "" {
-		return security.Principal{}, code.New(code.NoPermission, "login required")
+		return security.CtxInfo{}, code.New(code.NoPermission, "login required")
 	}
 	return p, nil
 }
@@ -108,7 +109,7 @@ func resolveCurrentUserID(ctx context.Context) (string, error) {
 // resolveCurrentWorkspaceID 解析当前上下文中的工作空间 ID。
 // 当前文件中未直接使用，保留供后续扩展。
 func resolveCurrentWorkspaceID(ctx context.Context) string {
-	if p, ok := security.PrincipalFromContext(ctx); ok && strings.TrimSpace(p.WorkspaceID) != "" {
+	if p, ok := security.GetCtxInfo(ctx); ok && strings.TrimSpace(p.WorkspaceID) != "" {
 		return p.WorkspaceID
 	}
 	return ""
@@ -236,6 +237,117 @@ func (s *UserService) mustInitTransferSetting(ctx context.Context, userID string
 	return nil
 }
 
+// ensurePersonalWorkspaceAndStorageSetting 确保用户个人空间与空间存储设置存在。
+// 若缺失则自动补齐，保证登录/注册后即可在个人空间可用。
+func (s *UserService) ensurePersonalWorkspaceAndStorageSetting(ctx context.Context, tx *gorm.DB, user *dbmodel.User) (string, error) {
+	if tx == nil {
+		tx = s.db
+	}
+	if user == nil || strings.TrimSpace(user.ID) == "" {
+		return "", code.New(code.BadRequest, "invalid user")
+	}
+
+	workspaceID := strings.TrimSpace(user.DefaultWorkspaceID)
+	if workspaceID == "" {
+		workspaceID = "ws_" + user.ID + "_personal"
+	}
+	now := time.Now()
+
+	var wsCount int64
+	if err := tx.WithContext(ctx).Model(&dbmodel.Workspace{}).Where("id = ?", workspaceID).Count(&wsCount).Error; err != nil {
+		return "", fmt.Errorf("query personal workspace failed: %w", err)
+	}
+	if wsCount == 0 {
+		ws := &dbmodel.Workspace{
+			ID:            workspaceID,
+			Name:          strings.TrimSpace(user.Username) + " 个人空间",
+			WorkspaceType: "personal",
+			OwnerUserID:   user.ID,
+			Status:        true,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		if err := tx.WithContext(ctx).Create(ws).Error; err != nil {
+			return "", fmt.Errorf("create personal workspace failed: %w", err)
+		}
+	}
+
+	member := &dbmodel.WorkspaceMember{
+		WorkspaceID: workspaceID,
+		UserID:      user.ID,
+		Role:        "owner",
+		Status:      true,
+		JoinedAt:    now,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := tx.WithContext(ctx).
+		Where("workspace_id = ? and user_id = ?", workspaceID, user.ID).
+		Assign(member).
+		FirstOrCreate(member).Error; err != nil {
+		return "", fmt.Errorf("init workspace owner failed: %w", err)
+	}
+
+	if strings.TrimSpace(user.DefaultWorkspaceID) == "" || user.DefaultWorkspaceID != workspaceID {
+		if err := tx.WithContext(ctx).Model(&dbmodel.User{}).Where("id = ?", user.ID).Updates(map[string]any{
+			"default_workspace_id": workspaceID,
+			"updated_at":           now,
+		}).Error; err != nil {
+			return "", fmt.Errorf("update default workspace failed: %w", err)
+		}
+		user.DefaultWorkspaceID = workspaceID
+	}
+
+	var settingCount int64
+	if err := tx.WithContext(ctx).Table("storage_settings").Where("workspace_id = ? and deleted = 0", workspaceID).Count(&settingCount).Error; err != nil {
+		return "", fmt.Errorf("query storage settings failed: %w", err)
+	}
+	if settingCount == 0 {
+		platformIdentifier := "local"
+		type platformRow struct {
+			Identifier string
+		}
+		var row platformRow
+		if err := tx.WithContext(ctx).
+			Table("storage_platform").
+			Select("identifier").
+			Where("is_default = 1").
+			Order("id asc").
+			Limit(1).
+			Scan(&row).Error; err != nil {
+			return "", fmt.Errorf("query default storage platform failed: %w", err)
+		}
+		if strings.TrimSpace(row.Identifier) != "" {
+			platformIdentifier = strings.TrimSpace(row.Identifier)
+		}
+
+		configData := "{}"
+		if platformIdentifier == "local" {
+			raw, _ := json.Marshal(map[string]any{
+				"base_path": fmt.Sprintf("./data/storage/%s", workspaceID),
+			})
+			configData = string(raw)
+		}
+
+		setting := map[string]any{
+			"id":                  randomID("stg"),
+			"platform_identifier": platformIdentifier,
+			"config_data":         configData,
+			"enabled":             true,
+			"workspace_id":        workspaceID,
+			"created_at":          now,
+			"updated_at":          now,
+			"deleted":             false,
+			"remark":              "auto init personal workspace storage setting",
+		}
+		if err := tx.WithContext(ctx).Table("storage_settings").Create(setting).Error; err != nil {
+			return "", fmt.Errorf("init personal storage setting failed: %w", err)
+		}
+	}
+
+	return workspaceID, nil
+}
+
 // forgetCodeCacheKey 生成忘记密码验证码的 Redis Key。
 func forgetCodeCacheKey(mail string) string {
 	return "user:forget:code:" + strings.ToLower(strings.TrimSpace(mail))
@@ -267,11 +379,10 @@ func (s *UserService) Login(ctx context.Context, req userapi.LoginCmd, r *http.R
 		return nil, code.New(code.BadRequest, "username or password invalid")
 	}
 
-	workspaceID := ""
-	// 默认工作空间为空时，回退到个人空间约定 ID，保证 token 内 workspace 可用。
-	workspaceID = strings.TrimSpace(user.DefaultWorkspaceID)
-	if workspaceID == "" {
-		workspaceID = "ws_" + user.ID + "_personal"
+	// 登录时做自愈：若个人空间/空间存储设置缺失，则自动补齐。
+	workspaceID, err := s.ensurePersonalWorkspaceAndStorageSetting(ctx, s.db, &user)
+	if err != nil {
+		return nil, err
 	}
 
 	ttl := s.tokenTTL
@@ -338,7 +449,7 @@ func (s *UserService) CurrentUser(ctx context.Context) (*userapi.SysUserVO, erro
 	return toSysUserVO(user), nil
 }
 
-// Register 注册用户并初始化个人工作空间与传输设置。
+// Register 注册用户并初始化个人工作空间、空间存储设置与传输设置。
 func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterCmd) error {
 	username := strings.TrimSpace(req.Username)
 	if username == "" {
@@ -364,7 +475,6 @@ func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterCmd)
 	}
 
 	userID := randomID("usr")
-	workspaceID := "ws_" + userID + "_personal"
 	now := time.Now()
 	user := &dbmodel.User{
 		ID:                 userID,
@@ -373,40 +483,19 @@ func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterCmd)
 		Email:              strings.TrimSpace(req.Email),
 		Nickname:           nickname,
 		Avatar:             strings.TrimSpace(ptrString(req.Avatar)),
-		DefaultWorkspaceID: workspaceID,
+		DefaultWorkspaceID: "ws_" + userID + "_personal",
 		Status:             int32(0),
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 注册流程采用事务，保证用户、个人空间、空间成员、传输配置一致性。
+		// 注册流程采用事务，保证用户、个人空间、空间存储配置、传输配置一致性。
 		if err := tx.Create(user).Error; err != nil {
 			return fmt.Errorf("create user failed: %w", err)
 		}
-		ws := &dbmodel.Workspace{
-			ID:            workspaceID,
-			Name:          username + " 个人空间",
-			WorkspaceType: "personal",
-			OwnerUserID:   userID,
-			Status:        true,
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}
-		if err := tx.Create(ws).Error; err != nil {
-			return fmt.Errorf("create personal workspace failed: %w", err)
-		}
-		member := &dbmodel.WorkspaceMember{
-			WorkspaceID: workspaceID,
-			UserID:      userID,
-			Role:        "owner",
-			Status:      true,
-			JoinedAt:    now,
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		}
-		if err := tx.Create(member).Error; err != nil {
-			return fmt.Errorf("init workspace owner failed: %w", err)
+		if _, err := s.ensurePersonalWorkspaceAndStorageSetting(ctx, tx, user); err != nil {
+			return err
 		}
 		// 复用服务内部初始化逻辑，避免重复实现默认配置。
 		if err := (&UserService{db: tx, rdb: s.rdb, jwt: s.jwt}).mustInitTransferSetting(ctx, userID); err != nil {

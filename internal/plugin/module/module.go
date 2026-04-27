@@ -23,6 +23,6 @@ func (m *Module) Models() []any {
 }
 
 func (m *Module) RegisterRoutes(_ *http.ServeMux, deps *app.Dependencies) error {
-	pluginsvc.Init(deps.DB)
+	pluginsvc.InitRunStore(deps.DB)
 	return nil
 }

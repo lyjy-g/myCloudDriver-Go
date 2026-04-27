@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	storagemodel "myclouddrive-go/internal/storage/model"
 	storagesvc "myclouddrive-go/internal/storage/service"
 )
 
@@ -40,7 +41,7 @@ type HomeInfo struct {
 // StorageGateway 定义文件模块依赖的最小存储能力集合。
 type StorageGateway interface {
 	PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error)
-	Get(ctx context.Context, key string) (io.ReadCloser, storagesvc.ObjectInfo, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, storagemodel.ObjectInfo, error)
 	Delete(ctx context.Context, key string) error
 }
 
@@ -530,18 +531,18 @@ func (s *FileService) ResolveDownloadURL(ctx context.Context, fileID string, exp
 }
 
 // OpenPreviewContent 通过统一存储门面读取对象内容。
-func (s *FileService) OpenPreviewContent(ctx context.Context, fileID string) (io.ReadCloser, storagesvc.ObjectInfo, *FileItem, error) {
+func (s *FileService) OpenPreviewContent(ctx context.Context, fileID string) (io.ReadCloser, storagemodel.ObjectInfo, *FileItem, error) {
 	item, err := s.Get(fileID)
 	if err != nil {
-		return nil, storagesvc.ObjectInfo{}, nil, err
+		return nil, storagemodel.ObjectInfo{}, nil, err
 	}
 	if strings.TrimSpace(item.ObjectKey) == "" || s.storage == nil {
-		return nil, storagesvc.ObjectInfo{}, item, nil
+		return nil, storagemodel.ObjectInfo{}, item, nil
 	}
 
 	rc, info, err := s.storage.Get(ctx, item.ObjectKey)
 	if err != nil {
-		return nil, storagesvc.ObjectInfo{}, item, err
+		return nil, storagemodel.ObjectInfo{}, item, err
 	}
 	return rc, info, item, nil
 }

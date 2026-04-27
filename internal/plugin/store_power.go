@@ -49,16 +49,16 @@ type ObjectInfo struct {
 	LastModified *time.Time
 }
 
-// Store 定义基础对象存储接口。
-type Store interface {
+// StorePower 定义基础对象存储接口。
+type StorePower interface {
 	Put(ctx context.Context, key Key, r io.Reader, opts PutOptions) (ObjectInfo, error)
 	Get(ctx context.Context, key Key) (io.ReadCloser, ObjectInfo, error)
 	Delete(ctx context.Context, key Key) error
 	Stat(ctx context.Context, key Key) (ObjectInfo, error)
 }
 
-// MultipartStore 定义分片上传扩展接口。
-type MultipartStore interface {
+// MultipartPower 定义分片上传扩展接口。
+type MultipartPower interface {
 	InitiateMultipartUpload(ctx context.Context, key Key, opts PutOptions) (uploadID string, err error)
 	UploadPart(ctx context.Context, key Key, uploadID string, partNumber int, r io.Reader) (etag string, err error)
 	CompleteMultipartUpload(ctx context.Context, key Key, uploadID string, parts []CompletedPart) (ObjectInfo, error)
