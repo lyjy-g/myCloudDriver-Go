@@ -179,16 +179,16 @@ func (h *Handler) PermanentlyDeleteFiles(w http.ResponseWriter, r *http.Request)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
 		}
-		h.svc.PermanentlyDelete(ids)
-		return http.StatusOK, ok(map[string]any{"deleted": len(ids)}), nil
+		report := h.svc.PermanentlyDelete(r.Context(), ids)
+		return http.StatusOK, ok(report), nil
 	})
 }
 
 // ClearRecycles 清空回收站。
 func (h *Handler) ClearRecycles(w http.ResponseWriter, r *http.Request) {
 	h.handleIdempotentWrite(w, r, "file.recycle.clear", func() (int, any, error) {
-		h.svc.ClearRecycle()
-		return http.StatusOK, ok(map[string]any{"cleared": true}), nil
+		report := h.svc.ClearRecycle(r.Context())
+		return http.StatusOK, ok(report), nil
 	})
 }
 

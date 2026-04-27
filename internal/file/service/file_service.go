@@ -37,12 +37,29 @@ type HomeInfo struct {
 	Recent    []FileItem `json:"recent"`
 }
 
+// StorageGateway 定义文件模块依赖的最小存储能力集合。
+// 面向接口而非具体实现，便于单测替身和后续替换实现。
+type StorageGateway interface {
+	PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, storagesvc.ObjectInfo, error)
+	Delete(ctx context.Context, key string) error
+}
+
+// HardDeleteReport 记录“元数据 + 对象存储”双写删除结果。
+type HardDeleteReport struct {
+	Requested           int      `json:"requested"`
+	MetadataDeleted     int      `json:"metadataDeleted"`
+	ObjectDeleteSuccess int      `json:"objectDeleteSuccess"`
+	ObjectDeleteFailed  int      `json:"objectDeleteFailed"`
+	FailedObjectKeys    []string `json:"failedObjectKeys,omitempty"`
+}
+
 // FileService 是 file 模块的唯一实现。
 type FileService struct {
 	mu      sync.RWMutex
 	counter int64
 	items   map[string]*FileItem
-	storage *storagesvc.StorageService
+	storage StorageGateway
 
 	idemMu      sync.Mutex
 	idemRecords map[string]idempotencyRecord
@@ -269,24 +286,73 @@ func (s *FileService) Restore(fileIDs []string) {
 	}
 }
 
-// PermanentlyDelete 永久删除。
-func (s *FileService) PermanentlyDelete(fileIDs []string) {
+// PermanentlyDelete 永久删除（元数据 + 插件对象删除）。
+//
+// 说明：
+// - 元数据删除先完成，保证用户视图一致性；
+// - 对象删除逐个执行，失败写入报告，便于后续补偿任务清理。
+func (s *FileService) PermanentlyDelete(ctx context.Context, fileIDs []string) HardDeleteReport {
+	report := HardDeleteReport{
+		Requested:        len(fileIDs),
+		FailedObjectKeys: make([]string, 0),
+	}
+
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	objectKeys := make([]string, 0)
 	for _, id := range fileIDs {
+		report.MetadataDeleted += s.collectDeleteTargetsLocked(id, &objectKeys)
 		s.deleteRecursiveLocked(id)
 	}
+	s.mu.Unlock()
+
+	if s.storage == nil || len(objectKeys) == 0 {
+		return report
+	}
+
+	for _, key := range dedupeStrings(objectKeys) {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		if err := s.storage.Delete(ctx, key); err != nil {
+			report.ObjectDeleteFailed++
+			report.FailedObjectKeys = append(report.FailedObjectKeys, key)
+			continue
+		}
+		report.ObjectDeleteSuccess++
+	}
+	return report
 }
 
-// ClearRecycle 清空回收站。
-func (s *FileService) ClearRecycle() {
+// ClearRecycle 清空回收站（元数据 + 插件对象删除）。
+func (s *FileService) ClearRecycle(ctx context.Context) HardDeleteReport {
+	report := HardDeleteReport{FailedObjectKeys: make([]string, 0)}
+
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	objectKeys := make([]string, 0)
 	for id, it := range s.items {
 		if it.Deleted {
+			report.Requested++
+			report.MetadataDeleted += s.collectDeleteTargetsLocked(id, &objectKeys)
 			delete(s.items, id)
 		}
 	}
+	s.mu.Unlock()
+
+	if s.storage == nil || len(objectKeys) == 0 {
+		return report
+	}
+	for _, key := range dedupeStrings(objectKeys) {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		if err := s.storage.Delete(ctx, key); err != nil {
+			report.ObjectDeleteFailed++
+			report.FailedObjectKeys = append(report.FailedObjectKeys, key)
+			continue
+		}
+		report.ObjectDeleteSuccess++
+	}
+	return report
 }
 
 // ListRecycle 分页返回回收站。
@@ -411,6 +477,39 @@ func (s *FileService) deleteRecursiveLocked(id string) {
 		}
 	}
 	delete(s.items, id)
+}
+
+func (s *FileService) collectDeleteTargetsLocked(id string, objectKeys *[]string) int {
+	it, ok := s.items[id]
+	if !ok {
+		return 0
+	}
+	count := 1
+	if !it.IsDir && strings.TrimSpace(it.ObjectKey) != "" {
+		*objectKeys = append(*objectKeys, it.ObjectKey)
+	}
+	for childID, child := range s.items {
+		if child.ParentID == id {
+			count += s.collectDeleteTargetsLocked(childID, objectKeys)
+		}
+	}
+	return count
+}
+
+func dedupeStrings(items []string) []string {
+	if len(items) <= 1 {
+		return items
+	}
+	seen := make(map[string]struct{}, len(items))
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		result = append(result, item)
+	}
+	return result
 }
 
 // ResolveDownloadURL 通过统一存储门面生成下载 URL，业务层不关心 local/s3 细节。
