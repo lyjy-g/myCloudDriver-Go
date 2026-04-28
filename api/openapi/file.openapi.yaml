@@ -1,259 +1,689 @@
-openapi: 3.0.3
+openapi: 3.0.1
 info:
   title: MyCloudDrive File API
+  description: 文件域接口契约（Go 风格命名）。
   version: 1.0.0
-  description: 文件域接口契约（spec-first）。
-servers:
-  - url: /
 tags:
-  - name: File
-    description: 文件域接口契约（spec-first）。
+  - name: 文件管理
+  - name: 文件管理/文件传输
+  - name: 文件传输
+  - name: 文件首页
 paths:
-  /apis/home/info:
-    get:
+  /apis/transfer/resume/{taskId}:
+    post:
+      summary: 继续传输
+      deprecated: false
+      description: ''
+      operationId: resumeTransfer
       tags:
-        - 文件首页
-      summary: 查询首页信息
-      description: 查询首页信息
-      operationId: getHomes
+        - 文件管理/文件传输
+        - 文件传输
       parameters:
-        - name: qry
+        - name: taskId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+          headers: {}
+      security: []
+  /apis/transfer/pause/{taskId}:
+    post:
+      summary: 暂停传输
+      deprecated: false
+      description: ''
+      operationId: pauseTransfer
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+          headers: {}
+      security: []
+  /apis/transfer/merge/{taskId}:
+    post:
+      summary: 合并分片
+      deprecated: false
+      description: 所有分片上传完成后调用，合并分片并返回文件ID
+      operationId: mergeChunks
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultString'
+          headers: {}
+      security: []
+  /apis/transfer/init:
+    post:
+      summary: 初始化文件上传
+      deprecated: false
+      description: 初始化上传环境，返回taskId用于后续分片上传
+      operationId: initUpload
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitUploadRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultString'
+          headers: {}
+      security: []
+  /apis/transfer/init-download:
+    post:
+      summary: 初始化下载任务
+      deprecated: false
+      description: 创建下载任务并返回任务信息
+      operationId: initDownload
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitDownloadRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultInitDownloadResultResponse'
+          headers: {}
+      security: []
+  /apis/transfer/chunk:
+    post:
+      summary: 上传分片
+      deprecated: false
+      description: 异步上传分片，立即返回，通过SSE推送进度
+      operationId: uploadChunk
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
           in: query
-          required: true
-          schema:
-            $ref: "#/components/schemas/FileHomeUsedBytesQry"
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultFileHomeVO"
-  /apis/file/{fileId}/rename:
-    put:
-      tags:
-        - 文件管理
-      summary: 文件重命名
-      description: 文件重命名
-      operationId: createDirectory
-      parameters:
-        - name: fileId
-          in: path
+          description: ''
           required: true
           schema:
             type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RenameFileCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/file/recycles:
-    put:
-      tags:
-        - 文件管理
-      summary: 恢复文件
-      description: 从回收站批量恢复文件
-      operationId: restoreFile
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: string
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-    delete:
-      tags:
-        - 文件管理
-      summary: 永久删除文件
-      description: 永久删除文件，不可恢复
-      operationId: permanentlyDeleteFiles
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: string
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/file/moves:
-    put:
-      tags:
-        - 文件管理
-      summary: 文件移动
-      description: 文件移动
-      operationId: createDirectory_1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MoveFileCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /preview/token/{fileId}:
-    post:
-      tags:
-        - file-preview-controller
-      operationId: previewToken
-      parameters:
-        - name: fileId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultString"
-  /archive/preview/token/{archiveFileId}:
-    post:
-      tags:
-        - archive-preview-controller
-      operationId: previewToken_1
-      parameters:
-        - name: archiveFileId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: innerPath
+        - name: chunkIndex
           in: query
+          description: ''
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: chunkMd5
+          in: query
+          description: ''
           required: true
           schema:
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultString"
-  /apis/file/favorites:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/transfer/check:
     post:
+      summary: 校验文件
+      deprecated: false
+      description: 前端计算完MD5后调用，判断是否秒传
+      operationId: checkUpload
       tags:
-        - 文件管理
-      summary: 收藏文件
-      description: 收藏文件
-      operationId: favoritesFile
+        - 文件管理/文件传输
+        - 文件传输
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                type: string
+              $ref: '#/components/schemas/CheckUploadRequest'
         required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultObject"
-    delete:
-      tags:
-        - 文件管理
-      summary: 取消收藏文件
-      description: 取消收藏文件
-      operationId: unFavoritesFile
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: string
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/file/directory:
-    post:
-      tags:
-        - 文件管理
-      summary: 创建目录
-      description: 在指定目录下创建新目录
-      operationId: createDirectory_3
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateDirectoryCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultFileInfo"
-  /apis/file/{fileId}:
+                $ref: '#/components/schemas/ResultCheckUploadResultResponse'
+          headers: {}
+      security: []
+  /apis/transfer/sse:
     get:
+      summary: 建立SSE连接
+      deprecated: false
+      description: 建立SSE连接以接收实时传输事件
+      operationId: subscribe
       tags:
-        - 文件管理
-      summary: 查询文件详情
-      description: 查询文件详情
-      operationId: getFileDetails
+        - 文件管理/文件传输
+        - 文件传输
       parameters:
-        - name: fileId
-          in: path
+        - name: userId
+          in: query
+          description: ''
           required: true
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultFileDetailVO"
-  /apis/file/url/{fileId}:
+                $ref: '#/components/schemas/SseEmitter'
+          headers: {}
+      security: []
+  /apis/transfer/files:
     get:
+      summary: 获取传输列表
+      deprecated: false
+      description: 获取传输列表
+      operationId: getTransferFiles
       tags:
-        - 文件管理
-      summary: 获取文件URL
-      description: 获取文件的访问URL
-      operationId: getFileUrl
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: statusType
+          in: query
+          description: ''
+          required: false
+          example: 0
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultListFileTransferTaskResponse'
+          headers: {}
+      security: []
+  /apis/transfer/download/{fileId}:
+    get:
+      summary: 下载文件
+      deprecated: false
+      description: 根据文件ID下载文件
+      operationId: downloadFile
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
       parameters:
         - name: fileId
           in: path
           description: 文件ID
           required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          headers: {}
+      security: []
+  /apis/transfer/download/chunks/{taskId}:
+    get:
+      summary: 查询已下载分片
+      deprecated: false
+      description: 获取已下载的分片索引列表
+      operationId: getDownloadedChunks
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultSetInteger'
+          headers: {}
+      security: []
+  /apis/transfer/download/chunk:
+    get:
+      summary: 下载分片
+      deprecated: false
+      description: 下载指定分片，返回206 Partial Content
+      operationId: downloadChunk
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
+          in: query
+          description: 任务ID
+          required: true
+          example: task123
+          schema:
+            type: string
+            description: 任务ID
+            minLength: 1
+            example: task123
+        - name: chunkIndex
+          in: query
+          description: 分片索引（从0开始）
+          required: true
+          example: 0
+          schema:
+            type: integer
+            format: int32
+            description: 分片索引（从0开始）
+            minimum: 0
+            example: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/StreamingResponseBody'
+          headers: {}
+      security: []
+  /apis/transfer/chunks/{taskId}:
+    get:
+      summary: 查询已上传的分片
+      deprecated: false
+      description: 用于断点续传，返回已上传的分片索引列表
+      operationId: getUploadedChunks
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultSetInteger'
+          headers: {}
+      security: []
+  /apis/transfer/clears:
+    delete:
+      summary: 清空已完成的传输列表
+      deprecated: false
+      description: 清空已完成的传输列表
+      operationId: clearTransfers
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultSetInteger'
+          headers: {}
+      security: []
+  /apis/transfer/cancel/{taskId}:
+    delete:
+      summary: 取消传输
+      deprecated: false
+      description: ''
+      operationId: cancelUpload
+      tags:
+        - 文件管理/文件传输
+        - 文件传输
+      parameters:
+        - name: taskId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+          headers: {}
+      security: []
+  /apis/home/info:
+    get:
+      summary: 查询首页信息
+      deprecated: false
+      description: 查询首页信息
+      operationId: getHomes
+      tags:
+        - 文件管理
+        - 文件首页
+      parameters:
+        - name: unit
+          in: query
+          description: 单位，1:KB, 2:MB, 3:GB
+          required: false
+          example: 0
+          schema:
+            type: integer
+            format: int32
+            description: 单位，1:KB, 2:MB, 3:GB
+        - name: dateType
+          in: query
+          description: 日期类型, 0:近三个月, 1:近30天, 2:近7天
+          required: false
+          example: 0
+          schema:
+            type: integer
+            format: int32
+            description: 日期类型, 0:近三个月, 1:近30天, 2:近7天
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultFileHomeResponse'
+          headers: {}
+      security: []
+  /apis/file/{fileId}/rename:
+    put:
+      summary: 文件重命名
+      deprecated: false
+      description: 文件重命名
+      operationId: renameFile
+      tags:
+        - 文件管理
+      parameters:
+        - name: fileId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameFileReq'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/file/recycles:
+    put:
+      summary: 恢复文件
+      deprecated: false
+      description: 从回收站批量恢复文件
+      operationId: restoreFile
+      tags:
+        - 文件管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+    delete:
+      summary: 永久删除文件
+      deprecated: false
+      description: 永久删除文件，不可恢复
+      operationId: permanentlyDeleteFiles
+      tags:
+        - 文件管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/file/moves:
+    put:
+      summary: 文件移动
+      deprecated: false
+      description: 文件移动
+      operationId: moveFile
+      tags:
+        - 文件管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveFileRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/file/favorites:
+    post:
+      summary: 收藏文件
+      deprecated: false
+      description: 收藏文件
+      operationId: favoritesFile
+      tags:
+        - 文件管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+    delete:
+      summary: 取消收藏文件
+      deprecated: false
+      description: 取消收藏文件
+      operationId: unFavoritesFile
+      tags:
+        - 文件管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/file/directory:
+    post:
+      summary: 创建目录
+      deprecated: false
+      description: 在指定目录下创建新目录
+      operationId: createDirectory
+      tags:
+        - 文件管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDirectoryRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultFileInfo'
+          headers: {}
+      security: []
+  /apis/file/{fileId}:
+    get:
+      summary: 查询文件详情
+      deprecated: false
+      description: 查询文件详情
+      operationId: getFileDetails
+      tags:
+        - 文件管理
+      parameters:
+        - name: fileId
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultFileDetailResponse'
+          headers: {}
+      security: []
+  /apis/file/url/{fileId}:
+    get:
+      summary: 获取文件URL
+      deprecated: false
+      description: 获取文件的访问URL
+      operationId: getFileUrl
+      tags:
+        - 文件管理
+      parameters:
+        - name: fileId
+          in: path
+          description: 文件ID
+          required: true
+          example: ''
           schema:
             type: string
         - name: expireSeconds
@@ -264,140 +694,262 @@ paths:
             type: integer
             format: int32
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultString"
+                $ref: '#/components/schemas/ResultString'
+          headers: {}
+      security: []
   /apis/file/recycle/pages:
     get:
-      tags:
-        - 文件管理
       summary: 分页获取回收站列表
+      deprecated: false
       description: 分页获取回收站列表
       operationId: getRecyclePages
+      tags:
+        - 文件管理
       parameters:
-        - name: qry
+        - name: page
           in: query
-          required: true
+          description: 页码
+          required: false
+          example: 1
           schema:
-            $ref: "#/components/schemas/FileRecycleQry"
+            type: integer
+            format: int32
+            description: 页码
+            minimum: 1
+            example: 1
+        - name: pageSize
+          in: query
+          description: 每页大小
+          required: false
+          example: 20
+          schema:
+            type: integer
+            format: int32
+            description: 每页大小
+            minimum: 1
+            example: 20
+        - name: orderBy
+          in: query
+          description: 排序字段
+          required: false
+          example: updateTime
+          schema:
+            type: string
+            description: 排序字段
+            example: updateTime
+        - name: orderDirection
+          in: query
+          description: 排序方向
+          required: false
+          example: DESC
+          schema:
+            type: string
+            description: 排序方向
+            enum:
+              - ASC
+              - DESC
+            example: DESC
+        - name: keyword
+          in: query
+          description: ''
+          required: false
+          example: ''
+          schema:
+            type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PageResultObject"
+                $ref: '#/components/schemas/PageResultObject'
+          headers: {}
+      security: []
   /apis/file/list:
     get:
-      tags:
-        - 文件管理
       summary: 查询所有文件列表
+      deprecated: false
       description: 支持关键词搜索和文件类型筛选的列表查询
       operationId: getList
+      tags:
+        - 文件管理
       parameters:
-        - name: qry
+        - name: page
           in: query
-          required: true
+          description: 页码
+          required: false
+          example: 1
           schema:
-            $ref: "#/components/schemas/FileQry"
+            type: integer
+            format: int32
+            description: 页码
+            minimum: 1
+            example: 1
+        - name: pageSize
+          in: query
+          description: 每页大小
+          required: false
+          example: 20
+          schema:
+            type: integer
+            format: int32
+            description: 每页大小
+            minimum: 1
+            example: 20
+        - name: orderBy
+          in: query
+          description: 排序字段
+          required: false
+          example: updateTime
+          schema:
+            type: string
+            description: 排序字段
+            example: updateTime
+        - name: orderDirection
+          in: query
+          description: 排序方向
+          required: false
+          example: DESC
+          schema:
+            type: string
+            description: 排序方向
+            enum:
+              - ASC
+              - DESC
+            example: DESC
+        - name: parentId
+          in: query
+          description: 父目录ID（空表示根目录）
+          required: false
+          example: '123'
+          schema:
+            type: string
+            description: 父目录ID（空表示根目录）
+            example: '123'
+        - name: keyword
+          in: query
+          description: 文件名关键词（搜索用）
+          required: false
+          example: 工作文档
+          schema:
+            type: string
+            description: 文件名关键词（搜索用）
+            example: 工作文档
+        - name: fileType
+          in: query
+          description: 文件类型过滤
+          required: false
+          example: IMAGE
+          schema:
+            type: string
+            description: 文件类型过滤
+            enum:
+              - ALL
+              - DOCUMENT
+              - IMAGE
+              - VIDEO
+              - AUDIO
+              - OTHER
+            example: IMAGE
+        - name: isFavorite
+          in: query
+          description: 是否收藏
+          required: false
+          example: 'true'
+          schema:
+            type: boolean
+            description: 是否收藏
+            example: true
+        - name: isRecents
+          in: query
+          description: 最近使用
+          required: false
+          example: 'true'
+          schema:
+            type: boolean
+            description: 最近使用
+            example: true
+        - name: isDir
+          in: query
+          description: 是否目录
+          required: false
+          example: 'true'
+          schema:
+            type: boolean
+            description: 是否目录
+            example: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PageResultFileVO"
+                $ref: '#/components/schemas/PageResultFileResponse'
+          headers: {}
+      security: []
   /apis/file/dirs:
     get:
-      tags:
-        - 文件管理
       summary: 查询目录列表
+      deprecated: false
       description: 查询目录列表
       operationId: getDirs
+      tags:
+        - 文件管理
       parameters:
         - name: parentId
           in: query
+          description: ''
           required: true
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultListFileVO"
+                $ref: '#/components/schemas/ResultListFileResponse'
+          headers: {}
+      security: []
   /apis/file/directory/{dirId}/path:
     get:
+      summary: 获取目录层级
+      deprecated: false
+      description: 根据目录ID获取目录层级
+      operationId: getDirectoryPath
       tags:
         - 文件管理
-      summary: 获取目录层级
-      description: 根据目录ID获取目录层级
-      operationId: createDirectory_4
       parameters:
         - name: dirId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultListFileVO"
-  /api/file/stream/preview/{fileId}:
-    get:
-      tags:
-        - file-stream-controller
-      operationId: preview
-      parameters:
-        - name: fileId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: Range
-          in: header
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StreamingResponseBody"
-  /api/file/stream/preview/archive/inner/{tempId}:
-    get:
-      tags:
-        - file-stream-controller
-      operationId: previewArchiveInner
-      parameters:
-        - name: tempId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StreamingResponseBody"
+                $ref: '#/components/schemas/ResultListFileResponse'
+          headers: {}
+      security: []
   /apis/file:
     delete:
-      tags:
-        - 文件管理
       summary: 移到回收站
+      deprecated: false
       description: 将文件移动到回收站
       operationId: deleteFiles
+      tags:
+        - 文件管理
+      parameters: []
       requestBody:
         content:
           application/json:
@@ -407,29 +959,35 @@ paths:
                 type: string
         required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultObject"
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
   /apis/file/recycles/clear:
     delete:
-      tags:
-        - 文件管理
       summary: 清空回收站
+      deprecated: false
       description: 清空回收站，永久删除所有文件
       operationId: clearRecycles
+      tags:
+        - 文件管理
+      parameters: []
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultObject"
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
 components:
   schemas:
-    ResultObject:
+    ResultObject: &ref_0
       type: object
       properties:
         data: {}
@@ -438,15 +996,15 @@ components:
           format: int32
         msg:
           type: string
-    RenameFileCmd:
+    RenameFileReq:
       type: object
       properties:
         displayName:
           type: string
           minLength: 1
       required:
-      - displayName
-    MoveFileCmd:
+        - displayName
+    MoveFileRequest:
       type: object
       properties:
         dirId:
@@ -457,7 +1015,8 @@ components:
             type: string
           minItems: 1
       required:
-      - fileIds
+        - fileIds
+    ResultVoid: *ref_0
     ResultString:
       type: object
       properties:
@@ -468,7 +1027,33 @@ components:
           format: int32
         msg:
           type: string
-    CreateDirectoryCmd:
+    InitUploadRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        fileSize:
+          type: integer
+          format: int64
+        parentId:
+          type: string
+        totalChunks:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+          minLength: 1
+      required:
+        - chunkSize
+        - fileName
+        - fileSize
+        - mimeType
+        - totalChunks
+    CreateDirectoryRequest:
       type: object
       properties:
         folderName:
@@ -479,7 +1064,18 @@ components:
           type: string
           title: 父目录ID
       required:
-      - folderName
+        - folderName
+    InitDownloadRequest:
+      type: object
+      properties:
+        fileId:
+          type: string
+          minLength: 1
+        chunkSize:
+          type: integer
+          format: int64
+      required:
+        - fileId
     FileInfo:
       type: object
       properties:
@@ -522,6 +1118,28 @@ components:
         deletedTime:
           type: string
           format: date-time
+    InitDownloadResultResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        totalChunks:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+        downloadedChunks:
+          type: array
+          items:
+            type: integer
+            format: int32
+          uniqueItems: true
     ResultFileInfo:
       type: object
       properties:
@@ -532,8 +1150,32 @@ components:
           format: int32
         msg:
           type: string
+    ResultInitDownloadResultResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/InitDownloadResultResponse'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
     StreamingResponseBody: {}
-    FileVO:
+    CheckUploadRequest:
+      type: object
+      properties:
+        taskId:
+          type: string
+          minLength: 1
+        fileMd5:
+          type: string
+          minLength: 1
+        fileName:
+          type: string
+      required:
+        - fileMd5
+        - taskId
+    FileResponse:
       type: object
       properties:
         id:
@@ -570,31 +1212,48 @@ components:
           format: date-time
         isFavorite:
           type: boolean
-    ResultListFileVO:
+    CheckUploadResultResponse:
+      type: object
+      properties:
+        isQuickUpload:
+          type: boolean
+        fileId:
+          type: string
+        taskId:
+          type: string
+        uploadId:
+          type: string
+        message:
+          type: string
+    ResultListFileResponse:
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/FileVO'
+            $ref: '#/components/schemas/FileResponse'
         code:
           type: integer
           format: int32
         msg:
           type: string
-    FileHomeUsedBytesQry:
+    ResultCheckUploadResultResponse:
       type: object
-      description: 首页存储增长查询条件
       properties:
-        unit:
+        data:
+          $ref: '#/components/schemas/CheckUploadResultResponse'
+        code:
           type: integer
           format: int32
-          description: 单位，1:KB, 2:MB, 3:GB
-        dateType:
+        msg:
+          type: string
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
           type: integer
-          format: int32
-          description: 日期类型, 0:近三个月, 1:近30天, 2:近7天
-    FileHomeUsedBytesVO:
+          format: int64
+    FileHomeUsedBytesResponse:
       type: object
       properties:
         date:
@@ -602,7 +1261,7 @@ components:
         usedBytes:
           type: number
           format: double
-    FileHomeVO:
+    FileHomeResponse:
       type: object
       properties:
         usedStorage:
@@ -611,24 +1270,103 @@ components:
         usedBytes:
           type: array
           items:
-            $ref: '#/components/schemas/FileHomeUsedBytesVO'
+            $ref: '#/components/schemas/FileHomeUsedBytesResponse'
         recentFiles:
           type: array
           items:
-            $ref: '#/components/schemas/FileVO'
+            $ref: '#/components/schemas/FileResponse'
         unit:
           type: string
-    ResultFileHomeVO:
+    FileTransferTaskResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        taskType:
+          type: string
+          enum:
+            - upload
+            - download
+        userId:
+          type: string
+        parentId:
+          type: string
+        objectKey:
+          type: string
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        suffix:
+          type: string
+        totalChunks:
+          type: integer
+          format: int32
+        uploadedChunks:
+          type: integer
+          format: int32
+        chunkSize:
+          type: integer
+          format: int64
+        storagePlatformSettingId:
+          type: string
+        status:
+          type: string
+          enum:
+            - initialized
+            - checking
+            - uploading
+            - merging
+            - downloading
+            - failed
+            - paused
+            - completed
+            - canceled
+        errorMsg:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        completeTime:
+          type: string
+          format: date-time
+        progress:
+          type: integer
+          format: int32
+        speed:
+          type: integer
+          format: int64
+        remainTime:
+          type: integer
+          format: int32
+        uploadedSize:
+          type: integer
+          format: int64
+        completeEventData: {}
+    ResultFileHomeResponse:
       type: object
       properties:
         data:
-          $ref: '#/components/schemas/FileHomeVO'
+          $ref: '#/components/schemas/FileHomeResponse'
         code:
           type: integer
           format: int32
         msg:
           type: string
-    FileDetailVO:
+    ResultListFileTransferTaskResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileTransferTaskResponse'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    FileDetailResponse:
       type: object
       properties:
         id:
@@ -656,43 +1394,29 @@ components:
         lastAccessTime:
           type: string
           format: date-time
-    ResultFileDetailVO:
+    ResultSetInteger:
       type: object
       properties:
         data:
-          $ref: '#/components/schemas/FileDetailVO'
+          type: array
+          items:
+            type: integer
+            format: int32
+          uniqueItems: true
         code:
           type: integer
           format: int32
         msg:
           type: string
-    FileRecycleQry:
+    ResultFileDetailResponse:
       type: object
       properties:
-        page:
+        data:
+          $ref: '#/components/schemas/FileDetailResponse'
+        code:
           type: integer
           format: int32
-          description: 页码
-          example: 1
-          minimum: 1
-        pageSize:
-          type: integer
-          format: int32
-          description: 每页大小
-          example: 20
-          minimum: 1
-        orderBy:
-          type: string
-          description: 排序字段
-          example: updateTime
-        orderDirection:
-          type: string
-          description: 排序方向
-          enum:
-          - ASC
-          - DESC
-          example: DESC
-        keyword:
+        msg:
           type: string
     PageRecordObject:
       type: object
@@ -711,79 +1435,25 @@ components:
           format: int32
         data:
           $ref: '#/components/schemas/PageRecordObject'
-    FileQry:
-      type: object
-      description: 文件列表查询参数
-      properties:
-        page:
-          type: integer
-          format: int32
-          description: 页码
-          example: 1
-          minimum: 1
-        pageSize:
-          type: integer
-          format: int32
-          description: 每页大小
-          example: 20
-          minimum: 1
-        orderBy:
-          type: string
-          description: 排序字段
-          example: updateTime
-        orderDirection:
-          type: string
-          description: 排序方向
-          enum:
-          - ASC
-          - DESC
-          example: DESC
-        parentId:
-          type: string
-          description: 父目录ID（空表示根目录）
-          example: '123'
-        keyword:
-          type: string
-          description: 文件名关键词（搜索用）
-          example: 工作文档
-        fileType:
-          type: string
-          description: 文件类型过滤
-          enum:
-          - ALL
-          - DOCUMENT
-          - IMAGE
-          - VIDEO
-          - AUDIO
-          - OTHER
-          example: IMAGE
-        isFavorite:
-          type: boolean
-          description: 是否收藏
-          example: true
-        isRecents:
-          type: boolean
-          description: 最近使用
-          example: true
-        isDir:
-          type: boolean
-          description: 是否目录
-          example: true
-    PageRecordFileVO:
+    PageRecordFileResponse:
       type: object
       properties:
         records:
           type: array
           items:
-            $ref: '#/components/schemas/FileVO'
+            $ref: '#/components/schemas/FileResponse'
         total:
           type: integer
           format: int64
-    PageResultFileVO:
+    PageResultFileResponse:
       type: object
       properties:
         code:
           type: integer
           format: int32
         data:
-          $ref: '#/components/schemas/PageRecordFileVO'
+          $ref: '#/components/schemas/PageRecordFileResponse'
+  responses: {}
+  securitySchemes: {}
+servers: []
+security: []

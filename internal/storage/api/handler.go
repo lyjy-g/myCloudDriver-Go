@@ -24,7 +24,8 @@ func (h *StorageHandler) ListActivePlatforms(w http.ResponseWriter, r *http.Requ
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: "OK", Message: "success", Data: toAPIPlatforms(items)})
+	data := toAPIPlatforms(items)
+	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
 func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Request) {
@@ -33,16 +34,18 @@ func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Req
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: "OK", Message: "success", Data: toAPIPlatforms(items)})
+	data := toAPIPlatforms(items)
+	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
-func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r *http.Request, identifier gen.Identifier) {
-	item, err := h.svc.GetStoragePlatformByIdentifier(r.Context(), string(identifier))
+func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r *http.Request, identifier string) {
+	item, err := h.svc.GetStoragePlatformByIdentifier(r.Context(), identifier)
 	if err != nil {
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.PlatformResponse{Code: "OK", Message: "success", Data: toAPIPlatform(*item)})
+	data := toAPIPlatform(*item)
+	web.WriteJSON(w, http.StatusOK, gen.PlatformResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
 func (h *StorageHandler) ListStorageSettings(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +54,8 @@ func (h *StorageHandler) ListStorageSettings(w http.ResponseWriter, r *http.Requ
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.SettingListResponse{Code: "OK", Message: "success", Data: toAPISettings(items)})
+	data := toAPISettings(items)
+	web.WriteJSON(w, http.StatusOK, gen.SettingListResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
 func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Request) {
@@ -68,11 +72,12 @@ func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Req
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusCreated, gen.SettingResponse{Code: "OK", Message: "created", Data: toAPISetting(*item)})
+	data := toAPISetting(*item)
+	web.WriteJSON(w, http.StatusCreated, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("created"), Data: &data})
 }
 
-func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Request, settingID gen.SettingId) {
-	err := h.svc.DeleteStorageSetting(r.Context(), string(settingID))
+func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
+	err := h.svc.DeleteStorageSetting(r.Context(), settingID)
 	if err != nil {
 		writeStorageError(w, err)
 		return
@@ -80,46 +85,49 @@ func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Request, settingID gen.SettingId) {
+func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
 	var req gen.UpdateSettingRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
 		return
 	}
-	item, err := h.svc.UpdateStorageSetting(r.Context(), string(settingID), model.UpdateSettingInput{
+	item, err := h.svc.UpdateStorageSetting(r.Context(), settingID, model.UpdateSettingInput{
 		ConfigJSON: req.ConfigJson,
 	})
 	if err != nil {
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: "OK", Message: "success", Data: toAPISetting(*item)})
+	data := toAPISetting(*item)
+	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
-func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.Request, settingID gen.SettingId) {
-	item, err := h.svc.ActivateStorageSetting(r.Context(), string(settingID))
+func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
+	item, err := h.svc.ActivateStorageSetting(r.Context(), settingID)
 	if err != nil {
 		writeStorageError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: "OK", Message: "success", Data: toAPISetting(*item)})
+	data := toAPISetting(*item)
+	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
 // ActivateOrDisableStorageSettingByAction 兼容 action 风格开关接口：1 启用，0 禁用。
-func (h *StorageHandler) ActivateOrDisableStorageSettingByAction(w http.ResponseWriter, r *http.Request, settingID gen.SettingId, action string) {
+func (h *StorageHandler) ActivateOrDisableStorageSettingByAction(w http.ResponseWriter, r *http.Request, settingID string, action string) {
 	switch action {
 	case "1":
 		h.ActivateStorageSetting(w, r, settingID)
 	case "0":
-		item, err := h.svc.DisableStorageSetting(r.Context(), string(settingID))
+		item, err := h.svc.DisableStorageSetting(r.Context(), settingID)
 		if err != nil {
 			writeStorageError(w, err)
 			return
 		}
+		data := toAPISetting(*item)
 		web.WriteJSON(w, http.StatusOK, gen.SettingResponse{
-			Code:    "OK",
-			Message: "success",
-			Data:    toAPISetting(*item),
+			Code:    strPtr("OK"),
+			Message: strPtr("success"),
+			Data:    &data,
 		})
 	default:
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "unsupported action, use 1(enable) or 0(disable)")
@@ -171,3 +179,5 @@ func writeStorageError(w http.ResponseWriter, err error) {
 		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
 	}
 }
+
+func strPtr(s string) *string { return &s }

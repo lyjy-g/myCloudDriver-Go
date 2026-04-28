@@ -29,7 +29,7 @@ func NewHandler(svc *service.UserService) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) DoLogin(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DoLogin(w http.ResponseWriter, r *http.Request, _ userapi.DoLoginParams) {
 	var req userapi.LoginCmd
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
@@ -57,7 +57,7 @@ func (h *Handler) GetDetail(w http.ResponseWriter, r *http.Request) {
 		writeUserError(w, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultSysUserVO{
+	web.WriteJSON(w, http.StatusOK, userapi.ResultSysUserResponse{
 		Code: int32Ptr(200),
 		Msg:  strPtr(successMessage),
 		Data: user,
@@ -116,7 +116,7 @@ func (h *Handler) CheckForgetPasswordCode(w http.ResponseWriter, r *http.Request
 	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
 }
 
-func (h *Handler) SendForgetPasswordCode1(w http.ResponseWriter, r *http.Request, mail string) {
+func (h *Handler) SendForgetPasswordCodeByMail(w http.ResponseWriter, r *http.Request, mail string) {
 	if err := h.svc.SendForgetPasswordCode(r.Context(), strings.TrimSpace(mail)); err != nil {
 		writeUserError(w, err)
 		return
@@ -124,8 +124,7 @@ func (h *Handler) SendForgetPasswordCode1(w http.ResponseWriter, r *http.Request
 	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
 }
 
-// SendForgetPasswordCode 历史 operationId 命名对应“获取用户传输配置”。
-func (h *Handler) SendForgetPasswordCode(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetUserTransferSetting(w http.ResponseWriter, r *http.Request) {
 	item, err := h.svc.GetTransferSetting(r.Context())
 	if err != nil {
 		writeUserError(w, err)
@@ -156,7 +155,7 @@ func (h *Handler) UpdateUserTransferSetting(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (h *Handler) ListUserWorkspaces(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListUserWorkspaces(w http.ResponseWriter, r *http.Request, _ userapi.ListUserWorkspacesParams) {
 	items, err := h.svc.ListWorkspaces(r.Context())
 	if err != nil {
 		writeUserError(w, err)
@@ -240,7 +239,7 @@ func (h *Handler) RemoveWorkspaceMember(w http.ResponseWriter, r *http.Request, 
 
 // 兼容现有前端路径。
 func (h *Handler) ListWorkspacesCompat(w http.ResponseWriter, r *http.Request) {
-	h.ListUserWorkspaces(w, r)
+	h.ListUserWorkspaces(w, r, userapi.ListUserWorkspacesParams{})
 }
 
 // 兼容现有前端路径。

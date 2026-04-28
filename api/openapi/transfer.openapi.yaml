@@ -2,12 +2,12 @@ openapi: 3.0.3
 info:
   title: MyCloudDrive Transfer API
   version: 1.0.0
-  description: 传输域接口契约（spec-first）。
+  description: 传输域接口契约（Go 风格命名）。
 servers:
   - url: /
 tags:
   - name: Transfer
-    description: 传输域接口契约（spec-first）。
+    description: 传输域接口契约（Go 风格命名）。
 paths:
   /apis/transfer/resume/{taskId}:
     post:

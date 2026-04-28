@@ -1,192 +1,101 @@
-openapi: 3.0.3
+openapi: 3.0.1
 info:
   title: MyCloudDrive User API
+  description: 用户域接口契约（Go 风格命名）。
   version: 1.0.0
-  description: 用户域接口契约（spec-first）。
-servers:
-  - url: /
 tags:
-  - name: User
-    description: 用户域接口契约（spec-first）。
+  - name: 用户管理
+  - name: 用户管理/认证管理
+  - name: 用户管理/用户工作空间
+  - name: 用户管理/用户数据
+  - name: 认证管理
+  - name: 用户工作空间
 paths:
   /apis/auth/logout:
     post:
-      tags:
-        - 认证管理
       summary: 登出
+      deprecated: false
+      description: ''
       operationId: logout
+      tags:
+        - 用户管理/认证管理
+        - 认证管理
+      parameters: []
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultObject"
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
   /apis/auth/login:
     post:
-      tags:
-        - 认证管理
       summary: 登录
+      deprecated: false
+      description: ''
       operationId: doLogin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/user/transfer/setting:
-    get:
       tags:
-        - 用户管理
-      summary: 获取用户传输配置
-      operationId: sendForgetPasswordCode
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultSysUserTransferSetting"
-    put:
-      tags:
-        - 用户管理
-      summary: 修改用户传输配置
-      operationId: updateUserTransferSetting
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UserTransferSettingEditCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultSysUserTransferSetting"
-  /apis/user/password:
-    put:
-      tags:
-        - 用户管理
-      summary: 修改密码
-      operationId: resetPassword
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PasswordEditCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/user/info:
-    get:
-      tags:
-        - 用户管理
-      summary: 获取用户详细信息
-      operationId: getDetail
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultSysUserVO"
-    put:
-      tags:
-        - 用户管理
-      summary: 编辑用户
-      operationId: editUserInfo
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UserEditInfoCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/user/forget-password:
-    put:
-      tags:
-        - 用户管理
-      summary: 忘记密码-修改密码
-      operationId: checkForgetPasswordCode
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PasswordForgetEditCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/user/register:
-    post:
-      tags:
-        - 用户管理
-      summary: 注册用户
-      operationId: register
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UserRegisterCmd"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResultObject"
-  /apis/user/forget-password/code/{mail}:
-    get:
-      tags:
-        - 用户管理
-      summary: 忘记密码-发送验证码
-      operationId: sendForgetPasswordCode_1
+        - 用户管理/认证管理
+        - 认证管理
       parameters:
-        - name: mail
-          in: path
-          required: true
+        - name: Authorization
+          in: header
+          description: ''
+          required: false
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMWpydmdzOTQzcTBmNDNoMGFhNW1qZGUweSIsIndzIjoid3NfMDFqcnZnczk0M3EwZjQzaDBhYTVtamRlMHlfcGVyc29uYWwiLCJ1biI6ImFkbWluIiwiaWF0IjoxNzc3MDI2OTY0LCJleHAiOjE3Nzc2MzE3NjR9.Go6A0dP_wASdk1EWCBSzB86VyNy87ysQfrjriFEgnKg
           schema:
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginCmd'
+            example:
+              username: admin
+              password: admin
+              isRemember: true
+        required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultObject"
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
   /apis/user/workspaces:
     get:
-      tags:
-        - 用户工作空间
       summary: 获取当前用户可访问工作空间列表
+      deprecated: false
+      description: ''
       operationId: listUserWorkspaces
+      tags:
+        - 用户管理/用户工作空间
+        - 用户工作空间
+      parameters:
+        - name: Authorization
+          in: header
+          description: ''
+          required: false
+          example: >-
+            Bearer
+            eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMWpydmdzOTQzcTBmNDNoMGFhNW1qZGUweSIsIndzIjoid3NfMDFqcnZnczk0M3EwZjQzaDBhYTVtamRlMHlfcGVyc29uYWwiLCJ1biI6ImFkbWluIiwiaWF0IjoxNzc3MDI2OTY0LCJleHAiOjE3Nzc2MzE3NjR9.Go6A0dP_wASdk1EWCBSzB86VyNy87ysQfrjriFEgnKg
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+            example: {}
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -208,30 +117,42 @@ paths:
                           type: string
                         workspaceType:
                           type: string
-                          enum: [personal, org]
+                          enum:
+                            - personal
+                            - org
                         role:
                           type: string
-                          enum: [owner, admin, member]
+                          enum:
+                            - owner
+                            - admin
+                            - member
                         isDefault:
                           type: boolean
+          headers: {}
+      security: []
     post:
-      tags:
-        - 用户工作空间
       summary: 创建组织工作空间
+      deprecated: false
+      description: ''
       operationId: createOrgWorkspace
+      tags:
+        - 用户管理/用户工作空间
+        - 用户工作空间
+      parameters: []
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name]
+              required:
+                - name
               properties:
                 name:
                   type: string
                   description: 工作空间名称
+        required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -251,21 +172,29 @@ paths:
                         type: string
                       workspaceType:
                         type: string
-                        enum: [org]
+                        enum:
+                          - org
+          headers: {}
+      security: []
   /apis/user/default-workspace/{workspaceId}:
     put:
-      tags:
-        - 用户工作空间
       summary: 设置默认工作空间
+      deprecated: false
+      description: ''
       operationId: setDefaultWorkspace
+      tags:
+        - 用户管理/用户工作空间
+        - 用户工作空间
       parameters:
         - name: workspaceId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -281,20 +210,27 @@ paths:
                     properties:
                       defaultWorkspaceId:
                         type: string
+          headers: {}
+      security: []
   /apis/user/workspaces/{workspaceId}/members:
     get:
-      tags:
-        - 用户工作空间
       summary: 获取工作空间成员
+      deprecated: false
+      description: ''
       operationId: listWorkspaceMembers
+      tags:
+        - 用户管理/用户工作空间
+        - 用户工作空间
       parameters:
         - name: workspaceId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -314,36 +250,50 @@ paths:
                           type: string
                         role:
                           type: string
-                          enum: [owner, admin, member]
+                          enum:
+                            - owner
+                            - admin
+                            - member
                         joinedAt:
                           type: string
                           format: date-time
+          headers: {}
+      security: []
     post:
-      tags:
-        - 用户工作空间
       summary: 添加工作空间成员
+      deprecated: false
+      description: ''
       operationId: addWorkspaceMember
+      tags:
+        - 用户管理/用户工作空间
+        - 用户工作空间
       parameters:
         - name: workspaceId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               type: object
-              required: [userId, role]
+              required:
+                - userId
+                - role
               properties:
                 userId:
                   type: string
                 role:
                   type: string
-                  enum: [admin, member]
+                  enum:
+                    - admin
+                    - member
+        required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -363,25 +313,34 @@ paths:
                         type: string
                       role:
                         type: string
+          headers: {}
+      security: []
   /apis/user/workspaces/{workspaceId}/members/{userId}:
     delete:
-      tags:
-        - 用户工作空间
       summary: 移除工作空间成员
+      deprecated: false
+      description: ''
       operationId: removeWorkspaceMember
+      tags:
+        - 用户管理/用户工作空间
+        - 用户工作空间
       parameters:
         - name: workspaceId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
         - name: userId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -399,9 +358,214 @@ paths:
                         type: string
                       userId:
                         type: string
+          headers: {}
+      security: []
+  /apis/user/transfer/setting:
+    get:
+      summary: 获取用户传输配置
+      deprecated: false
+      description: ''
+      operationId: getUserTransferSetting
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultSysUserTransferSetting'
+          headers: {}
+      security: []
+    put:
+      summary: 修改用户传输配置
+      deprecated: false
+      description: ''
+      operationId: updateUserTransferSetting
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserTransferSettingEditRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultSysUserTransferSetting'
+          headers: {}
+      security: []
+  /apis/user/password:
+    put:
+      summary: 修改密码
+      deprecated: false
+      description: ''
+      operationId: resetPassword
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordEditRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/user/info:
+    get:
+      summary: 获取用户详细信息
+      deprecated: false
+      description: ''
+      operationId: getDetail
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultSysUserResponse'
+          headers: {}
+      security: []
+    put:
+      summary: 编辑用户
+      deprecated: false
+      description: ''
+      operationId: editUserInfo
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserEditInfoRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/user/forget-password:
+    put:
+      summary: 忘记密码-修改密码
+      deprecated: false
+      description: ''
+      operationId: checkForgetPasswordCode
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordForgetEditRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/user/register:
+    post:
+      summary: 注册用户
+      deprecated: false
+      description: ''
+      operationId: register
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegisterRequest'
+            example:
+              username: myCloudDriver
+              password: myCloudDriver
+              confirmPassword: myCloudDriver
+              email: is8k1z.rvl54@sina.com
+              nickname: 出雨涵
+              avatar: https://avatars.githubusercontent.com/u/21450521
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
+  /apis/user/forget-password/code/{mail}:
+    get:
+      summary: 忘记密码-发送验证码
+      deprecated: false
+      description: ''
+      operationId: sendForgetPasswordCodeByMail
+      tags:
+        - 用户管理/用户数据
+        - 用户管理
+      parameters:
+        - name: mail
+          in: path
+          description: ''
+          required: true
+          example: ''
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ResultObject'
+          headers: {}
+      security: []
 components:
   schemas:
-    UserTransferSettingEditCmd:
+    ResultObject:
+      type: object
+      properties:
+        data: {}
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    UserTransferSettingEditRequest:
       type: object
       properties:
         downloadLocation:
@@ -428,12 +592,12 @@ components:
           type: integer
           format: int64
       required:
-      - chunkSize
-      - concurrentDownloadQuantity
-      - concurrentUploadQuantity
-      - downloadLocation
-      - downloadSpeedLimit
-      - isDefaultDownloadLocation
+        - chunkSize
+        - concurrentDownloadQuantity
+        - concurrentUploadQuantity
+        - downloadLocation
+        - downloadSpeedLimit
+        - isDefaultDownloadLocation
     ResultSysUserTransferSetting:
       type: object
       properties:
@@ -475,7 +639,7 @@ components:
         chunkSize:
           type: integer
           format: int64
-    PasswordEditCmd:
+    PasswordEditRequest:
       type: object
       properties:
         oldPassword:
@@ -488,27 +652,18 @@ components:
           type: string
           minLength: 1
       required:
-      - confirmPassword
-      - newPassword
-      - oldPassword
-    ResultObject:
-      type: object
-      properties:
-        data: {}
-        code:
-          type: integer
-          format: int32
-        msg:
-          type: string
-    UserEditInfoCmd:
+        - confirmPassword
+        - newPassword
+        - oldPassword
+    UserEditInfoRequest:
       type: object
       properties:
         nickname:
           type: string
           minLength: 1
       required:
-      - nickname
-    PasswordForgetEditCmd:
+        - nickname
+    PasswordForgetEditRequest:
       type: object
       properties:
         mail:
@@ -524,11 +679,11 @@ components:
           type: string
           minLength: 1
       required:
-      - code
-      - confirmPassword
-      - mail
-      - newPassword
-    UserRegisterCmd:
+        - code
+        - confirmPassword
+        - mail
+        - newPassword
+    UserRegisterRequest:
       type: object
       properties:
         username:
@@ -549,11 +704,11 @@ components:
         avatar:
           type: string
       required:
-      - confirmPassword
-      - email
-      - nickname
-      - password
-      - username
+        - confirmPassword
+        - email
+        - nickname
+        - password
+        - username
     LoginCmd:
       type: object
       properties:
@@ -566,19 +721,19 @@ components:
         isRemember:
           type: boolean
       required:
-      - password
-      - username
-    ResultSysUserVO:
+        - password
+        - username
+    ResultSysUserResponse:
       type: object
       properties:
         data:
-          $ref: '#/components/schemas/SysUserVO'
+          $ref: '#/components/schemas/SysUserResponse'
         code:
           type: integer
           format: int32
         msg:
           type: string
-    SysUserVO:
+    SysUserResponse:
       type: object
       description: 用户
       properties:
@@ -613,3 +768,7 @@ components:
           type: string
           format: date-time
           description: 最后登录时间
+  responses: {}
+  securitySchemes: {}
+servers: []
+security: []

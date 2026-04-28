@@ -1,206 +1,293 @@
-openapi: 3.0.3
+openapi: 3.0.1
 info:
   title: MyCloudDrive Share API
+  description: 分享域接口契约（Go 风格命名）。
   version: 1.0.0
-  description: 分享域接口契约（spec-first）。
-servers:
-  - url: /
 tags:
-  - name: Share
-    description: 分享域接口契约（spec-first）。
+  - name: 文件分享
 paths:
   /apis/share/verify/code:
     post:
-      tags:
-        - 文件分享
       summary: 验证提取码
+      deprecated: false
       description: 验证提取码
       operationId: verifyShareCode
+      tags:
+        - 文件分享
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VerifyShareCodeCmd"
+              $ref: '#/components/schemas/VerifyShareCodeRequest'
         required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultBoolean"
+                $ref: '#/components/schemas/ResultBoolean'
+          headers: {}
+      security: []
   /apis/share/create:
     post:
+      summary: 创建分享
+      deprecated: false
+      description: 创建分享
+      operationId: createShare
       tags:
         - 文件分享
-      summary: 创建分享
-      description: 创建分享
-      operationId: createDirectory_2
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateShareCmd"
+              $ref: '#/components/schemas/CreateShareRequest'
         required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultFileShareVO"
+                $ref: '#/components/schemas/ResultFileShareResponse'
+          headers: {}
+      security: []
   /apis/share/{shareId}:
     get:
+      summary: 获取分享详细信息
+      deprecated: false
+      description: 获取分享详细信息
+      operationId: getShareDetail
       tags:
         - 文件分享
-      summary: 获取分享详细信息
-      description: 获取分享详细信息
-      operationId: getDetail_1
       parameters:
         - name: shareId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultFileShareVO"
+                $ref: '#/components/schemas/ResultFileShareResponse'
+          headers: {}
+      security: []
   /apis/share/{shareId}/items:
     get:
+      summary: 获取分享页文件列表数据
+      deprecated: false
+      description: 获取分享页文件列表数据
+      operationId: getShareItems
       tags:
         - 文件分享
-      summary: 获取分享页文件列表数据
-      description: 获取分享页文件列表数据
-      operationId: getShareFileItems
       parameters:
         - name: shareId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
         - name: parentId
           in: query
+          description: ''
           required: false
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultListFileVO"
+                $ref: '#/components/schemas/ResultListFileResponse'
+          headers: {}
+      security: []
   /apis/share/{shareId}/info:
     get:
+      summary: 获取分享页数据
+      deprecated: false
+      description: 获取分享页数据
+      operationId: getShareInfo
       tags:
         - 文件分享
-      summary: 获取分享页数据
-      description: 获取分享页数据
-      operationId: getFileShareThin
       parameters:
         - name: shareId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultFileShareThinVO"
+                $ref: '#/components/schemas/ResultFileShareThinResponse'
+          headers: {}
+      security: []
   /apis/share/{shareId}/download/{fileId}:
     get:
-      tags:
-        - 文件分享
       summary: 分享内文件下载
+      deprecated: false
       description: 分享内文件下载
       operationId: downloadShareFile
+      tags:
+        - 文件分享
       parameters:
         - name: shareId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
         - name: fileId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
                 type: string
                 format: binary
+          headers: {}
+      security: []
   /apis/share/{shareId}/access/records:
     get:
+      summary: 获取分享访问记录列表
+      deprecated: false
+      description: 获取分享访问记录列表
+      operationId: getAccessRecords
       tags:
         - 文件分享
-      summary: 获取分享访问记录列表
-      description: 获取分享访问记录列表
-      operationId: getListByShareId
       parameters:
         - name: shareId
           in: path
+          description: ''
           required: true
+          example: ''
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultListFileShareAccessRecordVO"
+                $ref: '#/components/schemas/ResultListFileShareAccessRecordResponse'
+          headers: {}
+      security: []
   /apis/share/pages:
     get:
+      summary: 获取我的分享
+      deprecated: false
+      description: 分页获取我的分享列表
+      operationId: listMyShares
       tags:
         - 文件分享
-      summary: 获取我的分享
-      description: 分页获取我的分享列表
-      operationId: getPages
       parameters:
-        - name: qry
+        - name: page
           in: query
-          required: true
+          description: 页码
+          required: false
+          example: 1
           schema:
-            $ref: "#/components/schemas/FileShareQry"
+            type: integer
+            format: int32
+            description: 页码
+            minimum: 1
+            example: 1
+        - name: pageSize
+          in: query
+          description: 每页大小
+          required: false
+          example: 20
+          schema:
+            type: integer
+            format: int32
+            description: 每页大小
+            minimum: 1
+            example: 20
+        - name: orderBy
+          in: query
+          description: 排序字段
+          required: false
+          example: updateTime
+          schema:
+            type: string
+            description: 排序字段
+            example: updateTime
+        - name: orderDirection
+          in: query
+          description: 排序方向
+          required: false
+          example: DESC
+          schema:
+            type: string
+            description: 排序方向
+            enum:
+              - ASC
+              - DESC
+            example: DESC
+        - name: keyword
+          in: query
+          description: ''
+          required: false
+          example: ''
+          schema:
+            type: string
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/PageResultFileShareVO"
+                $ref: '#/components/schemas/PageResultFileShareResponse'
+          headers: {}
+      security: []
   /apis/share/clears:
     delete:
-      tags:
-        - 文件分享
       summary: 全部取消分享
+      deprecated: false
       description: 全部取消
       operationId: cancelAllShares
+      tags:
+        - 文件分享
+      parameters: []
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultFileShareVO"
+                $ref: '#/components/schemas/ResultFileShareResponse'
+          headers: {}
+      security: []
   /apis/share/cancels:
     delete:
-      tags:
-        - 文件分享
       summary: 取消分享
+      deprecated: false
       description: 取消分享
       operationId: cancelShares
+      tags:
+        - 文件分享
+      parameters: []
       requestBody:
         content:
           application/json:
@@ -210,15 +297,17 @@ paths:
                 type: string
         required: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResultFileShareVO"
+                $ref: '#/components/schemas/ResultFileShareResponse'
+          headers: {}
+      security: []
 components:
   schemas:
-    VerifyShareCodeCmd:
+    VerifyShareCodeRequest:
       type: object
       properties:
         shareId:
@@ -228,8 +317,8 @@ components:
           type: string
           minLength: 1
       required:
-      - shareCode
-      - shareId
+        - shareCode
+        - shareId
     ResultBoolean:
       type: object
       properties:
@@ -240,7 +329,7 @@ components:
           format: int32
         msg:
           type: string
-    CreateShareCmd:
+    CreateShareRequest:
       type: object
       properties:
         fileIds:
@@ -267,8 +356,8 @@ components:
           type: integer
           format: int32
       required:
-      - fileIds
-    FileShareVO:
+        - fileIds
+    FileShareResponse:
       type: object
       properties:
         id:
@@ -302,17 +391,36 @@ components:
         createdAt:
           type: string
           format: date-time
-    ResultFileShareVO:
+    ResultFileShareResponse:
       type: object
       properties:
         data:
-          $ref: '#/components/schemas/FileShareVO'
+          $ref: '#/components/schemas/FileShareResponse'
         code:
           type: integer
           format: int32
         msg:
           type: string
-    FileVO:
+    FileShareThinResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        shareName:
+          type: string
+        expireTime:
+          type: string
+          format: date-time
+        scope:
+          type: string
+        isExpire:
+          type: boolean
+        fileCount:
+          type: integer
+          format: int64
+        hasCheckCode:
+          type: boolean
+    FileResponse:
       type: object
       properties:
         id:
@@ -349,48 +457,29 @@ components:
           format: date-time
         isFavorite:
           type: boolean
-    ResultListFileVO:
+    ResultFileShareThinResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FileShareThinResponse'
+        code:
+          type: integer
+          format: int32
+        msg:
+          type: string
+    ResultListFileResponse:
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/FileVO'
+            $ref: '#/components/schemas/FileResponse'
         code:
           type: integer
           format: int32
         msg:
           type: string
-    FileShareThinVO:
-      type: object
-      properties:
-        id:
-          type: string
-        shareName:
-          type: string
-        expireTime:
-          type: string
-          format: date-time
-        scope:
-          type: string
-        isExpire:
-          type: boolean
-        fileCount:
-          type: integer
-          format: int64
-        hasCheckCode:
-          type: boolean
-    ResultFileShareThinVO:
-      type: object
-      properties:
-        data:
-          $ref: '#/components/schemas/FileShareThinVO'
-        code:
-          type: integer
-          format: int32
-        msg:
-          type: string
-    FileShareAccessRecordVO:
+    FileShareAccessRecordResponse:
       type: object
       properties:
         id:
@@ -408,61 +497,37 @@ components:
         accessTime:
           type: string
           format: date-time
-    ResultListFileShareAccessRecordVO:
+    ResultListFileShareAccessRecordResponse:
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/FileShareAccessRecordVO'
+            $ref: '#/components/schemas/FileShareAccessRecordResponse'
         code:
           type: integer
           format: int32
         msg:
           type: string
-    FileShareQry:
-      type: object
-      properties:
-        page:
-          type: integer
-          format: int32
-          description: 页码
-          example: 1
-          minimum: 1
-        pageSize:
-          type: integer
-          format: int32
-          description: 每页大小
-          example: 20
-          minimum: 1
-        orderBy:
-          type: string
-          description: 排序字段
-          example: updateTime
-        orderDirection:
-          type: string
-          description: 排序方向
-          enum:
-          - ASC
-          - DESC
-          example: DESC
-        keyword:
-          type: string
-    PageRecordFileShareVO:
+    PageRecordFileShareResponse:
       type: object
       properties:
         records:
           type: array
           items:
-            $ref: '#/components/schemas/FileShareVO'
+            $ref: '#/components/schemas/FileShareResponse'
         total:
           type: integer
           format: int64
-    PageResultFileShareVO:
+    PageResultFileShareResponse:
       type: object
       properties:
         code:
           type: integer
           format: int32
         data:
-          $ref: '#/components/schemas/PageRecordFileShareVO'
+          $ref: '#/components/schemas/PageRecordFileShareResponse'
+  responses: {}
+  securitySchemes: {}
+servers: []
+security: []
