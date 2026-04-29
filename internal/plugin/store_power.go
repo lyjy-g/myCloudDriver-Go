@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Capability 表示驱动能力类型。
+// Capability 表示存储能力类型。
 type Capability string
 
 const (
@@ -77,7 +77,7 @@ type SignedURLStore interface {
 	PresignPut(ctx context.Context, key Key, expire time.Duration) (string, error)
 }
 
-// HealthChecker 定义驱动健康检查接口。
+// HealthChecker 定义存储健康检查接口。
 type HealthChecker interface {
 	Check(ctx context.Context) error
 }

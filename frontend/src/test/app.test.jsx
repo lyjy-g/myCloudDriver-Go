@@ -95,7 +95,7 @@ describe("App", () => {
     const switchButton = screen.getByText("切换");
     fireEvent.click(switchButton);
 
-    await screen.findByText("当前配置");
+    await screen.findByRole("dialog");
   });
 
   it("fetches file list when clicking refresh", async () => {

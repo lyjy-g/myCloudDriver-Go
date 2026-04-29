@@ -58,23 +58,23 @@ func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig)
 		}
 		m.mu.RUnlock()
 
-		d, ok := m.registry.Get(cfg.PlatformIdentifier)
+		info, ok := m.registry.Get(cfg.PlatformIdentifier)
 		if !ok {
-			return nil, fmt.Errorf("%w: %s", code.ErrDriverNotFound, cfg.PlatformIdentifier)
+			return nil, fmt.Errorf("%w: %s", code.ErrStoreInfoNotFound, cfg.PlatformIdentifier)
 		}
 
-		if err := d.ValidateConfig(ctx, cfg.ConfigData); err != nil {
+		if err := info.ValidateConfig(ctx, cfg.ConfigData); err != nil {
 			return nil, fmt.Errorf("validate storage config failed: %w", err)
 		}
 
-		store, err := d.Build(ctx, cfg)
+		store, err := info.Build(ctx, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("build store failed: %w", err)
 		}
 
 		m.mu.Lock()
 		m.cache[cfg.SettingID] = cachedStore{
-			storeInfo:  d,
+			storeInfo:  info,
 			storePower: store,
 		}
 		m.mu.Unlock()

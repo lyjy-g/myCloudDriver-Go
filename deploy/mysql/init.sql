@@ -147,6 +147,7 @@ CREATE TABLE `storage_platform` (
 DROP TABLE IF EXISTS `storage_settings`;
 CREATE TABLE `storage_settings` (
                                     `id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '主键ID',
+                                    `storage_setting_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '存储配置名称',
                                     `platform_identifier` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '存储平台标识符',
                                     `config_data` json NOT NULL COMMENT '存储配置',
                                     `enabled` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否启用 0否 1是',

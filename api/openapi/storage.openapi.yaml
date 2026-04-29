@@ -184,6 +184,8 @@ components:
       properties:
         id:
           type: string
+        storageSettingName:
+          type: string
         identifier:
           type: string
         active:
@@ -193,20 +195,24 @@ components:
         updatedAt:
           type: string
           format: date-time
-      required: [id, identifier, active]
+      required: [id, storageSettingName, identifier, active]
 
     CreateSettingRequest:
       type: object
       properties:
+        storageSettingName:
+          type: string
         identifier:
           type: string
         configJson:
           type: string
-      required: [identifier, configJson]
+      required: [storageSettingName, identifier, configJson]
 
     UpdateSettingRequest:
       type: object
       properties:
+        storageSettingName:
+          type: string
         configJson:
           type: string
       required: [configJson]

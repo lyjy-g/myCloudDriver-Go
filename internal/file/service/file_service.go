@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -24,6 +25,7 @@ type FileItem struct {
 	Name      string     `json:"name"`
 	IsDir     bool       `json:"is_dir"`
 	Size      int64      `json:"size"`
+	FileHash  string     `json:"file_hash,omitempty"`
 	ObjectKey string     `json:"object_key,omitempty"`
 	Favorite  bool       `json:"favorite"`
 	Deleted   bool       `json:"deleted"`
@@ -40,6 +42,7 @@ type HomeInfo struct {
 
 // StorageGateway 定义文件模块依赖的最小存储能力集合。
 type StorageGateway interface {
+	Put(ctx context.Context, in storagemodel.ObjectPutInput) (storagemodel.ObjectInfo, error)
 	PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error)
 	Get(ctx context.Context, key string) (io.ReadCloser, storagemodel.ObjectInfo, error)
 	Delete(ctx context.Context, key string) error
@@ -64,6 +67,47 @@ type FileService struct {
 	idemMu      sync.Mutex
 	idemRecords map[string]idempotencyRecord
 	idemTTL     time.Duration
+
+	transferMu    sync.Mutex
+	transferTasks map[string]*TransferTask
+}
+
+// TransferTaskStatus 表示传输任务状态。
+type TransferTaskStatus string
+
+const (
+	TransferTaskUploading TransferTaskStatus = "UPLOADING"
+	TransferTaskPaused    TransferTaskStatus = "PAUSED"
+	TransferTaskCompleted TransferTaskStatus = "COMPLETED"
+	TransferTaskCanceled  TransferTaskStatus = "CANCELED"
+)
+
+// TransferTask 表示上传传输任务。
+type TransferTask struct {
+	TaskID       string             `json:"taskId"`
+	FileName     string             `json:"fileName"`
+	FileHash     string             `json:"fileHash"`
+	FileSize     int64              `json:"fileSize"`
+	ContentType  string             `json:"contentType"`
+	ParentID     string             `json:"parentId"`
+	TotalParts   int                `json:"totalParts"`
+	UploadedSize int64              `json:"uploadedSize"`
+	UploadedPart int                `json:"uploadedParts"`
+	Status       TransferTaskStatus `json:"status"`
+	CreatedAt    time.Time          `json:"createdAt"`
+	UpdatedAt    time.Time          `json:"updatedAt"`
+
+	chunks map[int][]byte
+}
+
+// UploadInitInput 初始化上传入参。
+type UploadInitInput struct {
+	FileName    string
+	FileHash    string
+	FileSize    int64
+	ContentType string
+	ParentID    string
+	TotalParts  int
 }
 
 type idempotencyRecord struct {
@@ -102,12 +146,278 @@ func NewFileService(storage *storagesvc.StorageService) *FileService {
 		UpdatedAt: now,
 	}
 	return &FileService{
-		counter:     2,
-		items:       map[string]*FileItem{root.ID: root, doc.ID: doc},
-		storage:     storage,
-		idemRecords: make(map[string]idempotencyRecord),
-		idemTTL:     24 * time.Hour,
+		counter:       2,
+		items:         map[string]*FileItem{root.ID: root, doc.ID: doc},
+		storage:       storage,
+		idemRecords:   make(map[string]idempotencyRecord),
+		idemTTL:       24 * time.Hour,
+		transferTasks: make(map[string]*TransferTask),
 	}
+}
+
+// PrecheckUpload 上传预检（秒传判定 + 任务创建）。
+func (s *FileService) PrecheckUpload(in UploadInitInput) (bool, string, error) {
+	if strings.TrimSpace(in.FileName) == "" {
+		return false, "", errors.New("fileName is required")
+	}
+	if in.FileSize <= 0 {
+		return false, "", errors.New("fileSize must be positive")
+	}
+	if in.TotalParts <= 0 {
+		return false, "", errors.New("totalParts must be positive")
+	}
+	parentID := strings.TrimSpace(in.ParentID)
+	if parentID == "" {
+		parentID = "root"
+	}
+
+	s.mu.RLock()
+	for _, it := range s.items {
+		if it.Deleted || it.IsDir {
+			continue
+		}
+		if strings.TrimSpace(it.FileHash) != "" && strings.EqualFold(it.FileHash, strings.TrimSpace(in.FileHash)) {
+			s.mu.RUnlock()
+			return true, "", nil
+		}
+	}
+	s.mu.RUnlock()
+
+	taskID := s.initTransferTask(UploadInitInput{
+		FileName:    in.FileName,
+		FileHash:    in.FileHash,
+		FileSize:    in.FileSize,
+		ContentType: in.ContentType,
+		ParentID:    parentID,
+		TotalParts:  in.TotalParts,
+	})
+	return false, taskID, nil
+}
+
+// InitUpload 显式初始化上传任务。
+func (s *FileService) InitUpload(in UploadInitInput) (string, error) {
+	if strings.TrimSpace(in.FileName) == "" {
+		return "", errors.New("fileName is required")
+	}
+	if in.FileSize <= 0 {
+		return "", errors.New("fileSize must be positive")
+	}
+	if in.TotalParts <= 0 {
+		return "", errors.New("totalParts must be positive")
+	}
+	return s.initTransferTask(in), nil
+}
+
+func (s *FileService) initTransferTask(in UploadInitInput) string {
+	parentID := strings.TrimSpace(in.ParentID)
+	if parentID == "" {
+		parentID = "root"
+	}
+	now := time.Now()
+	taskID := fmt.Sprintf("up_%d", now.UnixNano())
+	task := &TransferTask{
+		TaskID:      taskID,
+		FileName:    strings.TrimSpace(in.FileName),
+		FileHash:    strings.TrimSpace(in.FileHash),
+		FileSize:    in.FileSize,
+		ContentType: strings.TrimSpace(in.ContentType),
+		ParentID:    parentID,
+		TotalParts:  in.TotalParts,
+		Status:      TransferTaskUploading,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		chunks:      make(map[int][]byte),
+	}
+
+	s.transferMu.Lock()
+	s.transferTasks[taskID] = task
+	s.transferMu.Unlock()
+	return taskID
+}
+
+// UploadChunk 上传单个分片。
+func (s *FileService) UploadChunk(taskID string, partIndex int, chunk []byte, chunkHash string) error {
+	if partIndex <= 0 {
+		return errors.New("chunkIndex must be positive")
+	}
+	if len(chunk) == 0 {
+		return errors.New("chunk is empty")
+	}
+	task := s.getTransferTask(taskID)
+	if task == nil {
+		return errors.New("transfer task not found")
+	}
+	if task.Status == TransferTaskPaused {
+		return errors.New("transfer task is paused")
+	}
+	if task.Status == TransferTaskCanceled {
+		return errors.New("transfer task is canceled")
+	}
+	if task.Status == TransferTaskCompleted {
+		return nil
+	}
+	if partIndex > task.TotalParts {
+		return errors.New("chunkIndex exceeds total parts")
+	}
+	if strings.TrimSpace(chunkHash) != "" {
+		sum := sha256.Sum256(chunk)
+		if !strings.EqualFold(chunkHash, hex.EncodeToString(sum[:])) {
+			return errors.New("chunk hash mismatch")
+		}
+	}
+
+	s.transferMu.Lock()
+	defer s.transferMu.Unlock()
+	if _, ok := task.chunks[partIndex]; !ok {
+		task.UploadedPart++
+		task.UploadedSize += int64(len(chunk))
+	}
+	task.chunks[partIndex] = append([]byte(nil), chunk...)
+	task.UpdatedAt = time.Now()
+	return nil
+}
+
+// MergeUpload 合并分片并落到存储层。
+func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*FileItem, error) {
+	task := s.getTransferTask(taskID)
+	if task == nil {
+		return nil, errors.New("transfer task not found")
+	}
+	if task.Status == TransferTaskCanceled {
+		return nil, errors.New("transfer task is canceled")
+	}
+	if task.Status == TransferTaskPaused {
+		return nil, errors.New("transfer task is paused")
+	}
+	if len(task.chunks) != task.TotalParts {
+		return nil, fmt.Errorf("chunks incomplete: %d/%d", len(task.chunks), task.TotalParts)
+	}
+
+	ordered := make([][]byte, 0, task.TotalParts)
+	for i := 1; i <= task.TotalParts; i++ {
+		chunk, ok := task.chunks[i]
+		if !ok {
+			return nil, fmt.Errorf("missing chunk %d", i)
+		}
+		ordered = append(ordered, chunk)
+	}
+	merged := bytes.Join(ordered, nil)
+	objectKey := fmt.Sprintf("uploads/%s/%s", time.Now().Format("20060102"), task.TaskID+"_"+task.FileName)
+	size := int64(len(merged))
+	if task.FileSize > 0 {
+		size = task.FileSize
+	}
+	contentType := task.ContentType
+	if strings.TrimSpace(contentType) == "" {
+		contentType = "application/octet-stream"
+	}
+	if s.storage != nil {
+		if _, err := s.storage.Put(ctx, storagemodel.ObjectPutInput{
+			Key:           objectKey,
+			Reader:        bytes.NewReader(merged),
+			ContentType:   contentType,
+			ContentLength: &size,
+			Metadata: map[string]string{
+				"file_hash": task.FileHash,
+				"task_id":   task.TaskID,
+			},
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	s.mu.Lock()
+	now := time.Now()
+	id := s.nextIDLocked()
+	name := s.uniqueNameLocked(task.ParentID, task.FileName)
+	item := &FileItem{
+		ID:        id,
+		ParentID:  task.ParentID,
+		Name:      name,
+		IsDir:     false,
+		Size:      size,
+		FileHash:  task.FileHash,
+		ObjectKey: objectKey,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	s.items[id] = item
+	s.mu.Unlock()
+
+	s.transferMu.Lock()
+	task.Status = TransferTaskCompleted
+	task.UpdatedAt = time.Now()
+	delete(task.chunks, 0)
+	s.transferMu.Unlock()
+
+	cp := *item
+	return &cp, nil
+}
+
+// PauseTransfer 暂停任务。
+func (s *FileService) PauseTransfer(taskID string) error {
+	task := s.getTransferTask(taskID)
+	if task == nil {
+		return errors.New("transfer task not found")
+	}
+	if task.Status == TransferTaskCompleted || task.Status == TransferTaskCanceled {
+		return nil
+	}
+	s.transferMu.Lock()
+	task.Status = TransferTaskPaused
+	task.UpdatedAt = time.Now()
+	s.transferMu.Unlock()
+	return nil
+}
+
+// ResumeTransfer 恢复任务。
+func (s *FileService) ResumeTransfer(taskID string) error {
+	task := s.getTransferTask(taskID)
+	if task == nil {
+		return errors.New("transfer task not found")
+	}
+	if task.Status == TransferTaskCompleted || task.Status == TransferTaskCanceled {
+		return nil
+	}
+	s.transferMu.Lock()
+	task.Status = TransferTaskUploading
+	task.UpdatedAt = time.Now()
+	s.transferMu.Unlock()
+	return nil
+}
+
+// CancelTransfer 取消任务。
+func (s *FileService) CancelTransfer(taskID string) error {
+	task := s.getTransferTask(taskID)
+	if task == nil {
+		return errors.New("transfer task not found")
+	}
+	s.transferMu.Lock()
+	task.Status = TransferTaskCanceled
+	task.chunks = map[int][]byte{}
+	task.UpdatedAt = time.Now()
+	s.transferMu.Unlock()
+	return nil
+}
+
+// ListTransferTasks 返回传输任务快照。
+func (s *FileService) ListTransferTasks() []TransferTask {
+	s.transferMu.Lock()
+	defer s.transferMu.Unlock()
+	out := make([]TransferTask, 0, len(s.transferTasks))
+	for _, t := range s.transferTasks {
+		cp := *t
+		cp.chunks = nil
+		out = append(out, cp)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
+	return out
+}
+
+func (s *FileService) getTransferTask(taskID string) *TransferTask {
+	s.transferMu.Lock()
+	defer s.transferMu.Unlock()
+	return s.transferTasks[taskID]
 }
 
 // Ping 服务健康检查。

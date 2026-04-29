@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 )
 
 const platformCacheKey = "storage:platforms:active"
+const defaultLocalStorageRoot = "/data/myclouddrive/storage"
 
 // StorageService 是 storage 业务的唯一实现。
 // 按约定：单实现场景不再抽接口。
@@ -69,11 +72,12 @@ func (s *StorageService) ListStorageSettings(ctx context.Context) ([]storageMode
 		cfgJSON := row.ConfigData
 		updated := row.UpdatedAt
 		result = append(result, storageModel.Setting{
-			ID:         row.ID,
-			Identifier: row.PlatformIdentifier,
-			Active:     row.Enabled,
-			ConfigJSON: &cfgJSON,
-			UpdatedAt:  &updated,
+			ID:                 row.ID,
+			StorageSettingName: row.StorageSettingName,
+			Identifier:         row.PlatformIdentifier,
+			Active:             row.Enabled,
+			ConfigJSON:         &cfgJSON,
+			UpdatedAt:          &updated,
 		})
 	}
 	return result, nil
@@ -96,6 +100,7 @@ func (s *StorageService) CreateStorageSetting(ctx context.Context, req storageMo
 	now := time.Now()
 	row := &dbmodel.StorageSetting{
 		ID:                 fmt.Sprintf("stg_%d", now.UnixNano()),
+		StorageSettingName: strings.TrimSpace(req.StorageSettingName),
 		WorkspaceID:        workspaceID,
 		PlatformIdentifier: identifier,
 		ConfigData:         cfgJSON,
@@ -104,6 +109,14 @@ func (s *StorageService) CreateStorageSetting(ctx context.Context, req storageMo
 		UpdatedAt:          now,
 		Deleted:            false,
 	}
+	if row.StorageSettingName == "" {
+		row.StorageSettingName = fmt.Sprintf("%s-%s", strings.ToLower(identifier), row.ID)
+	}
+	cfgJSON, err = normalizeStorageConfig(identifier, workspaceID, row.ID, cfgJSON)
+	if err != nil {
+		return nil, err
+	}
+	row.ConfigData = cfgJSON
 
 	if err := s.db.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, fmt.Errorf("create setting: %w", err)
@@ -116,24 +129,41 @@ func (s *StorageService) CreateStorageSetting(ctx context.Context, req storageMo
 	cfg := row.ConfigData
 	updated := row.UpdatedAt
 	return &storageModel.Setting{
-		ID:         row.ID,
-		Identifier: row.PlatformIdentifier,
-		Active:     row.Enabled,
-		ConfigJSON: &cfg,
-		UpdatedAt:  &updated,
+		ID:                 row.ID,
+		StorageSettingName: row.StorageSettingName,
+		Identifier:         row.PlatformIdentifier,
+		Active:             row.Enabled,
+		ConfigJSON:         &cfg,
+		UpdatedAt:          &updated,
 	}, nil
 }
 
 // UpdateStorageSetting 更新配置并失效插件实例缓存。
 func (s *StorageService) UpdateStorageSetting(ctx context.Context, settingID string, req storageModel.UpdateSettingInput) (*storageModel.Setting, error) {
 	workspaceID := currentWorkspaceID(ctx)
+	var existing dbmodel.StorageSetting
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND workspace_id = ? AND deleted = ?", settingID, workspaceID, false).
+		First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, code.New(code.NotFound, "setting not found")
+		}
+		return nil, fmt.Errorf("query setting before update: %w", err)
+	}
 	cfgJSON, err := normalizeAndValidateJSON(req.ConfigJSON)
+	if err != nil {
+		return nil, err
+	}
+	cfgJSON, err = normalizeStorageConfig(existing.PlatformIdentifier, workspaceID, settingID, cfgJSON)
 	if err != nil {
 		return nil, err
 	}
 	updates := map[string]any{
 		"config_data": cfgJSON,
 		"updated_at":  time.Now(),
+	}
+	if req.StorageSettingName != nil {
+		updates["storage_setting_name"] = strings.TrimSpace(*req.StorageSettingName)
 	}
 	result := s.db.WithContext(ctx).
 		Model(&dbmodel.StorageSetting{}).
@@ -158,11 +188,12 @@ func (s *StorageService) UpdateStorageSetting(ctx context.Context, settingID str
 	cfg := row.ConfigData
 	ts := row.UpdatedAt
 	return &storageModel.Setting{
-		ID:         row.ID,
-		Identifier: row.PlatformIdentifier,
-		Active:     row.Enabled,
-		ConfigJSON: &cfg,
-		UpdatedAt:  &ts,
+		ID:                 row.ID,
+		StorageSettingName: row.StorageSettingName,
+		Identifier:         row.PlatformIdentifier,
+		Active:             row.Enabled,
+		ConfigJSON:         &cfg,
+		UpdatedAt:          &ts,
 	}, nil
 }
 
@@ -229,11 +260,12 @@ func (s *StorageService) ActivateStorageSetting(ctx context.Context, settingID s
 	cfg := row.ConfigData
 	ts := row.UpdatedAt
 	return &storageModel.Setting{
-		ID:         row.ID,
-		Identifier: row.PlatformIdentifier,
-		Active:     row.Enabled,
-		ConfigJSON: &cfg,
-		UpdatedAt:  &ts,
+		ID:                 row.ID,
+		StorageSettingName: row.StorageSettingName,
+		Identifier:         row.PlatformIdentifier,
+		Active:             row.Enabled,
+		ConfigJSON:         &cfg,
+		UpdatedAt:          &ts,
 	}, nil
 }
 
@@ -268,11 +300,12 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 	cfg := row.ConfigData
 	ts := row.UpdatedAt
 	return &storageModel.Setting{
-		ID:         row.ID,
-		Identifier: row.PlatformIdentifier,
-		Active:     row.Enabled,
-		ConfigJSON: &cfg,
-		UpdatedAt:  &ts,
+		ID:                 row.ID,
+		StorageSettingName: row.StorageSettingName,
+		Identifier:         row.PlatformIdentifier,
+		Active:             row.Enabled,
+		ConfigJSON:         &cfg,
+		UpdatedAt:          &ts,
 	}, nil
 }
 
@@ -375,6 +408,39 @@ func normalizeAndValidateJSON(raw string) (string, error) {
 	normalized, err := json.Marshal(v)
 	if err != nil {
 		return "", fmt.Errorf("normalize config_json failed: %w", err)
+	}
+	return string(normalized), nil
+}
+
+// normalizeStorageConfig 根据平台规范化配置：
+// - local: 强制由后端生成 basePath，前端不允许自定义绝对路径。
+func normalizeStorageConfig(identifier, workspaceID, settingID, raw string) (string, error) {
+	cfgJSON, err := normalizeAndValidateJSON(raw)
+	if err != nil {
+		return "", err
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(cfgJSON), &cfg); err != nil {
+		return "", fmt.Errorf("unmarshal config_json failed: %w", err)
+	}
+
+	normalizedIdentifier := strings.ToLower(strings.TrimSpace(identifier))
+	if normalizedIdentifier == "" {
+		if v, ok := cfg["identifier"].(string); ok {
+			normalizedIdentifier = strings.ToLower(strings.TrimSpace(v))
+		}
+	}
+	if normalizedIdentifier == "" || normalizedIdentifier == "local" {
+		root := strings.TrimSpace(os.Getenv("MYCLOUDDRIVE_LOCAL_ROOT"))
+		if root == "" {
+			root = defaultLocalStorageRoot
+		}
+		cfg["basePath"] = filepath.ToSlash(filepath.Join(root, workspaceID, settingID))
+	}
+
+	normalized, err := json.Marshal(cfg)
+	if err != nil {
+		return "", fmt.Errorf("marshal normalized config_json failed: %w", err)
 	}
 	return string(normalized), nil
 }

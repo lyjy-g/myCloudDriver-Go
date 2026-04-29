@@ -85,6 +85,6 @@ export const ICON_RAIL_ITEMS = [
  * 本地路径快捷预设。
  */
 export const LOCAL_PATH_PRESETS = [
-  { label: "使用 .data", value: "/home/lyjy/code/MyCloudDrive/.data/files" },
-  { label: "使用 runtime-data", value: "/home/lyjy/code/MyCloudDrive/runtime-data/files" }
+  { label: "使用 .data", value: ".data/files" },
+  { label: "使用 runtime-data", value: "runtime-data/files" }
 ];

@@ -5,7 +5,7 @@ import "errors"
 var (
 	ErrObjectNotFound     = errors.New("storage: object not found")
 	ErrInvalidKey         = errors.New("storage: invalid key")
-	ErrDriverNotFound     = errors.New("storage: driver not found")
+	ErrStoreInfoNotFound  = errors.New("storage: store info not found")
 	ErrSettingNotFound    = errors.New("storage: setting not found")
 	ErrSettingDisabled    = errors.New("storage: setting disabled")
 	ErrCapabilityNotMatch = errors.New("storage: capability not supported")

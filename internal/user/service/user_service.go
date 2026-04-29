@@ -330,15 +330,16 @@ func (s *UserService) ensurePersonalWorkspaceAndStorageSetting(ctx context.Conte
 		}
 
 		setting := map[string]any{
-			"id":                  randomID("stg"),
-			"platform_identifier": platformIdentifier,
-			"config_data":         configData,
-			"enabled":             true,
-			"workspace_id":        workspaceID,
-			"created_at":          now,
-			"updated_at":          now,
-			"deleted":             false,
-			"remark":              "auto init personal workspace storage setting",
+			"id":                   randomID("stg"),
+			"storage_setting_name": "默认配置",
+			"platform_identifier":  platformIdentifier,
+			"config_data":          configData,
+			"enabled":              true,
+			"workspace_id":         workspaceID,
+			"created_at":           now,
+			"updated_at":           now,
+			"deleted":              false,
+			"remark":               "auto init personal workspace storage setting",
 		}
 		if err := tx.WithContext(ctx).Table("storage_settings").Create(setting).Error; err != nil {
 			return "", fmt.Errorf("init personal storage setting failed: %w", err)

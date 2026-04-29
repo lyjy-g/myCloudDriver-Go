@@ -15,22 +15,25 @@ type Platform struct {
 
 // Setting 是 service 层存储配置 DTO。
 type Setting struct {
-	ID         string
-	Identifier string
-	Active     bool
-	ConfigJSON *string
-	UpdatedAt  *time.Time
+	ID                 string
+	StorageSettingName string
+	Identifier         string
+	Active             bool
+	ConfigJSON         *string
+	UpdatedAt          *time.Time
 }
 
 // CreateSettingInput 是创建存储配置入参。
 type CreateSettingInput struct {
-	Identifier string
-	ConfigJSON string
+	StorageSettingName string
+	Identifier         string
+	ConfigJSON         string
 }
 
 // UpdateSettingInput 是更新存储配置入参。
 type UpdateSettingInput struct {
-	ConfigJSON string
+	StorageSettingName *string
+	ConfigJSON         string
 }
 
 // ObjectPutInput 是业务层写入对象入参，不暴露插件底层类型。

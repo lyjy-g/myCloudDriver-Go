@@ -23,26 +23,26 @@ type Config struct {
 	BasePath string `json:"base_path"`
 }
 
-// Driver 是本地存储驱动实现。
-type Driver struct{}
+// StoreInfo 是本地存储平台信息实现。
+type StoreInfo struct{}
 
-// NewDriver 创建本地存储驱动。
-func NewDriver() *Driver {
-	return &Driver{}
+// NewStoreInfo 创建本地存储平台信息实例。
+func NewStoreInfo() *StoreInfo {
+	return &StoreInfo{}
 }
 
-// PlatformIdentifier 返回驱动标识。
-func (d *Driver) PlatformIdentifier() plugin.PlatformIdentifier {
+// PlatformIdentifier 返回平台标识。
+func (s *StoreInfo) PlatformIdentifier() plugin.PlatformIdentifier {
 	return plugin.PlatformIdentifierLocal
 }
 
-// Capabilities 返回驱动能力集合。
-func (d *Driver) Capabilities() []plugin.Capability {
+// Capabilities 返回能力集合。
+func (s *StoreInfo) Capabilities() []plugin.Capability {
 	return []plugin.Capability{plugin.CapabilityBasic}
 }
 
 // ValidateConfig 校验配置是否合法。
-func (d *Driver) ValidateConfig(_ context.Context, raw []byte) error {
+func (s *StoreInfo) ValidateConfig(_ context.Context, raw []byte) error {
 	cfg, err := parseConfig(raw)
 	if err != nil {
 		return err
@@ -54,7 +54,7 @@ func (d *Driver) ValidateConfig(_ context.Context, raw []byte) error {
 }
 
 // Build 基于配置构建 Store。
-func (d *Driver) Build(_ context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
+func (s *StoreInfo) Build(_ context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
 	parsed, err := parseConfig(cfg.ConfigData)
 	if err != nil {
 		return nil, err

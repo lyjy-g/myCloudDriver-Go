@@ -1,5 +1,6 @@
 import { Button, Space, Table, Tag, Typography } from "antd";
 import React from "react";
+import { WorkspaceSettingSelector } from "../settings/WorkspaceSettingSelector.jsx";
 
 const { Text } = Typography;
 
@@ -17,9 +18,14 @@ const { Text } = Typography;
  *   activeWorkspace: object,
  *   activeStorage: object,
  *   currentUser: object,
+ *   storageSettings: Array,
+ *   platforms: Array,
  *   onOpenStorageSettings: Function,
- *   onOpenFiles: Function,
- *   onRefreshWorkspace: Function
+  *   onOpenFiles: Function,
+ *   onCreateStorageSetting: Function,
+ *   onRefreshWorkspace: Function,
+ *   onEditStorageSetting: Function,
+ *   onActivateStorageSetting: Function
  * }} props 组件参数
  * @returns {JSX.Element | null} 面板
  */
@@ -34,31 +40,42 @@ export function FilesPanel({
   activeWorkspace,
   activeStorage,
   currentUser,
+  storageSettings,
+  platforms,
   onOpenStorageSettings,
   onOpenFiles,
-  onRefreshWorkspace
+  onCreateStorageSetting,
+  onRefreshWorkspace,
+  onEditStorageSetting,
+  onActivateStorageSetting
 }) {
   if (activeMenu === "workspace-home") {
     return (
-      <div className="mcd-panel p-5">
-        <Text className="mcd-muted block mb-3">我的空间默认页</Text>
-        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-          <Space wrap>
-            <Tag color="blue">空间：{activeWorkspace?.workspaceName || "-"}</Tag>
-            <Tag color="cyan">类型：{activeWorkspace?.workspaceType || "-"}</Tag>
-            <Tag color="purple">角色：{activeWorkspace?.role || "-"}</Tag>
-          </Space>
-          <Space wrap>
-            <Tag color="geekblue">存储：{activeStorage?.identifier || "未配置存储"}</Tag>
-            <Tag>配置ID：{activeStorage?.settingId || "local-default"}</Tag>
-          </Space>
-          <Text className="mcd-muted">当前用户：{currentUser?.displayName || currentUser?.username || "-"}</Text>
-          <Space>
+      <div className="mcd-space-home">
+        <div className="mcd-panel mcd-space-home-hero">
+          <div className="mcd-space-home-headline">
+            <div className="mcd-space-home-kicker">Workspace Hub</div>
+            <h2 className="mcd-space-home-title">{activeWorkspace?.workspaceName || "我的空间"}</h2>
+          </div>
+          <div className="mcd-space-home-tags">
+            <Tag color="blue">类型：{activeWorkspace?.workspaceType || "-"}</Tag>
+            <Tag color="cyan">角色：{activeWorkspace?.role || "-"}</Tag>
+          </div>
+          <div className="mcd-space-home-actions">
             <Button type="primary" onClick={onOpenFiles}>进入全部文件</Button>
-            <Button onClick={onOpenStorageSettings}>空间配置</Button>
+            <Button onClick={onCreateStorageSetting}>新建存储配置</Button>
+            <Button onClick={onOpenStorageSettings}>编辑空间配置</Button>
             <Button onClick={onRefreshWorkspace}>刷新空间信息</Button>
-          </Space>
-        </Space>
+          </div>
+          <Text className="mcd-muted">当前用户：{currentUser?.displayName || currentUser?.username || "-"}</Text>
+        </div>
+
+        <WorkspaceSettingSelector
+          storageSettings={storageSettings}
+          onEditSetting={onEditStorageSetting}
+          onActivateSetting={onActivateStorageSetting}
+        />
+
       </div>
     );
   }

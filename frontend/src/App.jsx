@@ -4,9 +4,7 @@ import {
   ICON_RAIL_ITEMS,
   LOCAL_PATH_PRESETS,
   QUICK_ACTIONS,
-  SIDEBAR_MENU_ITEMS,
-  TOP_PROMOS,
-  TYPE_FILTERS
+  TOP_PROMOS
 } from "./constants/appConfig.js";
 import { Toolbar } from "./components/files/Toolbar.jsx";
 import { FilesPanel } from "./components/files/FilesPanel.jsx";
@@ -27,6 +25,8 @@ import { useNotifier } from "./hooks/useNotifier.js";
  */
 export default function App() {
   const [loginForm, setLoginForm] = useState({ username: "myCloudDrive", password: "myCloudDrive" });
+  const [storageSettingsOpen, setStorageSettingsOpen] = useState(false);
+  const [settingsView, setSettingsView] = useState("workspace");
   const { contextHolder, notifySuccess, notifyWarning, notifyError } = useNotifier();
   const { normalizedBaseUrl } = useBaseUrl();
 
@@ -35,7 +35,14 @@ export default function App() {
     notifyWarning,
     notifyError
   });
-  const openStorageSettings = () => controller.setActiveMenu("workspace-settings");
+  const openStorageSettings = (view = "workspace", settingId = "") => {
+    setSettingsView(view);
+    if (view === "editor" && settingId) {
+      controller.handleEditStorageSetting(settingId);
+    }
+    controller.setActiveMenu("workspace-home");
+    setStorageSettingsOpen(true);
+  };
 
   const handleLoginSubmit = async () => {
     await controller.handleLogin(loginForm.username, loginForm.password);
@@ -85,37 +92,41 @@ export default function App() {
     <AntApp>
       {contextHolder}
       <div className="mcd-shell">
-        <Topbar topPromos={TOP_PROMOS} />
+        <Topbar
+          topPromos={TOP_PROMOS}
+          activeWorkspace={controller.activeWorkspace}
+          activeStorage={controller.activeStorage}
+          currentUser={controller.currentUser}
+          onOpenStorageSettings={openStorageSettings}
+        />
 
         <div className="mcd-body">
           <Sidebar
             activeMenu={controller.activeMenu}
             onMenuClick={controller.setActiveMenu}
-            menuItems={SIDEBAR_MENU_ITEMS}
-            typeFilters={TYPE_FILTERS}
             workspaces={controller.workspaces}
             activeWorkspace={controller.activeWorkspace}
-            activeStorage={controller.activeStorage}
+            storageSettings={controller.storageSettings}
+            enabledStorageIds={controller.enabledStorageIds}
             onSwitchWorkspace={controller.handleSwitchWorkspace}
             onOpenStorageSettings={openStorageSettings}
-            onRefreshWorkspace={controller.loadStorageMeta}
+            onActivateStorageSetting={controller.handleActivateStorageSetting}
+            onEnableStorageSetting={controller.handleEnableStorageSetting}
           />
 
           <main className="mcd-main">
-            <Toolbar
-              quickActions={QUICK_ACTIONS}
-              activeMenu={controller.activeMenu}
-              activeWorkspace={controller.activeWorkspace}
-              activeStorage={controller.activeStorage}
-              currentUser={controller.currentUser}
-              onLogout={controller.handleLogout}
-              onUpload={() => controller.setDrawerOpen(true)}
-              onCreateFolder={controller.handleCreateFolder}
-              onRefreshFiles={controller.loadFiles}
-              onRefreshShares={controller.loadShares}
-              onRefreshTrash={controller.loadRecycleBin}
-              onOpenStorageSettings={openStorageSettings}
-            />
+            {["files", "shares", "trash"].includes(controller.activeMenu) ? (
+              <Toolbar
+                quickActions={QUICK_ACTIONS}
+                activeMenu={controller.activeMenu}
+                onLogout={controller.handleLogout}
+                onUpload={() => controller.setDrawerOpen(true)}
+                onCreateFolder={controller.handleCreateFolder}
+                onRefreshFiles={controller.loadFiles}
+                onRefreshShares={controller.loadShares}
+                onRefreshTrash={controller.loadRecycleBin}
+              />
+            ) : null}
 
             <FilesPanel
               activeMenu={controller.activeMenu}
@@ -128,13 +139,22 @@ export default function App() {
               activeWorkspace={controller.activeWorkspace}
               activeStorage={controller.activeStorage}
               currentUser={controller.currentUser}
+              storageSettings={controller.storageSettings}
+              platforms={controller.platforms}
               onOpenStorageSettings={openStorageSettings}
               onOpenFiles={() => controller.setActiveMenu("files")}
+              onCreateStorageSetting={() => {
+                controller.handleCreateStorageDraft();
+                openStorageSettings("editor");
+              }}
               onRefreshWorkspace={controller.loadStorageMeta}
+              onEditStorageSetting={(settingId) => openStorageSettings("editor", settingId)}
+              onActivateStorageSetting={controller.handleActivateStorageSetting}
             />
 
             <StorageSettingsPanel
-              visible={controller.activeMenu === "settings" || controller.activeMenu === "workspace-settings"}
+              visible={storageSettingsOpen}
+              activeView={settingsView}
               workspaces={controller.workspaces}
               activeWorkspace={controller.activeWorkspace}
               platforms={controller.platforms}
@@ -143,6 +163,7 @@ export default function App() {
               loading={controller.loading}
               normalizedBaseUrl={normalizedBaseUrl}
               localPathPresets={LOCAL_PATH_PRESETS}
+              onClose={() => setStorageSettingsOpen(false)}
               onRefresh={controller.loadStorageMeta}
               onUpdateField={controller.updateStorageFormField}
               onSwitchWorkspace={controller.handleSwitchWorkspace}
@@ -151,6 +172,12 @@ export default function App() {
               onCreateDraft={controller.handleCreateStorageDraft}
               onActivateSetting={controller.handleActivateStorageSetting}
               onRebuildIndexes={controller.handleRebuildIndexes}
+              onCreateWorkspace={controller.handleCreateWorkspace}
+              onRenameWorkspace={controller.handleRenameWorkspace}
+              onDeleteWorkspace={controller.handleDeleteWorkspace}
+              onAddWorkspaceUser={controller.handleAddWorkspaceUser}
+              onRemoveWorkspaceUser={controller.handleRemoveWorkspaceUser}
+              onDeleteSetting={controller.handleDeleteStorageSetting}
             />
 
             <div className="mcd-footer-chat">

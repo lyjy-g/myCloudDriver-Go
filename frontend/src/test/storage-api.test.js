@@ -64,7 +64,7 @@ describe("storage api", () => {
   it("getJson throws when not ok", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(buildResponse(false, 500, { error: "boom" })));
 
-    await expect(getJson("http://localhost:8080/apis/test")).rejects.toThrow("请求失败");
+    await expect(getJson("http://localhost:8080/apis/test")).rejects.toThrow("boom");
   });
 
   /**

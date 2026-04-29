@@ -51,6 +51,25 @@ function unwrapPayload(payload) {
   return payload;
 }
 
+function normalizeIdentifier(identifier = "") {
+  return String(identifier || "").trim().toLowerCase();
+}
+
+function parseSettingConfig(item) {
+  const rawConfig = item?.configJson || item?.configData || "{}";
+  if (typeof rawConfig === "string") {
+    try {
+      return JSON.parse(rawConfig || "{}");
+    } catch {
+      return {};
+    }
+  }
+  if (rawConfig && typeof rawConfig === "object") {
+    return rawConfig;
+  }
+  return {};
+}
+
 function readErrorMessage(payload, fallback = "请求失败") {
   if (!payload || typeof payload !== "object") {
     return fallback;
@@ -100,7 +119,7 @@ async function requestJson(method, urls, {
     }
 
     if (!response.ok) {
-      throw new Error("请求失败");
+      throw new Error(readErrorMessage(payload, `请求失败(${response.status})`));
     }
 
     if (payload && Object.prototype.hasOwnProperty.call(payload, "code") && !isSuccessCode(payload.code)) {
@@ -150,24 +169,27 @@ export async function fetchStorageSettings(baseUrl) {
     code: 200,
     msg: "success",
     data: settings.map((item) => {
-      let config = {};
-      const rawConfig = item?.configJson || item?.configData || "{}";
-      if (typeof rawConfig === "string") {
-        try {
-          config = JSON.parse(rawConfig || "{}");
-        } catch {
-          config = {};
-        }
-      } else if (rawConfig && typeof rawConfig === "object") {
-        config = rawConfig;
-      }
+      const config = parseSettingConfig(item);
+      const identifier = item.identifier || item.platformIdentifier || "Local";
+      const normalized = normalizeIdentifier(identifier);
       return {
         settingId: item.id || item.settingId || "",
-        identifier: item.identifier || item.platformIdentifier || "Local",
-        name: item.name || item.identifier || item.platformIdentifier || "Local",
+        storageSettingName: item.storageSettingName || item.name || "",
+        identifier,
+        name: item.storageSettingName || item.name || identifier || "Local",
         active: item.active === true || item.active === 1 || item.enabled === true || item.enabled === 1,
         basePath: config.basePath || config.rootPath || "",
-        baseUrl: config.baseUrl || "",
+        namespace: config.namespace || "",
+        baseUrl: config.baseUrl || config.publicBaseUrl || "",
+        endpoint: config.endpoint || "",
+        region: config.region || "",
+        bucket: config.bucket || "",
+        accessKeyId: config.access_key_id || config.accessKeyId || "",
+        secretAccessKey: config.secret_access_key || config.secretAccessKey || "",
+        prefix: config.prefix || "",
+        useSSL: config.use_ssl === true || config.useSSL === true,
+        pathStyle: normalized === "s3" ? config.path_style !== false : (config.path_style === true || config.pathStyle === true),
+        config,
         raw: item
       };
     })
@@ -186,19 +208,36 @@ export async function fetchActiveStorage(baseUrl) {
 }
 
 export async function updateActiveStorage(baseUrl, payload) {
-  const identifier = payload.identifier || "local";
-  const configJson = JSON.stringify({
-    basePath: payload.basePath || "",
-    baseUrl: payload.baseUrl || ""
-  });
+  const identifier = payload.identifier || "Local";
+  const normalized = normalizeIdentifier(identifier);
+  let config = {};
+  if (normalized === "s3") {
+    config = {
+      endpoint: payload.endpoint || "",
+      region: payload.region || "us-east-1",
+      bucket: payload.bucket || "",
+      access_key_id: payload.accessKeyId || "",
+      secret_access_key: payload.secretAccessKey || "",
+      prefix: payload.prefix || "",
+      use_ssl: Boolean(payload.useSSL),
+      path_style: payload.pathStyle !== false
+    };
+  } else {
+    config = {
+      namespace: payload.namespace || "",
+      baseUrl: payload.baseUrl || ""
+    };
+  }
+  const configJson = JSON.stringify(config);
 
   let settingId = payload.settingId;
+  const storageSettingName = String(payload.storageSettingName || "").trim();
   if (!settingId || settingId === "local-default") {
     const createResp = await requestJson("POST", [
       `${baseUrl}/api/v1/storage/settings`,
       `${baseUrl}/apis/storage/settings`
     ], {
-      body: { identifier, configJson }
+      body: { storageSettingName, identifier, configJson }
     });
     const created = unwrapPayload(createResp) || {};
     settingId = created.id || created.settingId;
@@ -211,7 +250,7 @@ export async function updateActiveStorage(baseUrl, payload) {
         `${baseUrl}/api/v1/storage/settings/${encodeURIComponent(settingId)}`,
         `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}`
       ], {
-        body: { configJson }
+        body: { storageSettingName, configJson }
       });
     } catch {
       // 部分后端版本没有更新路由，忽略并继续启用流程。
@@ -228,7 +267,7 @@ export async function updateActiveStorage(baseUrl, payload) {
       `${baseUrl}/api/v1/storage/settings`,
       `${baseUrl}/apis/storage/settings`
     ], {
-      body: { identifier, configJson }
+      body: { storageSettingName, identifier, configJson }
     });
     const created = unwrapPayload(createResp) || {};
     settingId = created.id || created.settingId || settingId;
@@ -243,6 +282,7 @@ export async function updateActiveStorage(baseUrl, payload) {
     msg: "success",
     data: {
       settingId,
+      storageSettingName,
       identifier,
       basePath: payload.basePath || "",
       baseUrl: payload.baseUrl || ""
@@ -266,19 +306,35 @@ export function logout(baseUrl) {
 }
 
 export function fetchCurrentUser(baseUrl) {
-  return requestJson("GET", `${baseUrl}/apis/auth/me`);
+  return requestJson("GET", [
+    `${baseUrl}/apis/user/info`,
+    `${baseUrl}/apis/auth/me`
+  ]);
 }
 
 export function fetchWorkspaces(baseUrl) {
-  return requestJson("GET", `${baseUrl}/apis/workspaces`);
+  return requestJson("GET", [
+    `${baseUrl}/apis/user/workspaces`,
+    `${baseUrl}/apis/workspaces`
+  ]);
 }
 
-export function fetchActiveWorkspace(baseUrl) {
-  return requestJson("GET", `${baseUrl}/apis/workspaces/active`);
+export async function fetchActiveWorkspace(baseUrl) {
+  const listResp = await fetchWorkspaces(baseUrl);
+  const workspaces = unwrapPayload(listResp) || [];
+  if (!Array.isArray(workspaces) || workspaces.length === 0) {
+    return { code: "OK", message: "success", data: null };
+  }
+  const active = workspaces.find((item) => item?.isDefault) || workspaces[0];
+  return { code: "OK", message: "success", data: active };
 }
 
 export function updateActiveWorkspace(baseUrl, payload) {
-  return requestJson("POST", `${baseUrl}/apis/workspaces/active`, { body: payload });
+  const workspaceId = encodeURIComponent(payload?.workspaceId || "");
+  return requestJson("PUT", [
+    `${baseUrl}/apis/user/default-workspace/${workspaceId}`,
+    `${baseUrl}/apis/workspaces/active`
+  ], { body: payload });
 }
 
 export function fetchFileList(baseUrl) {
@@ -352,35 +408,72 @@ export function restoreRecord(baseUrl, fileId) {
 }
 
 export function precheckUpload(baseUrl, payload) {
-  return requestJson("POST", `${baseUrl}/apis/upload/precheck`, { body: payload });
+  return requestJson("POST", [
+    `${baseUrl}/apis/transfer/check`,
+    `${baseUrl}/apis/upload/precheck`
+  ], { body: payload });
 }
 
 export async function uploadPart(baseUrl, payload) {
+  const taskId = payload.taskId || payload.uploadId;
+  const chunkIndex = payload.chunkIndex ?? payload.partNumber;
+  const chunkMd5 = payload.chunkMd5 || payload.fileHash || "";
+
   const formData = new FormData();
-  formData.append("uploadId", payload.uploadId);
-  formData.append("partNumber", String(payload.partNumber));
+  formData.append("taskId", taskId);
+  formData.append("uploadId", taskId);
+  formData.append("chunkIndex", String(chunkIndex));
+  formData.append("partNumber", String(chunkIndex));
   formData.append("totalParts", String(payload.totalParts));
   formData.append("fileHash", payload.fileHash);
   formData.append("file", payload.file);
 
-  const response = await fetch(`${baseUrl}/apis/upload/part`, {
-    method: "POST",
-    headers: buildHeaders({}, true, false),
-    body: formData
-  });
+  const candidates = [
+    `${baseUrl}/apis/transfer/chunk?taskId=${encodeURIComponent(taskId)}&chunkIndex=${encodeURIComponent(String(chunkIndex))}&chunkMd5=${encodeURIComponent(chunkMd5)}`,
+    `${baseUrl}/apis/upload/part`
+  ];
 
-  if (!response.ok) {
-    throw new Error(`分片上传失败(${response.status})`);
+  let lastError = null;
+  for (const url of candidates) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: buildHeaders({}, true, false),
+      body: formData
+    });
+
+    if (response.status === 404 || response.status === 405) {
+      lastError = new Error(`endpoint not found: ${url}`);
+      continue;
+    }
+
+    const text = await response.text();
+    let payloadData = null;
+    if (text) {
+      try {
+        payloadData = JSON.parse(text);
+      } catch {
+        payloadData = null;
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(readErrorMessage(payloadData, `分片上传失败(${response.status})`));
+    }
+    if (payloadData?.success === false) {
+      throw new Error(readErrorMessage(payloadData, "分片上传失败"));
+    }
+    return payloadData;
   }
-  const payloadData = await response.json();
-  if (payloadData?.success === false) {
-    throw new Error(readErrorMessage(payloadData, "分片上传失败"));
-  }
-  return payloadData;
+
+  throw lastError || new Error("分片上传失败");
 }
 
 export function mergeUpload(baseUrl, payload) {
-  return requestJson("POST", `${baseUrl}/apis/upload/merge`, { body: payload });
+  const taskId = payload.taskId || payload.uploadId;
+  return requestJson("POST", [
+    `${baseUrl}/apis/transfer/merge/${encodeURIComponent(taskId)}`,
+    `${baseUrl}/apis/upload/merge`
+  ], { body: payload });
 }
 
 export function rebuildFileIndexes(baseUrl) {
@@ -388,11 +481,17 @@ export function rebuildFileIndexes(baseUrl) {
 }
 
 export function createShare(baseUrl, payload) {
-  return requestJson("POST", `${baseUrl}/apis/shares`, { body: payload });
+  return requestJson("POST", [
+    `${baseUrl}/apis/share/create`,
+    `${baseUrl}/apis/shares`
+  ], { body: payload });
 }
 
 export function fetchMyShares(baseUrl) {
-  return requestJson("GET", `${baseUrl}/apis/shares/mine`);
+  return requestJson("GET", [
+    `${baseUrl}/apis/share/pages`,
+    `${baseUrl}/apis/shares/mine`
+  ]);
 }
 
 export function accessPublicShare(baseUrl, shareId, shareCode) {
@@ -403,9 +502,15 @@ export function accessPublicShare(baseUrl, shareId, shareCode) {
 }
 
 export function fetchShareDetail(baseUrl, shareId) {
-  return requestJson("GET", `${baseUrl}/apis/shares/${encodeURIComponent(shareId)}`);
+  return requestJson("GET", [
+    `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`,
+    `${baseUrl}/apis/shares/${encodeURIComponent(shareId)}`
+  ]);
 }
 
 export function updateShare(baseUrl, shareId, payload) {
-  return requestJson("PUT", `${baseUrl}/apis/shares/${encodeURIComponent(shareId)}`, { body: payload });
+  return requestJson("PUT", [
+    `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`,
+    `${baseUrl}/apis/shares/${encodeURIComponent(shareId)}`
+  ], { body: payload });
 }

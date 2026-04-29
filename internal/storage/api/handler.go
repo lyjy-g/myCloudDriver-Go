@@ -65,8 +65,9 @@ func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Req
 		return
 	}
 	item, err := h.svc.CreateStorageSetting(r.Context(), model.CreateSettingInput{
-		Identifier: req.Identifier,
-		ConfigJSON: req.ConfigJson,
+		StorageSettingName: req.StorageSettingName,
+		Identifier:         req.Identifier,
+		ConfigJSON:         req.ConfigJson,
 	})
 	if err != nil {
 		writeStorageError(w, err)
@@ -92,7 +93,8 @@ func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Req
 		return
 	}
 	item, err := h.svc.UpdateStorageSetting(r.Context(), settingID, model.UpdateSettingInput{
-		ConfigJSON: req.ConfigJson,
+		StorageSettingName: req.StorageSettingName,
+		ConfigJSON:         req.ConfigJson,
 	})
 	if err != nil {
 		writeStorageError(w, err)
@@ -153,11 +155,12 @@ func toAPIPlatforms(items []model.Platform) []gen.StoragePlatform {
 
 func toAPISetting(s model.Setting) gen.StorageSetting {
 	return gen.StorageSetting{
-		Id:         s.ID,
-		Identifier: s.Identifier,
-		Active:     s.Active,
-		ConfigJson: s.ConfigJSON,
-		UpdatedAt:  s.UpdatedAt,
+		Id:                 s.ID,
+		StorageSettingName: s.StorageSettingName,
+		Identifier:         s.Identifier,
+		Active:             s.Active,
+		ConfigJson:         s.ConfigJSON,
+		UpdatedAt:          s.UpdatedAt,
 	}
 }
 

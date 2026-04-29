@@ -1,9 +1,8 @@
-import { Button, Menu } from "antd";
 import { ApartmentOutlined, DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
 import React from "react";
 
 /**
- * 左侧菜单栏。
+ * 左侧菜单栏（重设计版）。
  *
  * @param {{
  *   activeMenu: string,
@@ -22,116 +21,120 @@ import React from "react";
 export function Sidebar({
   activeMenu,
   onMenuClick,
-  menuItems,
-  typeFilters,
   workspaces,
   activeWorkspace,
-  activeStorage,
+  storageSettings,
+  enabledStorageIds,
   onSwitchWorkspace,
   onOpenStorageSettings,
-  onRefreshWorkspace
+  onActivateStorageSetting,
+  onEnableStorageSetting
 }) {
-  const workspaceItems = (workspaces || []).map((item) => ({
-    key: `ws:${item.workspaceId}`,
-    label: `${item.workspaceName}（${item.workspaceType}）`
-  }));
-
-  const workspaceMenuItems = [
-    {
-      key: "workspace-home",
-      icon: <ApartmentOutlined />,
-      label: "我的空间",
-      children: workspaceItems
-    },
-    {
-      key: "workspace-settings",
-      icon: <SettingOutlined />,
-      label: "空间配置"
-    },
-    {
-      key: "workspace-storage",
-      icon: <DatabaseOutlined />,
-      label: activeStorage?.identifier || "未配置存储",
-      disabled: true
-    }
-  ];
-
-  const selectedWorkspaceKeys = (() => {
-    if (activeMenu === "settings" || activeMenu === "workspace-settings") {
-      return ["workspace-settings"];
-    }
-    if (activeMenu === "workspace-home") {
-      return ["workspace-home"];
-    }
-    if (activeWorkspace?.workspaceId) {
-      return [`ws:${activeWorkspace.workspaceId}`];
-    }
-    return [];
-  })();
+  const enabledSet = new Set(enabledStorageIds || []);
+  const enabledSettings = (storageSettings || []).filter((item) => enabledSet.has(item.settingId) || item.active);
+  const disabledSettings = (storageSettings || []).filter((item) => !enabledSet.has(item.settingId) && !item.active);
 
   return (
-    <aside className="mcd-sidebar">
-      <div className="mcd-sidebar-card">
-        <Button type="link" className="mcd-sidebar-title">
-          工作空间
-        </Button>
-      </div>
-
-      <Menu
-        mode="inline"
-        selectedKeys={selectedWorkspaceKeys}
-        defaultOpenKeys={["workspace-home"]}
-        onClick={({ key }) => {
-          if (key === "workspace-home") {
-            onRefreshWorkspace?.();
-            onMenuClick("workspace-home");
-            return;
-          }
-          if (key === "workspace-settings") {
-            onMenuClick("workspace-settings");
-            onOpenStorageSettings?.();
-            return;
-          }
-          if (typeof key === "string" && key.startsWith("ws:")) {
-            const workspaceId = key.slice(3);
-            onSwitchWorkspace?.(workspaceId);
-            onMenuClick("workspace-home");
-          }
-        }}
-        items={workspaceMenuItems}
-      />
-
-      <div className="mcd-sidebar-card">
-        <Button type="link" className="mcd-sidebar-title">
-          我的文件
-        </Button>
-      </div>
-      <Menu
-        mode="inline"
-        selectedKeys={[activeMenu]}
-        onClick={({ key }) => onMenuClick(key)}
-        items={menuItems.map((item) => {
-          const MenuIcon = item.icon;
-          return {
-            ...item,
-            icon: MenuIcon ? <MenuIcon /> : null
-          };
-        })}
-      />
-      <div className="mcd-sidebar-section">
-        <span className="mcd-muted">分类</span>
-        <div className="mcd-sidebar-list">
-          {typeFilters.map((item) => {
-            const FilterIcon = item.icon;
+    <aside className="mcd-sidebar mcd-sidebar-redesign">
+      <section className="mcd-sidebar-block">
+        <div className="mcd-sidebar-l2-head">
+          <ApartmentOutlined />
+          <span>空间列表</span>
+        </div>
+        <div className="mcd-sidebar-workspaces">
+          {(workspaces || []).map((item) => {
+            const selected = item.workspaceId === activeWorkspace?.workspaceId;
             return (
-              <button key={item.key} type="button" className="mcd-sidebar-item">
-                {FilterIcon ? <FilterIcon /> : null}
-                <span>{item.label}</span>
+              <button
+                key={item.workspaceId}
+                type="button"
+                className={`mcd-sidebar-workspace-item ${selected ? "active" : ""}`}
+                onClick={() => {
+                  onSwitchWorkspace?.(item.workspaceId);
+                  onMenuClick("workspace-home");
+                }}
+              >
+                <span className="mcd-sidebar-workspace-name">{item.workspaceName}</span>
+                <span className="mcd-sidebar-workspace-type">{item.workspaceType}</span>
               </button>
             );
           })}
         </div>
-      </div>
+        <button
+          type="button"
+          className={`mcd-sidebar-nav-item ${activeMenu === "workspace-home" ? "active" : ""}`}
+          onClick={() => {
+            onMenuClick("workspace-home");
+            onOpenStorageSettings?.("workspace");
+          }}
+        >
+          <SettingOutlined />
+          <span>空间配置</span>
+        </button>
+      </section>
+
+      <section className="mcd-sidebar-block">
+        <div className="mcd-sidebar-l2-head">
+          <DatabaseOutlined />
+          <span>配置列表</span>
+        </div>
+        <div className="mcd-sidebar-storage-list">
+          {enabledSettings.map((item) => (
+            <div key={item.settingId} className="mcd-sidebar-storage-item active">
+              <div className="mcd-sidebar-storage-main">
+                <div className="mcd-sidebar-storage-header">
+                  <span className="mcd-sidebar-storage-name">{item.name || item.identifier}</span>
+                  <span className="mcd-sidebar-storage-state active">
+                    已启用
+                  </span>
+                </div>
+                 </div>
+              <div className="mcd-sidebar-storage-links">
+                <div className="mcd-sidebar-storage-links-group">
+                  {[
+                    { key: "files", label: "全部文件" },
+                    { key: "shares", label: "我的分享" },
+                    { key: "trash", label: "回收站" }
+                  ].map((entry) => (
+                    <button
+                      key={`${item.settingId}-${entry.key}`}
+                      type="button"
+                      className={`mcd-sidebar-nav-item mcd-sidebar-storage-link ${activeMenu === entry.key ? "active" : ""}`}
+                      onClick={async () => {
+                        await onActivateStorageSetting?.(item.settingId);
+                        onMenuClick(entry.key);
+                      }}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+
+              </div>
+            </div>
+          ))}
+          {enabledSettings.length === 0 ? <span className="mcd-muted">暂无已启用配置</span> : null}
+
+          <div className="mcd-sidebar-l3-head" style={{ marginTop: 12 }}>未启用配置</div>
+          {disabledSettings.map((item) => (
+            <div key={item.settingId} className="mcd-sidebar-storage-item">
+              <div className="mcd-sidebar-storage-main">
+                <div className="mcd-sidebar-storage-header">
+                  <span className="mcd-sidebar-storage-name">{item.name || item.identifier}</span>
+                  <button
+                    type="button"
+                    className="mcd-sidebar-storage-edit"
+                    onClick={() => onEnableStorageSetting?.(item.settingId)}
+                  >
+                    启用
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {disabledSettings.length === 0 ? <span className="mcd-muted">暂无未启用配置</span> : null}
+        </div>
+      </section>
     </aside>
   );
 }

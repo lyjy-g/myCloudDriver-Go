@@ -57,11 +57,21 @@ function normalizeStorage(item) {
   }
   return {
     settingId: item.settingId || item.id || "local-default",
+    storageSettingName: item.storageSettingName || item.name || "",
     identifier: item.identifier || item.platformIdentifier || "Local",
-    name: item.name || item.identifier || item.platformIdentifier || "Local",
+    name: item.storageSettingName || item.name || item.identifier || item.platformIdentifier || "Local",
     active: Boolean(item.active),
     basePath: item.basePath || "",
-    baseUrl: item.baseUrl || ""
+    namespace: item.namespace || "",
+    baseUrl: item.baseUrl || "",
+    endpoint: item.endpoint || "",
+    region: item.region || "",
+    bucket: item.bucket || "",
+    accessKeyId: item.accessKeyId || "",
+    secretAccessKey: item.secretAccessKey || "",
+    prefix: item.prefix || "",
+    useSSL: Boolean(item.useSSL),
+    pathStyle: item.pathStyle !== false
   };
 }
 
@@ -100,13 +110,24 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [activeStorage, setActiveStorage] = useState(null);
   const [storageSettings, setStorageSettings] = useState([]);
+  const [enabledStorageIds, setEnabledStorageIds] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [storageForm, setStorageForm] = useState({
     settingId: "local-default",
+    storageSettingName: "",
     identifier: "Local",
     basePath: "",
-    baseUrl: ""
+    namespace: "",
+    baseUrl: "",
+    endpoint: "",
+    region: "us-east-1",
+    bucket: "",
+    accessKeyId: "",
+    secretAccessKey: "",
+    prefix: "",
+    useSSL: false,
+    pathStyle: true
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -115,6 +136,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [error, setError] = useState("");
 
   const previousStorageSettingIdRef = useRef("");
+  const enabledStorageKey = useMemo(
+    () => `mcd-enabled-storage:${activeWorkspace?.workspaceId || "default"}`,
+    [activeWorkspace?.workspaceId]
+  );
 
   const loadStorageMeta = useCallback(async () => {
     setError("");
@@ -137,19 +162,45 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setWorkspaces(workspaceItems);
 
       const activeWorkspaceRaw = normalizeWorkspace(activeWorkspaceData?.data || activeWorkspaceData);
-      setActiveWorkspace(activeWorkspaceRaw ?? workspaceItems.find((item) => item.isDefault) ?? workspaceItems[0] ?? null);
+      const currentWorkspace = activeWorkspaceRaw ?? workspaceItems.find((item) => item.isDefault) ?? workspaceItems[0] ?? null;
+      setActiveWorkspace(currentWorkspace);
 
       const settingItems = (settingData?.data || settingData || [])
         .map(normalizeStorage)
         .filter(Boolean);
       setStorageSettings(settingItems);
+      const enabledFromBackend = settingItems.filter((item) => item.active).map((item) => item.settingId);
+      const workspaceKey = `mcd-enabled-storage:${currentWorkspace?.workspaceId || "default"}`;
+      let enabledFromLocal = [];
+      try {
+        const raw = window.localStorage.getItem(workspaceKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(parsed)) {
+          enabledFromLocal = parsed;
+        }
+      } catch (_) {
+        enabledFromLocal = [];
+      }
+      const validSettingIds = new Set(settingItems.map((item) => item.settingId));
+      const mergedEnabled = [...new Set([...enabledFromBackend, ...enabledFromLocal])].filter((id) => validSettingIds.has(id));
+      setEnabledStorageIds(mergedEnabled);
       const active = settingItems.find((item) => item.active) || settingItems[0] || null;
       setActiveStorage(active);
       setStorageForm({
         settingId: active?.settingId || "local-default",
+        storageSettingName: active?.storageSettingName || active?.name || "",
         identifier: active?.identifier || "Local",
         basePath: active?.basePath || "",
-        baseUrl: active?.baseUrl || ""
+        namespace: active?.namespace || "",
+        baseUrl: active?.baseUrl || "",
+        endpoint: active?.endpoint || "",
+        region: active?.region || "us-east-1",
+        bucket: active?.bucket || "",
+        accessKeyId: active?.accessKeyId || "",
+        secretAccessKey: active?.secretAccessKey || "",
+        prefix: active?.prefix || "",
+        useSSL: Boolean(active?.useSSL),
+        pathStyle: active?.pathStyle !== false
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败");
@@ -157,6 +208,14 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setLoading(false);
     }
   }, [normalizedBaseUrl]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(enabledStorageKey, JSON.stringify(enabledStorageIds));
+    } catch (_) {
+      // 忽略本地缓存异常。
+    }
+  }, [enabledStorageIds, enabledStorageKey]);
 
   const checkAuth = useCallback(async () => {
     const tokenSnapshot = getAuthToken();
@@ -637,9 +696,19 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     try {
       await updateActiveStorage(normalizedBaseUrl, {
         settingId: storageForm.settingId,
+        storageSettingName: storageForm.storageSettingName,
         identifier: storageForm.identifier,
         basePath: storageForm.basePath,
-        baseUrl: storageForm.baseUrl
+        namespace: storageForm.namespace,
+        baseUrl: storageForm.baseUrl,
+        endpoint: storageForm.endpoint,
+        region: storageForm.region,
+        bucket: storageForm.bucket,
+        accessKeyId: storageForm.accessKeyId,
+        secretAccessKey: storageForm.secretAccessKey,
+        prefix: storageForm.prefix,
+        useSSL: storageForm.useSSL,
+        pathStyle: storageForm.pathStyle
       });
       setCurrentParentId(ROOT_PARENT_ID);
       setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
@@ -668,19 +737,43 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
     setStorageForm({
       settingId: target.settingId || "",
+      storageSettingName: target.storageSettingName || target.name || "",
       identifier: target.identifier || "Local",
       basePath: target.basePath || "",
-      baseUrl: target.baseUrl || ""
+      namespace: target.namespace || "",
+      baseUrl: target.baseUrl || "",
+      endpoint: target.endpoint || "",
+      region: target.region || "us-east-1",
+      bucket: target.bucket || "",
+      accessKeyId: target.accessKeyId || "",
+      secretAccessKey: target.secretAccessKey || "",
+      prefix: target.prefix || "",
+      useSSL: Boolean(target.useSSL),
+      pathStyle: target.pathStyle !== false
     });
     notifySuccess(`已载入配置：${target.settingId}`);
   }, [storageSettings, notifySuccess]);
 
-  const handleCreateStorageDraft = useCallback(() => {
+  const handleCreateStorageDraft = useCallback((draft = null) => {
+    const normalizedIdentifier = draft?.identifier || "Local";
     setStorageForm((previous) => ({
       ...previous,
-      settingId: ""
+      settingId: "",
+      storageSettingName: draft?.storageSettingName || "",
+      identifier: normalizedIdentifier,
+      basePath: "",
+      namespace: draft?.namespace || "",
+      baseUrl: draft?.baseUrl || "",
+      endpoint: draft?.endpoint || "",
+      region: draft?.region || "us-east-1",
+      bucket: draft?.bucket || "",
+      accessKeyId: "",
+      secretAccessKey: "",
+      prefix: "",
+      useSSL: false,
+      pathStyle: true
     }));
-    notifySuccess("已切换到新建配置模式，保存时将创建新配置");
+    notifySuccess("已进入新建配置编辑页，请补全参数后保存");
   }, [notifySuccess]);
 
   const handleActivateStorageSetting = useCallback(async (settingId) => {
@@ -705,6 +798,19 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setLoading(false);
     }
   }, [normalizedBaseUrl, loadStorageMeta, activeMenu, loadFilesByParent, loadRecycleBin, notifySuccess]);
+
+  const handleEnableStorageSetting = useCallback((settingId) => {
+    if (!settingId) {
+      return;
+    }
+    setEnabledStorageIds((previous) => {
+      if (previous.includes(settingId)) {
+        return previous;
+      }
+      return [...previous, settingId];
+    });
+    notifySuccess(`已加入可访问配置：${settingId}`);
+  }, [notifySuccess]);
 
   const handleSwitchWorkspace = useCallback(async (workspaceId) => {
     if (!workspaceId || workspaceId === activeWorkspace?.workspaceId) {
@@ -762,6 +868,35 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
   }, [normalizedBaseUrl, activeMenu, loadFiles, loadRecycleBin, notifySuccess]);
 
+  const handleCreateWorkspace = useCallback((draft = null) => {
+    const name = draft?.workspaceName?.trim();
+    if (!name) {
+      notifyWarning("请先填写空间名称");
+      return;
+    }
+    notifyWarning(`新建空间接口待后端提供（已提交草稿：${name}）`);
+  }, [notifyWarning]);
+
+  const handleRenameWorkspace = useCallback(() => {
+    notifyWarning("重命名空间接口待后端提供");
+  }, [notifyWarning]);
+
+  const handleDeleteWorkspace = useCallback(() => {
+    notifyWarning("删除空间接口待后端提供");
+  }, [notifyWarning]);
+
+  const handleAddWorkspaceUser = useCallback(() => {
+    notifyWarning("空间成员添加接口待后端提供");
+  }, [notifyWarning]);
+
+  const handleRemoveWorkspaceUser = useCallback(() => {
+    notifyWarning("空间成员移除接口待后端提供");
+  }, [notifyWarning]);
+
+  const handleDeleteStorageSetting = useCallback(() => {
+    notifyWarning("删除存储配置接口待后端提供");
+  }, [notifyWarning]);
+
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       notifyWarning("请先选择文件");
@@ -790,13 +925,18 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         return;
       }
 
-      const uploadId = precheckData.uploadId;
+      const taskId = precheckData.taskId || precheckData.uploadId;
+      if (!taskId) {
+        throw new Error("后端未返回 taskId/uploadId");
+      }
       for (let partNumber = 1; partNumber <= totalParts; partNumber += 1) {
         const start = (partNumber - 1) * DEFAULT_CHUNK_SIZE;
         const end = Math.min(selectedFile.size, partNumber * DEFAULT_CHUNK_SIZE);
         const chunk = selectedFile.slice(start, end);
         await uploadPart(normalizedBaseUrl, {
-          uploadId,
+          taskId,
+          uploadId: taskId,
+          chunkIndex: partNumber,
           partNumber,
           totalParts,
           fileHash,
@@ -805,7 +945,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         setUploadProgress(Math.round((partNumber / totalParts) * 100));
       }
 
-      await mergeUpload(normalizedBaseUrl, { uploadId });
+      await mergeUpload(normalizedBaseUrl, { taskId, uploadId: taskId });
       setUploadProgress(100);
       await loadFiles();
       notifySuccess("文件上传完成");
@@ -977,6 +1117,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     activeWorkspace,
     storageForm,
     storageSettings,
+    enabledStorageIds,
     drawerOpen,
     selectedFile,
     uploadProgress,
@@ -1000,8 +1141,15 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     handleEditStorageSetting,
     handleCreateStorageDraft,
     handleActivateStorageSetting,
+    handleEnableStorageSetting,
     handleSwitchWorkspace,
     handleRebuildIndexes,
+    handleCreateWorkspace,
+    handleRenameWorkspace,
+    handleDeleteWorkspace,
+    handleAddWorkspaceUser,
+    handleRemoveWorkspaceUser,
+    handleDeleteStorageSetting,
     handleBaseFileActions: {
       renameFolder: handleRenameFolder,
       deleteFolder: handleDeleteFolder,

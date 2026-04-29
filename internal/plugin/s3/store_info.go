@@ -42,26 +42,26 @@ type Config struct {
 	Prefix string `json:"prefix,omitempty"`
 }
 
-// Driver 是 S3 兼容存储驱动实现。
-type Driver struct{}
+// StoreInfo 是 S3 兼容存储平台信息实现。
+type StoreInfo struct{}
 
-// NewDriver 创建 S3 存储驱动。
-func NewDriver() *Driver {
-	return &Driver{}
+// NewStoreInfo 创建 S3 存储平台信息实例。
+func NewStoreInfo() *StoreInfo {
+	return &StoreInfo{}
 }
 
-// PlatformIdentifier 返回驱动标识。
-func (d *Driver) PlatformIdentifier() plugin.PlatformIdentifier {
+// PlatformIdentifier 返回平台标识。
+func (s *StoreInfo) PlatformIdentifier() plugin.PlatformIdentifier {
 	return plugin.PlatformIdentifierS3
 }
 
-// Capabilities 返回驱动能力集合。
-func (d *Driver) Capabilities() []plugin.Capability {
+// Capabilities 返回能力集合。
+func (s *StoreInfo) Capabilities() []plugin.Capability {
 	return []plugin.Capability{plugin.CapabilityBasic, plugin.CapabilitySignedURL}
 }
 
 // ValidateConfig 校验配置是否合法。
-func (d *Driver) ValidateConfig(_ context.Context, raw []byte) error {
+func (s *StoreInfo) ValidateConfig(_ context.Context, raw []byte) error {
 	cfg, err := parseConfig(raw)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (d *Driver) ValidateConfig(_ context.Context, raw []byte) error {
 }
 
 // Build 基于配置构建 Store。
-func (d *Driver) Build(ctx context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
+func (s *StoreInfo) Build(ctx context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
 	parsed, err := parseConfig(cfg.ConfigData)
 	if err != nil {
 		return nil, err
