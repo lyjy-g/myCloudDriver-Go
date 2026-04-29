@@ -14,31 +14,10 @@ import (
 	"sync"
 	"time"
 
+	filemodel "myclouddrive-go/internal/file/model"
 	storagemodel "myclouddrive-go/internal/storage/model"
 	storagesvc "myclouddrive-go/internal/storage/service"
 )
-
-// FileItem 表示文件元数据（内存实现）。
-type FileItem struct {
-	ID        string     `json:"id"`
-	ParentID  string     `json:"parent_id"`
-	Name      string     `json:"name"`
-	IsDir     bool       `json:"is_dir"`
-	Size      int64      `json:"size"`
-	FileHash  string     `json:"file_hash,omitempty"`
-	ObjectKey string     `json:"object_key,omitempty"`
-	Favorite  bool       `json:"favorite"`
-	Deleted   bool       `json:"deleted"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-}
-
-// HomeInfo 表示文件首页信息。
-type HomeInfo struct {
-	UsedBytes int64      `json:"used_bytes"`
-	Recent    []FileItem `json:"recent"`
-}
 
 // StorageGateway 定义文件模块依赖的最小存储能力集合。
 type StorageGateway interface {
@@ -48,20 +27,11 @@ type StorageGateway interface {
 	Delete(ctx context.Context, key string) error
 }
 
-// HardDeleteReport 记录“元数据 + 对象存储”双写删除结果。
-type HardDeleteReport struct {
-	Requested           int      `json:"requested"`
-	MetadataDeleted     int      `json:"metadataDeleted"`
-	ObjectDeleteSuccess int      `json:"objectDeleteSuccess"`
-	ObjectDeleteFailed  int      `json:"objectDeleteFailed"`
-	FailedObjectKeys    []string `json:"failedObjectKeys,omitempty"`
-}
-
 // FileService 是 file 模块的唯一实现。
 type FileService struct {
 	mu      sync.RWMutex
 	counter int64
-	items   map[string]*FileItem
+	items   map[string]*filemodel.FileItem
 	storage StorageGateway
 
 	idemMu      sync.Mutex
@@ -69,45 +39,7 @@ type FileService struct {
 	idemTTL     time.Duration
 
 	transferMu    sync.Mutex
-	transferTasks map[string]*TransferTask
-}
-
-// TransferTaskStatus 表示传输任务状态。
-type TransferTaskStatus string
-
-const (
-	TransferTaskUploading TransferTaskStatus = "UPLOADING"
-	TransferTaskPaused    TransferTaskStatus = "PAUSED"
-	TransferTaskCompleted TransferTaskStatus = "COMPLETED"
-	TransferTaskCanceled  TransferTaskStatus = "CANCELED"
-)
-
-// TransferTask 表示上传传输任务。
-type TransferTask struct {
-	TaskID       string             `json:"taskId"`
-	FileName     string             `json:"fileName"`
-	FileHash     string             `json:"fileHash"`
-	FileSize     int64              `json:"fileSize"`
-	ContentType  string             `json:"contentType"`
-	ParentID     string             `json:"parentId"`
-	TotalParts   int                `json:"totalParts"`
-	UploadedSize int64              `json:"uploadedSize"`
-	UploadedPart int                `json:"uploadedParts"`
-	Status       TransferTaskStatus `json:"status"`
-	CreatedAt    time.Time          `json:"createdAt"`
-	UpdatedAt    time.Time          `json:"updatedAt"`
-
-	chunks map[int][]byte
-}
-
-// UploadInitInput 初始化上传入参。
-type UploadInitInput struct {
-	FileName    string
-	FileHash    string
-	FileSize    int64
-	ContentType string
-	ParentID    string
-	TotalParts  int
+	transferTasks map[string]*filemodel.TransferTask
 }
 
 type idempotencyRecord struct {
@@ -127,7 +59,7 @@ var (
 // NewFileService 创建文件服务。
 func NewFileService(storage *storagesvc.StorageService) *FileService {
 	now := time.Now()
-	root := &FileItem{
+	root := &filemodel.FileItem{
 		ID:        "root",
 		ParentID:  "",
 		Name:      "/",
@@ -135,7 +67,7 @@ func NewFileService(storage *storagesvc.StorageService) *FileService {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	doc := &FileItem{
+	doc := &filemodel.FileItem{
 		ID:        "f_1",
 		ParentID:  "root",
 		Name:      "readme.txt",
@@ -147,16 +79,16 @@ func NewFileService(storage *storagesvc.StorageService) *FileService {
 	}
 	return &FileService{
 		counter:       2,
-		items:         map[string]*FileItem{root.ID: root, doc.ID: doc},
+		items:         map[string]*filemodel.FileItem{root.ID: root, doc.ID: doc},
 		storage:       storage,
 		idemRecords:   make(map[string]idempotencyRecord),
 		idemTTL:       24 * time.Hour,
-		transferTasks: make(map[string]*TransferTask),
+		transferTasks: make(map[string]*filemodel.TransferTask),
 	}
 }
 
 // PrecheckUpload 上传预检（秒传判定 + 任务创建）。
-func (s *FileService) PrecheckUpload(in UploadInitInput) (bool, string, error) {
+func (s *FileService) PrecheckUpload(in filemodel.UploadInitInput) (bool, string, error) {
 	if strings.TrimSpace(in.FileName) == "" {
 		return false, "", errors.New("fileName is required")
 	}
@@ -183,7 +115,7 @@ func (s *FileService) PrecheckUpload(in UploadInitInput) (bool, string, error) {
 	}
 	s.mu.RUnlock()
 
-	taskID := s.initTransferTask(UploadInitInput{
+	taskID := s.initTransferTask(filemodel.UploadInitInput{
 		FileName:    in.FileName,
 		FileHash:    in.FileHash,
 		FileSize:    in.FileSize,
@@ -195,7 +127,7 @@ func (s *FileService) PrecheckUpload(in UploadInitInput) (bool, string, error) {
 }
 
 // InitUpload 显式初始化上传任务。
-func (s *FileService) InitUpload(in UploadInitInput) (string, error) {
+func (s *FileService) InitUpload(in filemodel.UploadInitInput) (string, error) {
 	if strings.TrimSpace(in.FileName) == "" {
 		return "", errors.New("fileName is required")
 	}
@@ -208,14 +140,14 @@ func (s *FileService) InitUpload(in UploadInitInput) (string, error) {
 	return s.initTransferTask(in), nil
 }
 
-func (s *FileService) initTransferTask(in UploadInitInput) string {
+func (s *FileService) initTransferTask(in filemodel.UploadInitInput) string {
 	parentID := strings.TrimSpace(in.ParentID)
 	if parentID == "" {
 		parentID = "root"
 	}
 	now := time.Now()
 	taskID := fmt.Sprintf("up_%d", now.UnixNano())
-	task := &TransferTask{
+	task := &filemodel.TransferTask{
 		TaskID:      taskID,
 		FileName:    strings.TrimSpace(in.FileName),
 		FileHash:    strings.TrimSpace(in.FileHash),
@@ -223,10 +155,10 @@ func (s *FileService) initTransferTask(in UploadInitInput) string {
 		ContentType: strings.TrimSpace(in.ContentType),
 		ParentID:    parentID,
 		TotalParts:  in.TotalParts,
-		Status:      TransferTaskUploading,
+		Status:      filemodel.TransferTaskUploading,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		chunks:      make(map[int][]byte),
+		Chunks:      make(map[int][]byte),
 	}
 
 	s.transferMu.Lock()
@@ -247,13 +179,13 @@ func (s *FileService) UploadChunk(taskID string, partIndex int, chunk []byte, ch
 	if task == nil {
 		return errors.New("transfer task not found")
 	}
-	if task.Status == TransferTaskPaused {
+	if task.Status == filemodel.TransferTaskPaused {
 		return errors.New("transfer task is paused")
 	}
-	if task.Status == TransferTaskCanceled {
+	if task.Status == filemodel.TransferTaskCanceled {
 		return errors.New("transfer task is canceled")
 	}
-	if task.Status == TransferTaskCompleted {
+	if task.Status == filemodel.TransferTaskCompleted {
 		return nil
 	}
 	if partIndex > task.TotalParts {
@@ -268,34 +200,34 @@ func (s *FileService) UploadChunk(taskID string, partIndex int, chunk []byte, ch
 
 	s.transferMu.Lock()
 	defer s.transferMu.Unlock()
-	if _, ok := task.chunks[partIndex]; !ok {
+	if _, ok := task.Chunks[partIndex]; !ok {
 		task.UploadedPart++
 		task.UploadedSize += int64(len(chunk))
 	}
-	task.chunks[partIndex] = append([]byte(nil), chunk...)
+	task.Chunks[partIndex] = append([]byte(nil), chunk...)
 	task.UpdatedAt = time.Now()
 	return nil
 }
 
 // MergeUpload 合并分片并落到存储层。
-func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*FileItem, error) {
+func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*filemodel.FileItem, error) {
 	task := s.getTransferTask(taskID)
 	if task == nil {
 		return nil, errors.New("transfer task not found")
 	}
-	if task.Status == TransferTaskCanceled {
+	if task.Status == filemodel.TransferTaskCanceled {
 		return nil, errors.New("transfer task is canceled")
 	}
-	if task.Status == TransferTaskPaused {
+	if task.Status == filemodel.TransferTaskPaused {
 		return nil, errors.New("transfer task is paused")
 	}
-	if len(task.chunks) != task.TotalParts {
-		return nil, fmt.Errorf("chunks incomplete: %d/%d", len(task.chunks), task.TotalParts)
+	if len(task.Chunks) != task.TotalParts {
+		return nil, fmt.Errorf("chunks incomplete: %d/%d", len(task.Chunks), task.TotalParts)
 	}
 
 	ordered := make([][]byte, 0, task.TotalParts)
 	for i := 1; i <= task.TotalParts; i++ {
-		chunk, ok := task.chunks[i]
+		chunk, ok := task.Chunks[i]
 		if !ok {
 			return nil, fmt.Errorf("missing chunk %d", i)
 		}
@@ -330,7 +262,7 @@ func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*FileItem
 	now := time.Now()
 	id := s.nextIDLocked()
 	name := s.uniqueNameLocked(task.ParentID, task.FileName)
-	item := &FileItem{
+	item := &filemodel.FileItem{
 		ID:        id,
 		ParentID:  task.ParentID,
 		Name:      name,
@@ -345,9 +277,9 @@ func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*FileItem
 	s.mu.Unlock()
 
 	s.transferMu.Lock()
-	task.Status = TransferTaskCompleted
+	task.Status = filemodel.TransferTaskCompleted
 	task.UpdatedAt = time.Now()
-	delete(task.chunks, 0)
+	delete(task.Chunks, 0)
 	s.transferMu.Unlock()
 
 	cp := *item
@@ -360,11 +292,11 @@ func (s *FileService) PauseTransfer(taskID string) error {
 	if task == nil {
 		return errors.New("transfer task not found")
 	}
-	if task.Status == TransferTaskCompleted || task.Status == TransferTaskCanceled {
+	if task.Status == filemodel.TransferTaskCompleted || task.Status == filemodel.TransferTaskCanceled {
 		return nil
 	}
 	s.transferMu.Lock()
-	task.Status = TransferTaskPaused
+	task.Status = filemodel.TransferTaskPaused
 	task.UpdatedAt = time.Now()
 	s.transferMu.Unlock()
 	return nil
@@ -376,11 +308,11 @@ func (s *FileService) ResumeTransfer(taskID string) error {
 	if task == nil {
 		return errors.New("transfer task not found")
 	}
-	if task.Status == TransferTaskCompleted || task.Status == TransferTaskCanceled {
+	if task.Status == filemodel.TransferTaskCompleted || task.Status == filemodel.TransferTaskCanceled {
 		return nil
 	}
 	s.transferMu.Lock()
-	task.Status = TransferTaskUploading
+	task.Status = filemodel.TransferTaskUploading
 	task.UpdatedAt = time.Now()
 	s.transferMu.Unlock()
 	return nil
@@ -393,28 +325,28 @@ func (s *FileService) CancelTransfer(taskID string) error {
 		return errors.New("transfer task not found")
 	}
 	s.transferMu.Lock()
-	task.Status = TransferTaskCanceled
-	task.chunks = map[int][]byte{}
+	task.Status = filemodel.TransferTaskCanceled
+	task.Chunks = map[int][]byte{}
 	task.UpdatedAt = time.Now()
 	s.transferMu.Unlock()
 	return nil
 }
 
 // ListTransferTasks 返回传输任务快照。
-func (s *FileService) ListTransferTasks() []TransferTask {
+func (s *FileService) ListTransferTasks() []filemodel.TransferTask {
 	s.transferMu.Lock()
 	defer s.transferMu.Unlock()
-	out := make([]TransferTask, 0, len(s.transferTasks))
+	out := make([]filemodel.TransferTask, 0, len(s.transferTasks))
 	for _, t := range s.transferTasks {
 		cp := *t
-		cp.chunks = nil
+		cp.Chunks = nil
 		out = append(out, cp)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
 	return out
 }
 
-func (s *FileService) getTransferTask(taskID string) *TransferTask {
+func (s *FileService) getTransferTask(taskID string) *filemodel.TransferTask {
 	s.transferMu.Lock()
 	defer s.transferMu.Unlock()
 	return s.transferTasks[taskID]
@@ -426,12 +358,12 @@ func (s *FileService) Ping(_ context.Context) (string, error) {
 }
 
 // Home 返回首页信息。
-func (s *FileService) Home(_ context.Context) HomeInfo {
+func (s *FileService) Home(_ context.Context) filemodel.HomeInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	var used int64
-	recent := make([]FileItem, 0)
+	recent := make([]filemodel.FileItem, 0)
 	for _, it := range s.items {
 		if it.Deleted {
 			continue
@@ -445,15 +377,15 @@ func (s *FileService) Home(_ context.Context) HomeInfo {
 	if len(recent) > 10 {
 		recent = recent[:10]
 	}
-	return HomeInfo{UsedBytes: used, Recent: recent}
+	return filemodel.HomeInfo{UsedBytes: used, Recent: recent}
 }
 
 // List 返回文件列表。
-func (s *FileService) List(parentID, keyword string) []FileItem {
+func (s *FileService) List(parentID, keyword string) []filemodel.FileItem {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := make([]FileItem, 0)
+	result := make([]filemodel.FileItem, 0)
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
 	for _, it := range s.items {
 		if it.Deleted {
@@ -477,9 +409,9 @@ func (s *FileService) List(parentID, keyword string) []FileItem {
 }
 
 // ListDirs 返回目录列表。
-func (s *FileService) ListDirs(parentID string) []FileItem {
+func (s *FileService) ListDirs(parentID string) []filemodel.FileItem {
 	items := s.List(parentID, "")
-	result := make([]FileItem, 0, len(items))
+	result := make([]filemodel.FileItem, 0, len(items))
 	for _, it := range items {
 		if it.IsDir {
 			result = append(result, it)
@@ -489,7 +421,7 @@ func (s *FileService) ListDirs(parentID string) []FileItem {
 }
 
 // Get 读取文件详情。
-func (s *FileService) Get(fileID string) (*FileItem, error) {
+func (s *FileService) Get(fileID string) (*filemodel.FileItem, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	it, ok := s.items[fileID]
@@ -501,7 +433,7 @@ func (s *FileService) Get(fileID string) (*FileItem, error) {
 }
 
 // CreateDirectory 创建目录（自动重名处理）。
-func (s *FileService) CreateDirectory(parentID, name string) (*FileItem, error) {
+func (s *FileService) CreateDirectory(parentID, name string) (*filemodel.FileItem, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -519,14 +451,14 @@ func (s *FileService) CreateDirectory(parentID, name string) (*FileItem, error) 
 
 	now := time.Now()
 	id := s.nextIDLocked()
-	it := &FileItem{ID: id, ParentID: parentID, Name: name, IsDir: true, CreatedAt: now, UpdatedAt: now}
+	it := &filemodel.FileItem{ID: id, ParentID: parentID, Name: name, IsDir: true, CreatedAt: now, UpdatedAt: now}
 	s.items[id] = it
 	cp := *it
 	return &cp, nil
 }
 
 // Rename 重命名。
-func (s *FileService) Rename(fileID, newName string) (*FileItem, error) {
+func (s *FileService) Rename(fileID, newName string) (*filemodel.FileItem, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -601,8 +533,8 @@ func (s *FileService) Restore(fileIDs []string) {
 // 说明：
 // - 元数据删除先完成，保证用户视图一致性；
 // - 对象删除逐个执行，失败写入报告，便于后续补偿任务清理。
-func (s *FileService) PermanentlyDelete(ctx context.Context, fileIDs []string) HardDeleteReport {
-	report := HardDeleteReport{
+func (s *FileService) PermanentlyDelete(ctx context.Context, fileIDs []string) filemodel.HardDeleteReport {
+	report := filemodel.HardDeleteReport{
 		Requested:        len(fileIDs),
 		FailedObjectKeys: make([]string, 0),
 	}
@@ -634,8 +566,8 @@ func (s *FileService) PermanentlyDelete(ctx context.Context, fileIDs []string) H
 }
 
 // ClearRecycle 清空回收站（元数据 + 插件对象删除）。
-func (s *FileService) ClearRecycle(ctx context.Context) HardDeleteReport {
-	report := HardDeleteReport{FailedObjectKeys: make([]string, 0)}
+func (s *FileService) ClearRecycle(ctx context.Context) filemodel.HardDeleteReport {
+	report := filemodel.HardDeleteReport{FailedObjectKeys: make([]string, 0)}
 
 	s.mu.Lock()
 	objectKeys := make([]string, 0)
@@ -666,7 +598,7 @@ func (s *FileService) ClearRecycle(ctx context.Context) HardDeleteReport {
 }
 
 // ListRecycle 分页返回回收站。
-func (s *FileService) ListRecycle(page, size int) ([]FileItem, int) {
+func (s *FileService) ListRecycle(page, size int) ([]filemodel.FileItem, int) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if page <= 0 {
@@ -676,7 +608,7 @@ func (s *FileService) ListRecycle(page, size int) ([]FileItem, int) {
 		size = 20
 	}
 
-	items := make([]FileItem, 0)
+	items := make([]filemodel.FileItem, 0)
 	for _, it := range s.items {
 		if it.Deleted {
 			items = append(items, *it)
@@ -688,7 +620,7 @@ func (s *FileService) ListRecycle(page, size int) ([]FileItem, int) {
 	total := len(items)
 	start := (page - 1) * size
 	if start >= total {
-		return []FileItem{}, total
+		return []filemodel.FileItem{}, total
 	}
 	end := start + size
 	if end > total {
@@ -711,14 +643,14 @@ func (s *FileService) SetFavorite(fileIDs []string, favorite bool) {
 }
 
 // DirPath 返回目录层级路径。
-func (s *FileService) DirPath(dirID string) ([]FileItem, error) {
+func (s *FileService) DirPath(dirID string) ([]filemodel.FileItem, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cur, ok := s.items[dirID]
 	if !ok || cur.Deleted || !cur.IsDir {
 		return nil, errors.New("dir not found")
 	}
-	pathItems := make([]FileItem, 0)
+	pathItems := make([]filemodel.FileItem, 0)
 	for cur != nil {
 		pathItems = append(pathItems, *cur)
 		if cur.ParentID == "" {
@@ -823,7 +755,7 @@ func dedupeStrings(items []string) []string {
 }
 
 // ResolveDownloadURL 通过统一存储门面生成下载 URL，业务层不关心 local/s3 细节。
-func (s *FileService) ResolveDownloadURL(ctx context.Context, fileID string, expire time.Duration) (string, *FileItem, error) {
+func (s *FileService) ResolveDownloadURL(ctx context.Context, fileID string, expire time.Duration) (string, *filemodel.FileItem, error) {
 	item, err := s.Get(fileID)
 	if err != nil {
 		return "", nil, err
@@ -841,7 +773,7 @@ func (s *FileService) ResolveDownloadURL(ctx context.Context, fileID string, exp
 }
 
 // OpenPreviewContent 通过统一存储门面读取对象内容。
-func (s *FileService) OpenPreviewContent(ctx context.Context, fileID string) (io.ReadCloser, storagemodel.ObjectInfo, *FileItem, error) {
+func (s *FileService) OpenPreviewContent(ctx context.Context, fileID string) (io.ReadCloser, storagemodel.ObjectInfo, *filemodel.FileItem, error) {
 	item, err := s.Get(fileID)
 	if err != nil {
 		return nil, storagemodel.ObjectInfo{}, nil, err
