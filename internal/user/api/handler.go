@@ -65,7 +65,7 @@ func (h *Handler) GetDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	var req userapi.UserRegisterCmd
+	var req userapi.UserRegisterRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
 		return
@@ -78,7 +78,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) EditUserInfo(w http.ResponseWriter, r *http.Request) {
-	var req userapi.UserEditInfoCmd
+	var req userapi.UserEditInfoRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
 		return
@@ -91,7 +91,7 @@ func (h *Handler) EditUserInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	var req userapi.PasswordEditCmd
+	var req userapi.PasswordEditRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
 		return
@@ -104,7 +104,7 @@ func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CheckForgetPasswordCode(w http.ResponseWriter, r *http.Request) {
-	var req userapi.PasswordForgetEditCmd
+	var req userapi.PasswordForgetEditRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
 		return
@@ -138,7 +138,7 @@ func (h *Handler) GetUserTransferSetting(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) UpdateUserTransferSetting(w http.ResponseWriter, r *http.Request) {
-	var req userapi.UserTransferSettingEditCmd
+	var req userapi.UserTransferSettingEditRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
 		return

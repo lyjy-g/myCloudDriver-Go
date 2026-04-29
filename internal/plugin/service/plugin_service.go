@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	syncOnce     sync.Once
-	runStoreInst *RunManager
+	syncOnce       sync.Once
+	runManagerInst *RunManager
 )
 
 // PutOptions 是存储写入选项（业务层可感知字段）。
@@ -59,9 +59,9 @@ func NewRunManager(db *gorm.DB, manager *boot.Manager, workspaceIDResolver func(
 // GetRunManager 返回插件运行时实例；若未初始化会按需初始化。
 func GetRunManager(db *gorm.DB) *RunManager {
 	syncOnce.Do(func() {
-		runStoreInst = NewRunManager(db, boot.NewDefaultManager(), currentWorkspaceID)
+		runManagerInst = NewRunManager(db, boot.NewDefaultManager(), currentWorkspaceID)
 	})
-	return runStoreInst
+	return runManagerInst
 }
 
 // InitRunStore 兼容模块初始化调用；内部复用 GetRunManager 的懒加载逻辑。

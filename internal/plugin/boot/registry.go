@@ -10,14 +10,14 @@ import (
 // Registry 管理已注册的存储驱动。
 // 该结构位于 boot 包，用于集中控制插件启动期注册流程。
 type Registry struct {
-	mu      sync.RWMutex
-	drivers map[plugin.PlatformIdentifier]plugin.StoreInfo
+	mu        sync.RWMutex
+	storeInfo map[plugin.PlatformIdentifier]plugin.StoreInfo
 }
 
 // NewRegistry 创建驱动注册表。
 func NewRegistry() *Registry {
 	return &Registry{
-		drivers: make(map[plugin.PlatformIdentifier]plugin.StoreInfo),
+		storeInfo: make(map[plugin.PlatformIdentifier]plugin.StoreInfo),
 	}
 }
 
@@ -27,11 +27,11 @@ func (r *Registry) Register(d plugin.StoreInfo) error {
 	defer r.mu.Unlock()
 
 	id := d.PlatformIdentifier()
-	if _, ok := r.drivers[id]; ok {
+	if _, ok := r.storeInfo[id]; ok {
 		return fmt.Errorf("storage driver already registered: %s", id)
 	}
 
-	r.drivers[id] = d
+	r.storeInfo[id] = d
 	return nil
 }
 
@@ -40,6 +40,6 @@ func (r *Registry) Get(id plugin.PlatformIdentifier) (plugin.StoreInfo, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	d, ok := r.drivers[id]
+	d, ok := r.storeInfo[id]
 	return d, ok
 }

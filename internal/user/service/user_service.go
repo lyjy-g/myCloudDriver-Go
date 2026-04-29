@@ -173,8 +173,8 @@ func boolToInt32(v bool) int32 {
 }
 
 // toSysUserVO 将 dbmodel.User 映射为 OpenAPI 生成的返回对象。
-func toSysUserVO(user dbmodel.User) *userapi.SysUserVO {
-	return &userapi.SysUserVO{
+func toSysUserVO(user dbmodel.User) *userapi.SysUserResponse {
+	return &userapi.SysUserResponse{
 		Id:          strPtrOrNil(user.ID),
 		Username:    strPtrOrNil(user.Username),
 		Email:       strPtrOrNil(user.Email),
@@ -432,7 +432,7 @@ func (s *UserService) Logout(ctx context.Context) error {
 }
 
 // CurrentUser 获取当前用户详情。
-func (s *UserService) CurrentUser(ctx context.Context) (*userapi.SysUserVO, error) {
+func (s *UserService) CurrentUser(ctx context.Context) (*userapi.SysUserResponse, error) {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -450,7 +450,7 @@ func (s *UserService) CurrentUser(ctx context.Context) (*userapi.SysUserVO, erro
 }
 
 // Register 注册用户并初始化个人工作空间、空间存储设置与传输设置。
-func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterCmd) error {
+func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterRequest) error {
 	username := strings.TrimSpace(req.Username)
 	if username == "" {
 		return code.New(code.BadRequest, "username is required")
@@ -506,7 +506,7 @@ func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterCmd)
 }
 
 // UpdateUserInfo 更新用户资料。
-func (s *UserService) UpdateUserInfo(ctx context.Context, req userapi.UserEditInfoCmd) error {
+func (s *UserService) UpdateUserInfo(ctx context.Context, req userapi.UserEditInfoRequest) error {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return err
@@ -528,7 +528,7 @@ func (s *UserService) UpdateUserInfo(ctx context.Context, req userapi.UserEditIn
 }
 
 // ChangePassword 登录态改密。
-func (s *UserService) ChangePassword(ctx context.Context, req userapi.PasswordEditCmd) error {
+func (s *UserService) ChangePassword(ctx context.Context, req userapi.PasswordEditRequest) error {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return err
@@ -578,7 +578,7 @@ func (s *UserService) SendForgetPasswordCode(ctx context.Context, mail string) e
 }
 
 // ResetForgetPassword 验证码重置密码。
-func (s *UserService) ResetForgetPassword(ctx context.Context, req userapi.PasswordForgetEditCmd) error {
+func (s *UserService) ResetForgetPassword(ctx context.Context, req userapi.PasswordForgetEditRequest) error {
 	if err := validateEmail(req.Mail); err != nil {
 		return err
 	}
@@ -631,7 +631,7 @@ func (s *UserService) GetTransferSetting(ctx context.Context) (*userapi.SysUserT
 }
 
 // UpdateTransferSetting 更新用户传输设置。
-func (s *UserService) UpdateTransferSetting(ctx context.Context, req userapi.UserTransferSettingEditCmd) (*userapi.SysUserTransferSetting, error) {
+func (s *UserService) UpdateTransferSetting(ctx context.Context, req userapi.UserTransferSettingEditRequest) (*userapi.SysUserTransferSetting, error) {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return nil, err
