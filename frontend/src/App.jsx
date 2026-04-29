@@ -24,7 +24,7 @@ import { useNotifier } from "./hooks/useNotifier.js";
  * @returns {JSX.Element} 页面
  */
 export default function App() {
-  const [loginForm, setLoginForm] = useState({ username: "myCloudDrive", password: "myCloudDrive" });
+  const [loginForm, setLoginForm] = useState({ username: "admin", password: "admin" });
   const [storageSettingsOpen, setStorageSettingsOpen] = useState(false);
   const [settingsView, setSettingsView] = useState("workspace");
   const { contextHolder, notifySuccess, notifyWarning, notifyError } = useNotifier();
@@ -106,6 +106,7 @@ export default function App() {
             onMenuClick={controller.setActiveMenu}
             workspaces={controller.workspaces}
             activeWorkspace={controller.activeWorkspace}
+            activeStorage={controller.activeStorage}
             storageSettings={controller.storageSettings}
             enabledStorageIds={controller.enabledStorageIds}
             onSwitchWorkspace={controller.handleSwitchWorkspace}
@@ -140,6 +141,7 @@ export default function App() {
               activeStorage={controller.activeStorage}
               currentUser={controller.currentUser}
               storageSettings={controller.storageSettings}
+              enabledStorageIds={controller.enabledStorageIds}
               platforms={controller.platforms}
               onOpenStorageSettings={openStorageSettings}
               onOpenFiles={() => controller.setActiveMenu("files")}
@@ -149,7 +151,9 @@ export default function App() {
               }}
               onRefreshWorkspace={controller.loadStorageMeta}
               onEditStorageSetting={(settingId) => openStorageSettings("editor", settingId)}
-              onActivateStorageSetting={controller.handleActivateStorageSetting}
+              onEnableStorageSetting={controller.handleEnableStorageSetting}
+              onDisableStorageSetting={controller.handleDisableStorageSetting}
+              onDeleteStorageSetting={controller.handleDeleteStorageSetting}
             />
 
             <StorageSettingsPanel

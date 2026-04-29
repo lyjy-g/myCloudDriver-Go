@@ -61,17 +61,7 @@ export function Toolbar({
 
             {/* 右侧：页面级操作 */}
             <div className="mcd-toolbar-right" style={{ minWidth: 0, flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                <Space size={0}>
-                    <Button
-                        type="link"
-                        size="small"
-                        danger
-                        icon={<LogoutOutlined />}
-                        onClick={onLogout}
-                    >
-                        退出
-                    </Button>
-                </Space>
+
             </div>
         </div>
     );

@@ -19,13 +19,16 @@ const { Text } = Typography;
  *   activeStorage: object,
  *   currentUser: object,
  *   storageSettings: Array,
+ *   enabledStorageIds: Array,
  *   platforms: Array,
  *   onOpenStorageSettings: Function,
   *   onOpenFiles: Function,
  *   onCreateStorageSetting: Function,
  *   onRefreshWorkspace: Function,
  *   onEditStorageSetting: Function,
- *   onActivateStorageSetting: Function
+ *   onEnableStorageSetting: Function,
+ *   onDisableStorageSetting: Function,
+ *   onDeleteStorageSetting: Function
  * }} props 组件参数
  * @returns {JSX.Element | null} 面板
  */
@@ -41,13 +44,16 @@ export function FilesPanel({
   activeStorage,
   currentUser,
   storageSettings,
+  enabledStorageIds,
   platforms,
   onOpenStorageSettings,
   onOpenFiles,
   onCreateStorageSetting,
   onRefreshWorkspace,
   onEditStorageSetting,
-  onActivateStorageSetting
+  onEnableStorageSetting,
+  onDisableStorageSetting,
+  onDeleteStorageSetting
 }) {
   if (activeMenu === "workspace-home") {
     return (
@@ -72,8 +78,11 @@ export function FilesPanel({
 
         <WorkspaceSettingSelector
           storageSettings={storageSettings}
+          enabledStorageIds={enabledStorageIds}
           onEditSetting={onEditStorageSetting}
-          onActivateSetting={onActivateStorageSetting}
+          onEnableSetting={onEnableStorageSetting}
+          onDisableSetting={onDisableStorageSetting}
+          onDeleteSetting={onDeleteStorageSetting}
         />
 
       </div>

@@ -812,6 +812,18 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     notifySuccess(`已加入可访问配置：${settingId}`);
   }, [notifySuccess]);
 
+  const handleDisableStorageSetting = useCallback((settingId) => {
+    if (!settingId) {
+      return;
+    }
+    if ((enabledStorageIds || []).length <= 1 && (enabledStorageIds || []).includes(settingId)) {
+      notifyWarning("不能全部关闭，至少保留一个已启用配置");
+      return;
+    }
+    setEnabledStorageIds((previous) => previous.filter((id) => id !== settingId));
+    notifySuccess(`已从可访问配置移除：${settingId}`);
+  }, [enabledStorageIds, notifySuccess, notifyWarning]);
+
   const handleSwitchWorkspace = useCallback(async (workspaceId) => {
     if (!workspaceId || workspaceId === activeWorkspace?.workspaceId) {
       return;
@@ -1142,6 +1154,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     handleCreateStorageDraft,
     handleActivateStorageSetting,
     handleEnableStorageSetting,
+    handleDisableStorageSetting,
     handleSwitchWorkspace,
     handleRebuildIndexes,
     handleCreateWorkspace,

@@ -23,6 +23,7 @@ export function Sidebar({
   onMenuClick,
   workspaces,
   activeWorkspace,
+  activeStorage,
   storageSettings,
   enabledStorageIds,
   onSwitchWorkspace,
@@ -31,7 +32,16 @@ export function Sidebar({
   onEnableStorageSetting
 }) {
   const enabledSet = new Set(enabledStorageIds || []);
-  const enabledSettings = (storageSettings || []).filter((item) => enabledSet.has(item.settingId) || item.active);
+  const enabledSettings = (storageSettings || [])
+    .filter((item) => enabledSet.has(item.settingId) || item.active)
+    .sort((a, b) => {
+      const aSelected = a.settingId === activeStorage?.settingId;
+      const bSelected = b.settingId === activeStorage?.settingId;
+      if (aSelected === bSelected) {
+        return 0;
+      }
+      return aSelected ? -1 : 1;
+    });
   const disabledSettings = (storageSettings || []).filter((item) => !enabledSet.has(item.settingId) && !item.active);
 
   return (
@@ -99,7 +109,7 @@ export function Sidebar({
                     <button
                       key={`${item.settingId}-${entry.key}`}
                       type="button"
-                      className={`mcd-sidebar-nav-item mcd-sidebar-storage-link ${activeMenu === entry.key ? "active" : ""}`}
+                      className={`mcd-sidebar-nav-item mcd-sidebar-storage-link ${activeMenu === entry.key && activeStorage?.settingId === item.settingId ? "active" : ""}`}
                       onClick={async () => {
                         await onActivateStorageSetting?.(item.settingId);
                         onMenuClick(entry.key);
