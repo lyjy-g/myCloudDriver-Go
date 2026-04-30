@@ -1,2 +1,5 @@
 # Generated source files
 *.gen.go
+
+# Runtime data directory
+.data/
