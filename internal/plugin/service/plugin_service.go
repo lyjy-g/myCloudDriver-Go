@@ -200,10 +200,14 @@ func (r *RunManager) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.Sto
 }
 
 func (r *RunManager) resolveStoreBySetting(ctx context.Context, row dbmodel.StorageSetting) (plugin.StorePower, error) {
+	normalizedIdentifier := strings.ToLower(strings.TrimSpace(row.PlatformIdentifier))
+	if normalizedIdentifier == "" {
+		return nil, fmt.Errorf("resolve storage plugin failed: empty platform identifier")
+	}
 	cfg := plugin.ResolvedStorageConfig{
 		SettingID:          row.ID,
 		WorkspaceID:        row.WorkspaceID,
-		PlatformIdentifier: plugin.PlatformIdentifier(row.PlatformIdentifier),
+		PlatformIdentifier: plugin.PlatformIdentifier(normalizedIdentifier),
 		ConfigData:         []byte(row.ConfigData),
 		Version:            plugin.Fingerprint(row),
 	}

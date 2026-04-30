@@ -16,54 +16,39 @@ import (
 )
 
 var (
-	Q                 = new(Query)
-	FileInfo          *fileInfo
-	FileTransferTask  *fileTransferTask
-	ShareAccessRecord *shareAccessRecord
-	ShareInfo         *shareInfo
-	ShareItem         *shareItem
+	Q                = new(Query)
+	FileInfo         *fileInfo
+	FileTransferTask *fileTransferTask
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	FileInfo = &Q.FileInfo
 	FileTransferTask = &Q.FileTransferTask
-	ShareAccessRecord = &Q.ShareAccessRecord
-	ShareInfo = &Q.ShareInfo
-	ShareItem = &Q.ShareItem
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:                db,
-		FileInfo:          newFileInfo(db, opts...),
-		FileTransferTask:  newFileTransferTask(db, opts...),
-		ShareAccessRecord: newShareAccessRecord(db, opts...),
-		ShareInfo:         newShareInfo(db, opts...),
-		ShareItem:         newShareItem(db, opts...),
+		db:               db,
+		FileInfo:         newFileInfo(db, opts...),
+		FileTransferTask: newFileTransferTask(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	FileInfo          fileInfo
-	FileTransferTask  fileTransferTask
-	ShareAccessRecord shareAccessRecord
-	ShareInfo         shareInfo
-	ShareItem         shareItem
+	FileInfo         fileInfo
+	FileTransferTask fileTransferTask
 }
 
 func (q *Query) Available() bool { return q.db != nil }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:                db,
-		FileInfo:          q.FileInfo.clone(db),
-		FileTransferTask:  q.FileTransferTask.clone(db),
-		ShareAccessRecord: q.ShareAccessRecord.clone(db),
-		ShareInfo:         q.ShareInfo.clone(db),
-		ShareItem:         q.ShareItem.clone(db),
+		db:               db,
+		FileInfo:         q.FileInfo.clone(db),
+		FileTransferTask: q.FileTransferTask.clone(db),
 	}
 }
 
@@ -77,30 +62,21 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:                db,
-		FileInfo:          q.FileInfo.replaceDB(db),
-		FileTransferTask:  q.FileTransferTask.replaceDB(db),
-		ShareAccessRecord: q.ShareAccessRecord.replaceDB(db),
-		ShareInfo:         q.ShareInfo.replaceDB(db),
-		ShareItem:         q.ShareItem.replaceDB(db),
+		db:               db,
+		FileInfo:         q.FileInfo.replaceDB(db),
+		FileTransferTask: q.FileTransferTask.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	FileInfo          *fileInfoDo
-	FileTransferTask  *fileTransferTaskDo
-	ShareAccessRecord *shareAccessRecordDo
-	ShareInfo         *shareInfoDo
-	ShareItem         *shareItemDo
+	FileInfo         *fileInfoDo
+	FileTransferTask *fileTransferTaskDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		FileInfo:          q.FileInfo.WithContext(ctx),
-		FileTransferTask:  q.FileTransferTask.WithContext(ctx),
-		ShareAccessRecord: q.ShareAccessRecord.WithContext(ctx),
-		ShareInfo:         q.ShareInfo.WithContext(ctx),
-		ShareItem:         q.ShareItem.WithContext(ctx),
+		FileInfo:         q.FileInfo.WithContext(ctx),
+		FileTransferTask: q.FileTransferTask.WithContext(ctx),
 	}
 }
 

@@ -41,9 +41,6 @@ func main() {
 
 	tables := []string{
 		"file_info",
-		"share_info",
-		"share_access_record",
-		"share_items",
 		"file_transfer_task",
 	}
 	models := make([]any, 0, len(tables))

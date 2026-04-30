@@ -23,7 +23,7 @@ import (
 )
 
 const platformCacheKey = "storage:platforms:active"
-const defaultLocalStorageRoot = "/data/myclouddrive/storage"
+const defaultLocalStorageRoot = ".data"
 
 // StorageService 是 storage 业务的唯一实现。
 // 按约定：单实现场景不再抽接口。
@@ -88,7 +88,7 @@ func (s *StorageService) ListStorageSettings(ctx context.Context) ([]storageMode
 // - 入库前做 JSON 校验与归一化，减少后续运行时失败。
 func (s *StorageService) CreateStorageSetting(ctx context.Context, req storageModel.CreateSettingInput) (*storageModel.Setting, error) {
 	workspaceID := currentWorkspaceID(ctx)
-	identifier := strings.TrimSpace(req.Identifier)
+	identifier := strings.ToLower(strings.TrimSpace(req.Identifier))
 	if identifier == "" {
 		return nil, code.New(code.BadRequest, "identifier is required")
 	}
@@ -161,6 +161,9 @@ func (s *StorageService) UpdateStorageSetting(ctx context.Context, settingID str
 	updates := map[string]any{
 		"config_data": cfgJSON,
 		"updated_at":  time.Now(),
+	}
+	if identifier := strings.ToLower(strings.TrimSpace(existing.PlatformIdentifier)); identifier != "" {
+		updates["platform_identifier"] = identifier
 	}
 	if req.StorageSettingName != nil {
 		updates["storage_setting_name"] = strings.TrimSpace(*req.StorageSettingName)
@@ -413,7 +416,8 @@ func normalizeAndValidateJSON(raw string) (string, error) {
 }
 
 // normalizeStorageConfig 根据平台规范化配置：
-// - local: 强制由后端生成 basePath，前端不允许自定义绝对路径。
+// - local: 强制由后端生成 base_path，前端不允许自定义绝对路径；
+// - s3: 强制注入 prefix=workspaceID/settingID，实现与 local 一致的分租户隔离。
 func normalizeStorageConfig(identifier, workspaceID, settingID, raw string) (string, error) {
 	cfgJSON, err := normalizeAndValidateJSON(raw)
 	if err != nil {
@@ -435,7 +439,18 @@ func normalizeStorageConfig(identifier, workspaceID, settingID, raw string) (str
 		if root == "" {
 			root = defaultLocalStorageRoot
 		}
-		cfg["basePath"] = filepath.ToSlash(filepath.Join(root, workspaceID, settingID))
+		localPath := filepath.ToSlash(filepath.Join(root, workspaceID, settingID))
+		cfg["base_path"] = localPath
+	} else if normalizedIdentifier == "s3" {
+		isolationPrefix := strings.Trim(filepath.ToSlash(filepath.Join(".data", workspaceID, settingID)), "/")
+		existingPrefix, _ := cfg["prefix"].(string)
+		existingPrefix = strings.Trim(existingPrefix, "/")
+		// 兼容前端可选 namespace/prefix：最终都挂到 workspace/setting 下，避免跨空间串数据。
+		if existingPrefix == "" {
+			cfg["prefix"] = isolationPrefix
+		} else {
+			cfg["prefix"] = isolationPrefix + "/" + existingPrefix
+		}
 	}
 
 	normalized, err := json.Marshal(cfg)

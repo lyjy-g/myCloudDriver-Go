@@ -18,7 +18,7 @@ type FileShare struct {
 	UpdatedAt        time.Time  `gorm:"column:updated_at"`
 }
 
-func (FileShare) TableName() string { return "file_shares" }
+func (FileShare) TableName() string { return "share_info" }
 
 // FileShareItem 对应分享-文件映射表。
 type FileShareItem struct {
@@ -27,7 +27,7 @@ type FileShareItem struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
-func (FileShareItem) TableName() string { return "file_share_items" }
+func (FileShareItem) TableName() string { return "share_items" }
 
 // FileShareAccessRecord 对应分享访问记录。
 type FileShareAccessRecord struct {
@@ -40,7 +40,7 @@ type FileShareAccessRecord struct {
 	AccessTime    time.Time `gorm:"column:access_time"`
 }
 
-func (FileShareAccessRecord) TableName() string { return "file_share_access_record" }
+func (FileShareAccessRecord) TableName() string { return "share_access_record" }
 
 // FileInfo 映射文件表（只读取分享所需字段）。
 type FileInfo struct {

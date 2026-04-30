@@ -145,8 +145,8 @@ export default function App() {
               platforms={controller.platforms}
               onOpenStorageSettings={openStorageSettings}
               onOpenFiles={() => controller.setActiveMenu("files")}
-              onCreateStorageSetting={() => {
-                controller.handleCreateStorageDraft();
+              onCreateStorageSetting={(draft) => {
+                controller.handleCreateStorageDraft(draft);
                 openStorageSettings("editor");
               }}
               onRefreshWorkspace={controller.loadStorageMeta}

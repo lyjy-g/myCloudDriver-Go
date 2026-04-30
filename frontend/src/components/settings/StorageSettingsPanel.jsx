@@ -121,10 +121,10 @@ export function StorageSettingsPanel({
             {isS3 ? (
               <>
                 <div className="mcd-settings-block">
-                  <Text className="mcd-settings-label">S3 Endpoint / Region / Bucket</Text>
+                  <Text className="mcd-settings-label">S3 Endpoint / Region</Text>
                   <Input className="w-full" placeholder="127.0.0.1:9000 或 s3.amazonaws.com" value={storageForm.endpoint} onChange={(event) => onUpdateField("endpoint", event.target.value)} />
                   <Input className="w-full" style={{ marginTop: 10 }} placeholder="us-east-1" value={storageForm.region} onChange={(event) => onUpdateField("region", event.target.value)} />
-                  <Input className="w-full" style={{ marginTop: 10 }} placeholder="bucket-name" value={storageForm.bucket} onChange={(event) => onUpdateField("bucket", event.target.value)} />
+                  <Text className="mcd-muted">Bucket 由系统按配置名称自动生成，无需手动填写。</Text>
                 </div>
 
                 <div className="mcd-settings-block">
@@ -172,7 +172,7 @@ export function StorageSettingsPanel({
                   {selectedPlatform}:{storageForm.settingId || "(new)"}
                   <br />
                   {isS3
-                    ? `${storageForm.endpoint || "(未设置 endpoint)"} / ${storageForm.bucket || "(未设置 bucket)"}`
+                    ? `${storageForm.endpoint || "(未设置 endpoint)"} / ${storageForm.region || "us-east-1"}`
                     : maskPath(storageForm.basePath)}
                 </code>
               </div>

@@ -15,6 +15,24 @@ func RegisterRoutes(mux *http.ServeMux, svc *service.FileService) {
 
 	// 业务路由（按 Java 模块接口实现）。
 	mux.HandleFunc("GET /apis/home/info", h.GetHomes)
+	mux.HandleFunc("POST /apis/transfer/check", h.CheckUpload)
+	mux.HandleFunc("POST /apis/transfer/init", h.InitUpload)
+	mux.HandleFunc("POST /apis/transfer/chunk", h.UploadChunk)
+	mux.HandleFunc("POST /apis/transfer/merge/{taskId}", h.MergeChunks)
+	mux.HandleFunc("POST /apis/transfer/pause/{taskId}", h.PauseTransfer)
+	mux.HandleFunc("POST /apis/transfer/resume/{taskId}", h.ResumeTransfer)
+	mux.HandleFunc("DELETE /apis/transfer/cancel/{taskId}", h.CancelUpload)
+	mux.HandleFunc("GET /apis/transfer/files", h.GetTransferFiles)
+	mux.HandleFunc("GET /apis/transfer/chunks/{taskId}", h.GetUploadedChunks)
+	mux.HandleFunc("GET /apis/transfer/download/chunks/{taskId}", h.GetDownloadedChunks)
+	mux.HandleFunc("GET /apis/transfer/download/{fileId}", h.DownloadFile)
+	mux.HandleFunc("GET /apis/transfer/download/chunk", h.DownloadChunk)
+	mux.HandleFunc("DELETE /apis/transfer/clears", h.ClearTransfers)
+
+	// 兼容旧版上传接口（前端降级候选地址）。
+	mux.HandleFunc("POST /apis/upload/precheck", h.CheckUpload)
+	mux.HandleFunc("POST /apis/upload/part", h.UploadChunk)
+	mux.HandleFunc("POST /apis/upload/merge", h.MergeChunks)
 
 	mux.HandleFunc("PUT /apis/file/{fileId}/rename", h.RenameFile)
 	mux.HandleFunc("PUT /apis/file/recycles", h.RestoreFile)

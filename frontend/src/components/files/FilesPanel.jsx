@@ -1,5 +1,5 @@
-import { Button, Space, Table, Tag, Typography } from "antd";
-import React from "react";
+import { Button, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import React, { useState } from "react";
 import { WorkspaceSettingSelector } from "../settings/WorkspaceSettingSelector.jsx";
 
 const { Text } = Typography;
@@ -55,6 +55,32 @@ export function FilesPanel({
   onDisableStorageSetting,
   onDeleteStorageSetting
 }) {
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draft, setDraft] = useState({
+    storageSettingName: "",
+    identifier: "Local",
+    namespace: "",
+    baseUrl: "",
+    endpoint: "",
+    region: "us-east-1",
+    bucket: "",
+    accessKeyId: "",
+    secretAccessKey: "",
+    prefix: "",
+    useSSL: false,
+    pathStyle: true
+  });
+
+  const isS3Draft = String(draft.identifier || "").toLowerCase() === "s3";
+
+  const submitCreate = () => {
+    if (!String(draft.storageSettingName || "").trim()) {
+      return;
+    }
+    onCreateStorageSetting(draft);
+    setCreateOpen(false);
+  };
+
   if (activeMenu === "workspace-home") {
     return (
       <div className="mcd-space-home">
@@ -69,7 +95,7 @@ export function FilesPanel({
           </div>
           <div className="mcd-space-home-actions">
             <Button type="primary" onClick={onOpenFiles}>进入全部文件</Button>
-            <Button onClick={onCreateStorageSetting}>新建存储配置</Button>
+            <Button onClick={() => setCreateOpen(true)}>新建存储配置</Button>
             <Button onClick={onOpenStorageSettings}>编辑空间配置</Button>
             <Button onClick={onRefreshWorkspace}>刷新空间信息</Button>
           </div>
@@ -84,6 +110,44 @@ export function FilesPanel({
           onDisableSetting={onDisableStorageSetting}
           onDeleteSetting={onDeleteStorageSetting}
         />
+
+        <Modal
+          open={createOpen}
+          title="新建存储配置"
+          onCancel={() => setCreateOpen(false)}
+          onOk={submitCreate}
+          okText="进入配置编辑"
+          destroyOnHidden
+        >
+          <Space direction="vertical" style={{ width: "100%" }} size="middle">
+            <Input
+              placeholder="配置名称（必填）"
+              value={draft.storageSettingName}
+              onChange={(event) => setDraft((prev) => ({ ...prev, storageSettingName: event.target.value }))}
+            />
+            <Select
+              value={draft.identifier}
+              onChange={(value) => setDraft((prev) => ({ ...prev, identifier: value }))}
+              options={[
+                { value: "Local", label: "Local" },
+                { value: "S3", label: "S3" }
+              ]}
+            />
+            {isS3Draft ? (
+              <>
+                <Input placeholder="endpoint（如 127.0.0.1:9000）" value={draft.endpoint} onChange={(event) => setDraft((prev) => ({ ...prev, endpoint: event.target.value }))} />
+                <Input placeholder="region（如 us-east-1）" value={draft.region} onChange={(event) => setDraft((prev) => ({ ...prev, region: event.target.value }))} />
+                <Input placeholder="accessKeyId（可选）" value={draft.accessKeyId} onChange={(event) => setDraft((prev) => ({ ...prev, accessKeyId: event.target.value }))} />
+                <Input.Password placeholder="secretAccessKey（可选）" value={draft.secretAccessKey} onChange={(event) => setDraft((prev) => ({ ...prev, secretAccessKey: event.target.value }))} />
+              </>
+            ) : (
+              <>
+                <Input placeholder="namespace（如 team-a）" value={draft.namespace} onChange={(event) => setDraft((prev) => ({ ...prev, namespace: event.target.value }))} />
+                <Input placeholder="baseUrl（可选）" value={draft.baseUrl} onChange={(event) => setDraft((prev) => ({ ...prev, baseUrl: event.target.value }))} />
+              </>
+            )}
+          </Space>
+        </Modal>
 
       </div>
     );

@@ -4,18 +4,20 @@ import "time"
 
 // FileItem 表示文件元数据（当前为内存实现用 DTO）。
 type FileItem struct {
-	ID        string     `json:"id"`
-	ParentID  string     `json:"parent_id"`
-	Name      string     `json:"name"`
-	IsDir     bool       `json:"is_dir"`
-	Size      int64      `json:"size"`
-	FileHash  string     `json:"file_hash,omitempty"`
-	ObjectKey string     `json:"object_key,omitempty"`
-	Favorite  bool       `json:"favorite"`
-	Deleted   bool       `json:"deleted"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	ID       string `json:"id"`
+	ParentID string `json:"parent_id"`
+	// StorageSettingID 仅用于服务端按激活配置隔离文件视图，前端无需感知。
+	StorageSettingID string     `json:"-"`
+	Name             string     `json:"name"`
+	IsDir            bool       `json:"is_dir"`
+	Size             int64      `json:"size"`
+	FileHash         string     `json:"file_hash,omitempty"`
+	ObjectKey        string     `json:"object_key,omitempty"`
+	Favorite         bool       `json:"favorite"`
+	Deleted          bool       `json:"deleted"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
 }
 
 // HomeInfo 表示文件首页信息。
