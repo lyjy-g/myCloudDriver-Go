@@ -2,10 +2,13 @@ package module
 
 import (
 	"net/http"
+	"time"
 
 	"myclouddrive-go/internal/app"
+	pluginsvc "myclouddrive-go/internal/plugin/service"
 	"myclouddrive-go/internal/share/api"
 	"myclouddrive-go/internal/share/service"
+	storagesvc "myclouddrive-go/internal/storage/service"
 )
 
 // Module 是 share 服务模块。
@@ -24,6 +27,7 @@ func (m *Module) Models() []any {
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
-	api.RegisterRoutes(mux, service.NewService(deps.DB))
+	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second, pluginsvc.GetRunManager(deps.DB))
+	api.RegisterRoutes(mux, service.NewService(deps.DB, storageService))
 	return nil
 }

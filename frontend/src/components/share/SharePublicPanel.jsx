@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Button, Card, Input, Space, Table, Tag, Typography } from "antd";
-import { accessPublicShare } from "../../api/storage.js";
+import { accessPublicShare, downloadPublicShareFile } from "../../api/storage.js";
 
 const { Text, Title } = Typography;
 
@@ -33,22 +33,7 @@ export function SharePublicPanel({ normalizedBaseUrl, shareId }) {
               return;
             }
             try {
-              const response = await fetch(`${normalizedBaseUrl}${record.downloadUrl}`, {
-                method: "GET",
-                headers: {
-                  "X-Share-Code": shareCode.trim()
-                }
-              });
-              if (!response.ok) {
-                throw new Error("下载失败");
-              }
-              const blob = await response.blob();
-              const link = window.URL.createObjectURL(blob);
-              const anchor = document.createElement("a");
-              anchor.href = link;
-              anchor.download = record.fileName || "download";
-              anchor.click();
-              window.URL.revokeObjectURL(link);
+              await downloadPublicShareFile(normalizedBaseUrl, shareId, record.fileId, shareCode.trim());
             } catch (err) {
               setError(err instanceof Error ? err.message : "下载失败");
             }
@@ -58,7 +43,7 @@ export function SharePublicPanel({ normalizedBaseUrl, shareId }) {
         </Button>
       )
     }
-  ]), [normalizedBaseUrl, shareData]);
+  ]), [normalizedBaseUrl, shareData, shareCode, shareId]);
 
   const handleVerify = async () => {
     setError("");

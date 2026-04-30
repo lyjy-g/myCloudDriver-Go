@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -14,15 +15,22 @@ import (
 
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
+	storagemodel "myclouddrive-go/internal/storage/model"
 )
 
 // ShareService 是分享模块唯一实现。
 type ShareService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	storage StorageGateway
 }
 
-func NewService(db *gorm.DB) *ShareService {
-	return &ShareService{db: db}
+// StorageGateway 定义分享模块下载文件所需的最小存储能力。
+type StorageGateway interface {
+	Get(ctx context.Context, key string) (io.ReadCloser, storagemodel.ObjectInfo, error)
+}
+
+func NewService(db *gorm.DB, storage StorageGateway) *ShareService {
+	return &ShareService{db: db, storage: storage}
 }
 
 func (s *ShareService) Ping(_ context.Context) (string, error) {
@@ -355,33 +363,50 @@ func (s *ShareService) GetShareItems(ctx context.Context, shareID, parentID stri
 	return items, nil
 }
 
-func (s *ShareService) DownloadShareFile(ctx context.Context, shareID, fileID, shareCode string, r *http.Request) ([]byte, string, error) {
+func (s *ShareService) DownloadShareFile(ctx context.Context, shareID, fileID, shareCode string, r *http.Request) (io.ReadCloser, storagemodel.ObjectInfo, string, error) {
 	ok, err := s.VerifyShareCode(ctx, shareID, shareCode)
 	if err != nil {
-		return nil, "", err
+		return nil, storagemodel.ObjectInfo{}, "", err
 	}
 	if !ok {
-		return nil, "", code.New(code.BadRequest, "share code verify failed")
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.BadRequest, "share code verify failed")
 	}
 	count, err := s.isFileInShare(ctx, shareID, fileID)
 	if err != nil {
-		return nil, "", err
+		return nil, storagemodel.ObjectInfo{}, "", err
 	}
 	if count == 0 {
-		return nil, "", code.New(code.NoPermission, "file not in share")
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.NoPermission, "file not in share")
 	}
 
 	var file FileInfo
 	if err = s.db.WithContext(ctx).Where("id = ?", fileID).First(&file).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", code.New(code.NotFound, "file not found")
+			return nil, storagemodel.ObjectInfo{}, "", code.New(code.NotFound, "file not found")
 		}
-		return nil, "", fmt.Errorf("query file failed: %w", err)
+		return nil, storagemodel.ObjectInfo{}, "", fmt.Errorf("query file failed: %w", err)
+	}
+	if file.IsDir {
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.BadRequest, "directory cannot be downloaded")
+	}
+	if file.Deleted != nil && *file.Deleted {
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.NotFound, "file not found")
+	}
+	if file.ObjectKey == nil || strings.TrimSpace(*file.ObjectKey) == "" {
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.NotFound, "file object not found")
+	}
+	if s.storage == nil {
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.InternalError, "storage service unavailable")
+	}
+
+	// 先读取对象成功再累加计数，保证“计数推进”和“真实可下载”一致。
+	rc, info, err := s.storage.Get(ctx, strings.TrimSpace(*file.ObjectKey))
+	if err != nil {
+		return nil, storagemodel.ObjectInfo{}, "", fmt.Errorf("open shared object failed: %w", err)
 	}
 	_ = s.db.WithContext(ctx).Model(&FileShare{}).Where("id = ?", shareID).Update("download_count", gorm.Expr("download_count + 1")).Error
 	_ = s.createAccessRecord(ctx, shareID, r)
-	content := []byte("download placeholder for file=" + file.ID + " name=" + file.Name)
-	return content, file.Name, nil
+	return rc, info, file.Name, nil
 }
 
 func (s *ShareService) ListAccessRecords(ctx context.Context, shareID string) ([]FileShareAccessRecord, error) {

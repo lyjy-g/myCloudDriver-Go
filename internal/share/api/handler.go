@@ -1,7 +1,9 @@
 package api
 
 import (
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"myclouddrive-go/internal/framework/code"
@@ -134,15 +136,20 @@ func (h *Handler) DownloadShareFile(w http.ResponseWriter, r *http.Request) {
 	if shareCode == "" {
 		shareCode = strings.TrimSpace(r.URL.Query().Get("shareCode"))
 	}
-	content, fileName, err := h.svc.DownloadShareFile(r.Context(), shareID, fileID, shareCode, r)
+	content, info, fileName, err := h.svc.DownloadShareFile(r.Context(), shareID, fileID, shareCode, r)
 	if err != nil {
 		writeShareError(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+	defer content.Close()
+	contentType := strings.TrimSpace(info.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(fileName))
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(content)
+	_, _ = io.Copy(w, content)
 }
 
 func (h *Handler) GetAccessRecords(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +194,7 @@ func writeShareError(w http.ResponseWriter, err error) {
 	case code.Is(err, code.NotFound):
 		web.WriteJSON(w, http.StatusNotFound, map[string]any{"code": 404, "msg": err.Error(), "data": nil})
 	case code.Is(err, code.NoPermission):
-		web.WriteJSON(w, http.StatusUnauthorized, map[string]any{"code": 401, "msg": err.Error(), "data": nil})
+		web.WriteJSON(w, http.StatusForbidden, map[string]any{"code": 403, "msg": err.Error(), "data": nil})
 	default:
 		web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": err.Error(), "data": nil})
 	}

@@ -482,9 +482,20 @@ export async function downloadFile(baseUrl, fileId) {
   const blob = await response.blob();
   let fileName = "download.bin";
   const disposition = response.headers.get("Content-Disposition") || response.headers.get("content-disposition") || "";
-  const m = disposition.match(/filename=\"?([^\";]+)\"?/i);
-  if (m && m[1]) {
-    fileName = m[1];
+  // 优先支持 RFC 5987: filename*=UTF-8''xxx
+  const m5987 = disposition.match(/filename\*\s*=\s*([^;]+)/i);
+  if (m5987 && m5987[1]) {
+    const raw = m5987[1].trim().replace(/^UTF-8''/i, "").replace(/^\"|\"$/g, "");
+    try {
+      fileName = decodeURIComponent(raw);
+    } catch {
+      fileName = raw;
+    }
+  } else {
+    const m = disposition.match(/filename\s*=\s*\"?([^\";]+)\"?/i);
+    if (m && m[1]) {
+      fileName = m[1];
+    }
   }
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -501,36 +512,73 @@ export function rebuildFileIndexes(baseUrl) {
 }
 
 export function createShare(baseUrl, payload) {
-  return requestJson("POST", [
-    `${baseUrl}/apis/share/create`,
-    `${baseUrl}/apis/shares`
-  ], { body: payload });
+  return requestJson("POST", `${baseUrl}/apis/share/create`, { body: payload });
 }
 
 export function fetchMyShares(baseUrl) {
-  return requestJson("GET", [
-    `${baseUrl}/apis/share/pages`,
-    `${baseUrl}/apis/shares/mine`
-  ]);
+  return requestJson("GET", `${baseUrl}/apis/share/pages`);
 }
 
 export function accessPublicShare(baseUrl, shareId, shareCode) {
-  return requestJson("POST", `${baseUrl}/apis/shares/public/${encodeURIComponent(shareId)}/access`, {
-    body: { shareCode },
+  return requestJson("POST", `${baseUrl}/apis/share/verify/code`, {
+    body: { shareId, shareCode },
     withAuth: false
+  }).then(() =>
+    requestJson("POST", `${baseUrl}/apis/shares/public/${encodeURIComponent(shareId)}/access`, {
+      body: { shareCode },
+      withAuth: false
+    })
+  );
+}
+
+export async function downloadPublicShareFile(baseUrl, shareId, fileId, shareCode) {
+  const response = await fetch(`${baseUrl}/apis/share/${encodeURIComponent(shareId)}/download/${encodeURIComponent(fileId)}`, {
+    method: "GET",
+    headers: {
+      "X-Share-Code": String(shareCode || "").trim()
+    }
   });
+  if (!response.ok) {
+    const text = await response.text();
+    let payload = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = null;
+    }
+    throw new Error(readErrorMessage(payload, `下载失败(${response.status})`));
+  }
+  const blob = await response.blob();
+  let fileName = "download.bin";
+  const disposition = response.headers.get("Content-Disposition") || response.headers.get("content-disposition") || "";
+  const m5987 = disposition.match(/filename\*\s*=\s*([^;]+)/i);
+  if (m5987 && m5987[1]) {
+    const raw = m5987[1].trim().replace(/^UTF-8''/i, "").replace(/^\"|\"$/g, "");
+    try {
+      fileName = decodeURIComponent(raw);
+    } catch {
+      fileName = raw;
+    }
+  } else {
+    const m = disposition.match(/filename\s*=\s*\"?([^\";]+)\"?/i);
+    if (m && m[1]) {
+      fileName = m[1];
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 export function fetchShareDetail(baseUrl, shareId) {
-  return requestJson("GET", [
-    `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`,
-    `${baseUrl}/apis/shares/${encodeURIComponent(shareId)}`
-  ]);
+  return requestJson("GET", `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`);
 }
 
 export function updateShare(baseUrl, shareId, payload) {
-  return requestJson("PUT", [
-    `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`,
-    `${baseUrl}/apis/shares/${encodeURIComponent(shareId)}`
-  ], { body: payload });
+  return requestJson("PUT", `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`, { body: payload });
 }
