@@ -71,8 +71,10 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 	jwtSecret := os.Getenv("MYCLOUDDRIVE_JWT_SECRET")
 	jwtSvc := security.NewJWTService(jwtSecret)
 
-	handler := security.AuthMiddleware(jwtSvc, rdb)(mux)
+	var handler http.Handler = mux
+	// 先认证，再做 workspace 作用域与角色注入。
 	handler = security.WorkspaceScopeMiddleware(db)(handler)
+	handler = security.AuthMiddleware(jwtSvc, rdb)(handler)
 	handler = web.CORSMiddleware(web.DefaultCORSOptions())(handler)
 	handler = logx.LoggingMiddleware(handler)
 	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil

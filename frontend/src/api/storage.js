@@ -464,6 +464,38 @@ export function mergeUpload(baseUrl, payload) {
   ], { body: payload });
 }
 
+export async function downloadFile(baseUrl, fileId) {
+  const response = await fetch(`${baseUrl}/apis/transfer/download/${encodeURIComponent(fileId)}`, {
+    method: "GET",
+    headers: buildHeaders({}, true, false)
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let payload = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = null;
+    }
+    throw new Error(readErrorMessage(payload, `下载失败(${response.status})`));
+  }
+  const blob = await response.blob();
+  let fileName = "download.bin";
+  const disposition = response.headers.get("Content-Disposition") || response.headers.get("content-disposition") || "";
+  const m = disposition.match(/filename=\"?([^\";]+)\"?/i);
+  if (m && m[1]) {
+    fileName = m[1];
+  }
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 export function rebuildFileIndexes(baseUrl) {
   return requestJson("POST", `${baseUrl}/apis/files/maintenance/rebuild-indexes`, { body: {} });
 }

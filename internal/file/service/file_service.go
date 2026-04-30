@@ -440,7 +440,12 @@ func (s *FileService) ListDirs(ctx context.Context, parentID, settingID string) 
 }
 
 // Get 读取文件详情。
-func (s *FileService) Get(fileID string) (*filemodel.FileItem, error) {
+func (s *FileService) Get(ctx context.Context, fileID string) (*filemodel.FileItem, error) {
+	if s.db != nil {
+		if item, err := s.getFromDB(ctx, fileID); err == nil {
+			return item, nil
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	it, ok := s.items[fileID]
@@ -449,6 +454,33 @@ func (s *FileService) Get(fileID string) (*filemodel.FileItem, error) {
 	}
 	cp := *it
 	return &cp, nil
+}
+
+func (s *FileService) getFromDB(ctx context.Context, fileID string) (*filemodel.FileItem, error) {
+	p, err := security.RequireLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var row filedb.FileInfo
+	if err = s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ? AND workspace_id = ? AND is_deleted = 0", fileID, p.UserID, p.WorkspaceID).
+		First(&row).Error; err != nil {
+		return nil, err
+	}
+	item := &filemodel.FileItem{
+		ID:               row.ID,
+		ParentID:         normalizeParentOutput(row.ParentID),
+		StorageSettingID: row.StoragePlatformSettingID,
+		Name:             row.DisplayName,
+		IsDir:            row.IsDir,
+		Size:             row.Size,
+		FileHash:         row.ContentMd5,
+		ObjectKey:        row.ObjectKey,
+		CreatedAt:        row.UploadTime,
+		UpdatedAt:        row.UpdateTime,
+		Deleted:          row.IsDeleted,
+	}
+	return item, nil
 }
 
 // CreateDirectory 创建目录（自动重名处理）。
@@ -931,7 +963,7 @@ func dedupeStrings(items []string) []string {
 
 // ResolveDownloadURL 通过统一存储门面生成下载 URL，业务层不关心 local/s3 细节。
 func (s *FileService) ResolveDownloadURL(ctx context.Context, fileID string, expire time.Duration) (string, *filemodel.FileItem, error) {
-	item, err := s.Get(fileID)
+	item, err := s.Get(ctx, fileID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -949,7 +981,7 @@ func (s *FileService) ResolveDownloadURL(ctx context.Context, fileID string, exp
 
 // OpenPreviewContent 通过统一存储门面读取对象内容。
 func (s *FileService) OpenPreviewContent(ctx context.Context, fileID string) (io.ReadCloser, storagemodel.ObjectInfo, *filemodel.FileItem, error) {
-	item, err := s.Get(fileID)
+	item, err := s.Get(ctx, fileID)
 	if err != nil {
 		return nil, storagemodel.ObjectInfo{}, nil, err
 	}

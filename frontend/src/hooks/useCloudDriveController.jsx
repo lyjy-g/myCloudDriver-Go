@@ -9,6 +9,7 @@ import {
   fetchCurrentUser,
   deleteDirectory,
   deleteFile,
+  downloadFile,
   activateStorageSetting,
   fetchEntriesByParent,
   fetchPlatforms,
@@ -509,6 +510,19 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
   }, [normalizedBaseUrl, loadFiles, notifySuccess]);
 
+  const handleDownloadFile = useCallback(async (record) => {
+    if (!record || record.directory) {
+      return;
+    }
+    setError("");
+    try {
+      await downloadFile(normalizedBaseUrl, record.fileId);
+      notifySuccess("开始下载");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "下载失败");
+    }
+  }, [normalizedBaseUrl, notifySuccess]);
+
   const handleRestore = useCallback(async (record) => {
     setError("");
     setLoading(true);
@@ -1007,6 +1021,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
             <Space>
               <Button size="small" onClick={() => handleRenameFile(record)}>重命名</Button>
               <Button size="small" onClick={() => handleMoveFile(record)}>移动</Button>
+              <Button size="small" onClick={() => handleDownloadFile(record)}>下载</Button>
               <Button size="small" type="primary" ghost onClick={() => handleCreateShare(record)}>分享</Button>
               <Button size="small" danger onClick={() => handleDeleteFile(record)}>删除</Button>
             </Space>
@@ -1014,7 +1029,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         )
       }
     ];
-  }, [activeMenu, openDirectory, handleRestore, handleRenameFolder, handleDeleteFolder, handleRenameFile, handleMoveFile, handleCreateShare, handleDeleteFile]);
+  }, [activeMenu, openDirectory, handleRestore, handleRenameFolder, handleDeleteFolder, handleRenameFile, handleMoveFile, handleDownloadFile, handleCreateShare, handleDeleteFile]);
 
   const shareColumns = useMemo(() => ([
     { title: "分享ID", dataIndex: "shareId", key: "shareId" },

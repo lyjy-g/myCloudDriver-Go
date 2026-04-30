@@ -62,7 +62,7 @@ func (h *Handler) CreateDirectory(w http.ResponseWriter, r *http.Request) {
 		}
 		parentID := stringField(body, "parentId", "parent_id", "pid")
 		name := stringField(body, "name", "dirName")
-		item, err := h.svc.CreateDirectory(parentID, name)
+		item, err := h.svc.CreateDirectory(r.Context(), parentID, name, currentStorageSettingID(r))
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
 		}
@@ -117,7 +117,7 @@ func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
 	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
-	items := h.svc.List(r.URL.Query().Get("parentId"), r.URL.Query().Get("keyword"))
+	items := h.svc.List(r.Context(), r.URL.Query().Get("parentId"), r.URL.Query().Get("keyword"), currentStorageSettingID(r))
 	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
 		"total": len(items),
 		"items": items,
@@ -129,7 +129,7 @@ func (h *Handler) GetDirs(w http.ResponseWriter, r *http.Request) {
 	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
-	items := h.svc.ListDirs(r.URL.Query().Get("parentId"))
+	items := h.svc.ListDirs(r.Context(), r.URL.Query().Get("parentId"), currentStorageSettingID(r))
 	web.WriteJSON(w, http.StatusOK, ok(items))
 }
 
@@ -138,7 +138,7 @@ func (h *Handler) GetFileDetails(w http.ResponseWriter, r *http.Request) {
 	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
-	item, err := h.svc.Get(r.PathValue("fileId"))
+	item, err := h.svc.Get(r.Context(), r.PathValue("fileId"))
 	if err != nil {
 		web.WriteError(w, http.StatusNotFound, string(code.NotFound), err.Error())
 		return
@@ -387,7 +387,7 @@ func (h *Handler) CheckUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := genCheckToInitInput(req)
-	skip, taskID, err := h.svc.PrecheckUpload(in)
+	skip, taskID, err := h.svc.PrecheckUpload(in, currentStorageSettingID(r))
 	if err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
 		return
@@ -409,7 +409,7 @@ func (h *Handler) InitUpload(w http.ResponseWriter, r *http.Request) {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
 		return
 	}
-	taskID, err := h.svc.InitUpload(genCheckToInitInput(req))
+	taskID, err := h.svc.InitUpload(genCheckToInitInput(req), currentStorageSettingID(r))
 	if err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
 		return
@@ -545,16 +545,40 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fileID := strings.TrimSpace(r.PathValue("fileId"))
-	url, item, err := h.svc.ResolveDownloadURL(r.Context(), fileID, 10*time.Minute)
+	rc, info, item, err := h.svc.OpenPreviewContent(r.Context(), fileID)
 	if err != nil {
 		web.WriteError(w, http.StatusNotFound, string(code.NotFound), err.Error())
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
-		"url":       url,
-		"name":      item.Name,
-		"objectKey": item.ObjectKey,
-	}))
+	// 优先走统一流输出，便于后端审计与权限控制；无对象时再回退到预签名URL跳转。
+	if rc == nil {
+		url, _, urlErr := h.svc.ResolveDownloadURL(r.Context(), fileID, 10*time.Minute)
+		if urlErr != nil || strings.TrimSpace(url) == "" {
+			web.WriteError(w, http.StatusNotFound, string(code.NotFound), "download source not found")
+			return
+		}
+		http.Redirect(w, r, url, http.StatusFound)
+		return
+	}
+	defer func() { _ = rc.Close() }()
+
+	fileName := strings.TrimSpace(item.Name)
+	if fileName == "" {
+		fileName = "download.bin"
+	}
+	contentType := strings.TrimSpace(info.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", sanitizeDownloadName(fileName)))
+	if info.Size > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(info.Size, 10))
+	}
+	if _, err = io.Copy(w, rc); err != nil && !errors.Is(err, io.EOF) {
+		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		return
+	}
 }
 
 func (h *Handler) DownloadChunk(w http.ResponseWriter, r *http.Request) {
@@ -697,6 +721,10 @@ func int64Field(m map[string]any, keys ...string) int64 {
 	return 0
 }
 
+func currentStorageSettingID(r *http.Request) string {
+	return strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id"))
+}
+
 func tokenPayload(scene, fileID, inner string) map[string]any {
 	src := fmt.Sprintf("%s|%s|%s|%d", scene, fileID, inner, time.Now().UnixNano())
 	h := sha1.Sum([]byte(src))
@@ -706,6 +734,11 @@ func tokenPayload(scene, fileID, inner string) map[string]any {
 		"fileId": fileID,
 		"inner":  inner,
 	}
+}
+
+func sanitizeDownloadName(name string) string {
+	replacer := strings.NewReplacer("\\", "_", "/", "_", "\"", "_", "\n", "_", "\r", "_")
+	return replacer.Replace(name)
 }
 
 func requireFilePermission(w http.ResponseWriter, r *http.Request, permission string) bool {
