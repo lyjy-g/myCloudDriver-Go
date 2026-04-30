@@ -13,6 +13,9 @@ type QueryRequest struct {
 // QueryResponse 是检索型 Agent 响应。
 type QueryResponse struct {
 	TraceID     string        `json:"traceId"`
+	RouteMode   string        `json:"routeMode"`
+	Provider    string        `json:"provider,omitempty"`
+	Model       string        `json:"model,omitempty"`
 	Intent      string        `json:"intent"`
 	Sources     []string      `json:"sources"`
 	Items       []any         `json:"items"`

@@ -16,11 +16,21 @@ type Config struct {
 	HTTP     HTTPConfig        `yaml:"http"`
 	Database orm.DBConfig      `yaml:"database"`
 	Redis    cache.RedisConfig `yaml:"redis"`
+	LLM      LLMConfig         `yaml:"llm"`
 }
 
 // HTTPConfig 表示 HTTP 服务配置。
 type HTTPConfig struct {
 	Addr string `yaml:"addr"`
+}
+
+// LLMConfig 是大模型配置。
+type LLMConfig struct {
+	Provider  string `yaml:"provider"`
+	BaseURL   string `yaml:"base_url"`
+	APIKey    string `yaml:"api_key"`
+	Model     string `yaml:"model"`
+	TimeoutMs int    `yaml:"timeout_ms"`
 }
 
 // Load 从 yaml 文件加载配置。
@@ -39,6 +49,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.HTTP.Addr == "" {
 		cfg.HTTP.Addr = ":8080"
+	}
+	if cfg.LLM.TimeoutMs <= 0 {
+		cfg.LLM.TimeoutMs = 8000
 	}
 	return &cfg, nil
 }

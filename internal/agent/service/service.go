@@ -7,6 +7,7 @@ import (
 	"time"
 
 	agentaudit "myclouddrive-go/internal/agent/audit"
+	agentllm "myclouddrive-go/internal/agent/llm"
 	agentmodel "myclouddrive-go/internal/agent/model"
 	agenttool "myclouddrive-go/internal/agent/tool"
 	"myclouddrive-go/internal/framework/code"
@@ -19,10 +20,11 @@ import (
 type AgentService struct {
 	registry *agenttool.Registry
 	audit    *agentaudit.Logger
+	llm      agentllm.Provider
 }
 
-func New(registry *agenttool.Registry, audit *agentaudit.Logger) *AgentService {
-	return &AgentService{registry: registry, audit: audit}
+func New(registry *agenttool.Registry, audit *agentaudit.Logger, llm agentllm.Provider) *AgentService {
+	return &AgentService{registry: registry, audit: audit, llm: llm}
 }
 
 func (s *AgentService) EnsureSchema(ctx context.Context) error {
@@ -32,33 +34,13 @@ func (s *AgentService) EnsureSchema(ctx context.Context) error {
 	return s.audit.EnsureSchema(ctx)
 }
 
-func classifyIntent(query string) string {
-	q := strings.ToLower(strings.TrimSpace(query))
-	switch {
-	case strings.Contains(q, "访问"), strings.Contains(q, "记录"), strings.Contains(q, "谁看"), strings.Contains(q, "谁访问"):
-		return "share_records"
-	case strings.Contains(q, "分享"), strings.Contains(q, "提取码"):
-		return "share_list"
-	default:
-		return "file_list"
-	}
-}
-
-func mapTools(intent string) []string {
-	switch intent {
-	case "share_records":
-		return []string{"tool.share.records", "tool.share.list"}
-	case "share_list":
-		return []string{"tool.share.list"}
-	default:
-		return []string{"tool.file.list"}
-	}
-}
-
-func summary(intent string, n int, partial bool) string {
+func summary(intent string, n int, partial bool, llmSummary string) string {
 	s := fmt.Sprintf("intent=%s 命中 %d 条", intent, n)
 	if partial {
 		s += "（部分结果）"
+	}
+	if strings.TrimSpace(llmSummary) != "" {
+		s += "；" + llmSummary
 	}
 	return s
 }
@@ -69,6 +51,9 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	}
 	if s.registry == nil {
 		return nil, code.New(code.InternalError, "agent registry unavailable")
+	}
+	if s.llm == nil {
+		return nil, code.New(code.InternalError, "agent llm unavailable")
 	}
 	principal, err := security.RequireLogin(ctx)
 	if err != nil {
@@ -87,11 +72,24 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	if traceID == "" {
 		traceID = "agt_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
-	intent := classifyIntent(req.Query)
-	toolNames := mapTools(intent)
+	decision, err := s.llm.DecideTools(ctx, req.Query)
+	if err != nil {
+		return nil, code.New(code.InternalError, fmt.Sprintf("llm decide failed: %v", err))
+	}
+	intent := strings.TrimSpace(decision.Intent)
+	if intent == "" {
+		intent = "llm_decision"
+	}
+	toolNames := decision.Tools
+	if len(toolNames) == 0 {
+		return nil, code.New(code.BadRequest, "llm returned empty tools")
+	}
 
 	resp := &agentmodel.QueryResponse{
 		TraceID:     traceID,
+		RouteMode:   "llm",
+		Provider:    s.llm.Name(),
+		Model:       s.llm.Model(),
 		Intent:      intent,
 		Sources:     []string{},
 		Items:       []any{},
@@ -150,6 +148,10 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 		}
 	}
 
-	resp.Summary = summary(intent, len(resp.Items), resp.Partial)
+	llmSummary, sumErr := s.llm.Summarize(ctx, req.Query, decision, resp.Items)
+	if sumErr != nil {
+		llmSummary = ""
+	}
+	resp.Summary = summary(intent, len(resp.Items), resp.Partial, llmSummary)
 	return resp, nil
 }

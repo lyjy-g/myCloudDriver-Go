@@ -10,3 +10,9 @@ redis:
   username: ""
   addr: "127.0.0.1:6379"
   db: 0
+llm:
+  provider: "deepseek"
+  base_url: "https://api.deepseek.com"
+  api_key: ""
+  model: "deepseek-chat"
+  timeout_ms: 8000

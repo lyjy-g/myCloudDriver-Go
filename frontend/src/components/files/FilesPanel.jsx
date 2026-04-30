@@ -249,7 +249,7 @@ export function FilesPanel({
           <Button type="primary" onClick={() => onAgentSubmit?.()}>检索</Button>
         </Space.Compact>
         <div className="mcd-muted" style={{ marginBottom: 12 }}>
-          traceId: {agentResult?.traceId || "-"} | sources: {(agentResult?.sources || []).join(", ") || "-"}
+          traceId: {agentResult?.traceId || "-"} | mode: {agentResult?.routeMode || "-"} | model: {agentResult?.model || "-"} | sources: {(agentResult?.sources || []).join(", ") || "-"}
         </div>
         <div className="mcd-muted" style={{ marginBottom: 12 }}>{agentResult?.summary || "暂无结果"}</div>
         <Table
