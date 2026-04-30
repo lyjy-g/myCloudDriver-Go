@@ -40,7 +40,7 @@ func (h *Handler) PingFile(w http.ResponseWriter, r *http.Request) {
 
 // GetHomes 查询首页信息。
 func (h *Handler) GetHomes(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	home := h.svc.Home(r.Context())
@@ -52,7 +52,7 @@ func (h *Handler) GetHomes(w http.ResponseWriter, r *http.Request) {
 
 // CreateDirectory 创建目录。
 func (h *Handler) CreateDirectory(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.directory.create", func() (int, any, error) {
@@ -72,7 +72,7 @@ func (h *Handler) CreateDirectory(w http.ResponseWriter, r *http.Request) {
 
 // RenameFile 文件重命名。
 func (h *Handler) RenameFile(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.rename", func() (int, any, error) {
@@ -92,7 +92,7 @@ func (h *Handler) RenameFile(w http.ResponseWriter, r *http.Request) {
 
 // MoveFile 文件移动。
 func (h *Handler) MoveFile(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.move", func() (int, any, error) {
@@ -114,7 +114,7 @@ func (h *Handler) MoveFile(w http.ResponseWriter, r *http.Request) {
 
 // GetList 查询所有文件列表。
 func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	items := h.svc.List(r.URL.Query().Get("parentId"), r.URL.Query().Get("keyword"))
@@ -126,7 +126,7 @@ func (h *Handler) GetList(w http.ResponseWriter, r *http.Request) {
 
 // GetDirs 查询目录列表。
 func (h *Handler) GetDirs(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	items := h.svc.ListDirs(r.URL.Query().Get("parentId"))
@@ -135,7 +135,7 @@ func (h *Handler) GetDirs(w http.ResponseWriter, r *http.Request) {
 
 // GetFileDetails 查询文件详情。
 func (h *Handler) GetFileDetails(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	item, err := h.svc.Get(r.PathValue("fileId"))
@@ -148,7 +148,7 @@ func (h *Handler) GetFileDetails(w http.ResponseWriter, r *http.Request) {
 
 // GetDirectoryPath 获取目录路径。
 func (h *Handler) GetDirectoryPath(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	items, err := h.svc.DirPath(r.PathValue("dirId"))
@@ -161,7 +161,7 @@ func (h *Handler) GetDirectoryPath(w http.ResponseWriter, r *http.Request) {
 
 // GetFileUrl 获取文件 URL。
 func (h *Handler) GetFileUrl(w http.ResponseWriter, request *http.Request) {
-	if !requireFileRead(w, request) {
+	if !requireFilePermission(w, request, security.PermissionFileRead) {
 		return
 	}
 	fileID := request.PathValue("fileId")
@@ -179,7 +179,7 @@ func (h *Handler) GetFileUrl(w http.ResponseWriter, request *http.Request) {
 
 // DeleteFiles 移到回收站。
 func (h *Handler) DeleteFiles(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.recycle.soft_delete", func() (int, any, error) {
@@ -194,7 +194,7 @@ func (h *Handler) DeleteFiles(w http.ResponseWriter, r *http.Request) {
 
 // RestoreFile 恢复文件。
 func (h *Handler) RestoreFile(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.recycle.restore", func() (int, any, error) {
@@ -209,7 +209,7 @@ func (h *Handler) RestoreFile(w http.ResponseWriter, r *http.Request) {
 
 // PermanentlyDeleteFiles 永久删除文件。
 func (h *Handler) PermanentlyDeleteFiles(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.recycle.permanent_delete", func() (int, any, error) {
@@ -224,7 +224,7 @@ func (h *Handler) PermanentlyDeleteFiles(w http.ResponseWriter, r *http.Request)
 
 // ClearRecycles 清空回收站。
 func (h *Handler) ClearRecycles(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.recycle.clear", func() (int, any, error) {
@@ -235,7 +235,7 @@ func (h *Handler) ClearRecycles(w http.ResponseWriter, r *http.Request) {
 
 // GetRecyclePages 分页获取回收站。
 func (h *Handler) GetRecyclePages(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	page := intQuery(r, "page", 1)
@@ -251,7 +251,7 @@ func (h *Handler) GetRecyclePages(w http.ResponseWriter, r *http.Request) {
 
 // FavoritesFile 收藏文件。
 func (h *Handler) FavoritesFile(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.favorite.add", func() (int, any, error) {
@@ -266,7 +266,7 @@ func (h *Handler) FavoritesFile(w http.ResponseWriter, r *http.Request) {
 
 // UnFavoritesFile 取消收藏文件。
 func (h *Handler) UnFavoritesFile(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileWrite) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.favorite.remove", func() (int, any, error) {
@@ -281,7 +281,7 @@ func (h *Handler) UnFavoritesFile(w http.ResponseWriter, r *http.Request) {
 
 // PreviewToken 生成文件预览 token。
 func (h *Handler) PreviewToken(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.preview.token", func() (int, any, error) {
@@ -292,7 +292,7 @@ func (h *Handler) PreviewToken(w http.ResponseWriter, r *http.Request) {
 
 // ArchivePreviewToken 生成压缩包预览 token。
 func (h *Handler) ArchivePreviewToken(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	h.handleIdempotentWrite(w, r, "file.archive.preview.token", func() (int, any, error) {
@@ -336,7 +336,7 @@ func (h *Handler) handleIdempotentWrite(w http.ResponseWriter, r *http.Request, 
 
 // Preview 文件流预览（演示实现）。
 func (h *Handler) Preview(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	fileID := r.PathValue("fileId")
@@ -378,7 +378,7 @@ func (h *Handler) PreviewArchiveInner(w http.ResponseWriter, r *http.Request) {
 
 // CheckUpload 上传预检。
 func (h *Handler) CheckUpload(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	var req map[string]any
@@ -401,7 +401,7 @@ func (h *Handler) CheckUpload(w http.ResponseWriter, r *http.Request) {
 
 // InitUpload 初始化上传任务。
 func (h *Handler) InitUpload(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	var req map[string]any
@@ -419,7 +419,7 @@ func (h *Handler) InitUpload(w http.ResponseWriter, r *http.Request) {
 
 // UploadChunk 上传分片。
 func (h *Handler) UploadChunk(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	taskID := strings.TrimSpace(r.URL.Query().Get("taskId"))
@@ -460,7 +460,7 @@ func (h *Handler) UploadChunk(w http.ResponseWriter, r *http.Request) {
 
 // MergeChunks 合并上传分片。
 func (h *Handler) MergeChunks(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	taskID := strings.TrimSpace(r.PathValue("taskId"))
@@ -483,7 +483,7 @@ func (h *Handler) MergeChunks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PauseTransfer(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	taskID := strings.TrimSpace(r.PathValue("taskId"))
@@ -495,7 +495,7 @@ func (h *Handler) PauseTransfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ResumeTransfer(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	taskID := strings.TrimSpace(r.PathValue("taskId"))
@@ -507,7 +507,7 @@ func (h *Handler) ResumeTransfer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CancelUpload(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	taskID := strings.TrimSpace(r.PathValue("taskId"))
@@ -519,14 +519,14 @@ func (h *Handler) CancelUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetTransferFiles(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferRead) {
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, ok(h.svc.ListTransferTasks()))
 }
 
 func (h *Handler) GetUploadedChunks(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferRead) {
 		return
 	}
 	// 当前实现未持久化分片索引，返回空列表用于前端兼容。
@@ -534,14 +534,14 @@ func (h *Handler) GetUploadedChunks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetDownloadedChunks(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferRead) {
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, ok([]int{}))
 }
 
 func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileRead) {
 		return
 	}
 	fileID := strings.TrimSpace(r.PathValue("fileId"))
@@ -558,14 +558,14 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DownloadChunk(w http.ResponseWriter, r *http.Request) {
-	if !requireFileRead(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferRead) {
 		return
 	}
 	web.WriteError(w, http.StatusNotImplemented, string(code.BadRequest), "download chunk not implemented")
 }
 
 func (h *Handler) ClearTransfers(w http.ResponseWriter, r *http.Request) {
-	if !requireFileWrite(w, r) {
+	if !requireFilePermission(w, r, security.PermissionFileTransferExec) {
 		return
 	}
 	// 简化实现：沿用取消逻辑由客户端逐条调用；此接口返回成功用于前端兼容。
@@ -708,16 +708,8 @@ func tokenPayload(scene, fileID, inner string) map[string]any {
 	}
 }
 
-func requireFileRead(w http.ResponseWriter, r *http.Request) bool {
-	if _, err := security.RequireWorkspaceRoleAtLeast(r.Context(), security.RoleMember); err != nil {
-		web.WriteError(w, http.StatusForbidden, string(code.NoPermission), err.Error())
-		return false
-	}
-	return true
-}
-
-func requireFileWrite(w http.ResponseWriter, r *http.Request) bool {
-	if _, err := security.RequireWorkspaceRoleAtLeast(r.Context(), security.RoleMember); err != nil {
+func requireFilePermission(w http.ResponseWriter, r *http.Request, permission string) bool {
+	if _, err := security.RequirePermission(r.Context(), permission); err != nil {
 		web.WriteError(w, http.StatusForbidden, string(code.NoPermission), err.Error())
 		return false
 	}
