@@ -32,19 +32,7 @@ function buildAuthedFetchMock() {
     if (url.includes("/apis/storage/platforms")) {
       return buildResponse({ success: true, data: [{ identifier: "Local", name: "本地存储", isDefault: true }] });
     }
-    if (url.includes("/apis/storage/active")) {
-      return buildResponse({
-        success: true,
-        data: {
-          settingId: "local-default",
-          identifier: "Local",
-          name: "本地存储",
-          basePath: "/tmp/files",
-          baseUrl: "http://localhost:8080/files"
-        }
-      });
-    }
-    if (url.includes("/apis/workspaces/active")) {
+    if (url.includes("/apis/user/workspace/active")) {
       return buildResponse({
         success: true,
         data: {
@@ -55,7 +43,7 @@ function buildAuthedFetchMock() {
         }
       });
     }
-    if (url.includes("/apis/workspaces")) {
+    if (url.includes("/apis/user/workspaces")) {
       return buildResponse({
         success: true,
         data: [
@@ -68,8 +56,14 @@ function buildAuthedFetchMock() {
         ]
       });
     }
-    if (url.includes("/apis/files/by-parent?parentId=ROOT")) {
-      return buildResponse({ success: true, data: [] });
+    if (url.includes("/apis/storage/platform/settings")) {
+      return buildResponse({
+        success: true,
+        data: [{ id: "local-default", storageSettingName: "本地存储", identifier: "Local", active: true, configJson: "{}" }]
+      });
+    }
+    if (url.includes("/apis/file/list?parentId=root")) {
+      return buildResponse({ success: true, data: { items: [], total: 0 } });
     }
     return buildResponse({ success: true, data: {} });
   });
@@ -88,14 +82,11 @@ describe("App", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows toolbar and can open settings", async () => {
+  it("shows toolbar and workspace section", async () => {
     render(<App />);
 
     await screen.findByText("刷新");
-    const switchButton = screen.getByText("切换");
-    fireEvent.click(switchButton);
-
-    await screen.findByRole("dialog");
+    await screen.findByText("空间列表");
   });
 
   it("fetches file list when clicking refresh", async () => {
@@ -105,7 +96,7 @@ describe("App", () => {
 
     await waitFor(() => {
       const calledByParent = global.fetch.mock.calls.some(
-        ([url]) => typeof url === "string" && url.includes("/apis/files/by-parent?parentId=ROOT")
+        ([url]) => typeof url === "string" && url.includes("/apis/file/list?parentId=root")
       );
       expect(calledByParent).toBe(true);
     });

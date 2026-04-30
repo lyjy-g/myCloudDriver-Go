@@ -154,6 +154,10 @@ export default function App() {
               onEnableStorageSetting={controller.handleEnableStorageSetting}
               onDisableStorageSetting={controller.handleDisableStorageSetting}
               onDeleteStorageSetting={controller.handleDeleteStorageSetting}
+              agentQuery={controller.agentQuery}
+              agentResult={controller.agentResult}
+              onAgentQueryChange={controller.setAgentQuery}
+              onAgentSubmit={controller.handleAgentQuery}
             />
 
             <StorageSettingsPanel

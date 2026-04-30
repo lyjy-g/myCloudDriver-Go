@@ -168,6 +168,17 @@ export function fetchPlatforms(baseUrl) {
   return requestJson("GET", `${baseUrl}/apis/storage/platforms`);
 }
 
+export function queryAgent(baseUrl, payload) {
+  return requestJson("POST", `${baseUrl}/apis/agent/query`, {
+    body: {
+      query: payload?.query || "",
+      workspaceId: payload?.workspaceId || "",
+      storageSettingId: payload?.storageSettingId || "",
+      traceId: payload?.traceId || ""
+    }
+  });
+}
+
 export async function fetchStorageSettings(baseUrl) {
   const listResp = await requestJson("GET", `${baseUrl}/apis/storage/platform/settings`);
   const settings = unwrapPayload(listResp) || [];

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	agentmodule "myclouddrive-go/internal/agent/module"
 	"myclouddrive-go/internal/app"
 	filemodule "myclouddrive-go/internal/file/module"
 	pluginmodule "myclouddrive-go/internal/plugin/module"
@@ -19,6 +20,7 @@ func main() {
 		configPath,
 		pluginmodule.New(),
 		storagemodule.New(),
+		agentmodule.New(),
 		usermodule.New(),
 		filemodule.New(),
 		sharemodule.New(),

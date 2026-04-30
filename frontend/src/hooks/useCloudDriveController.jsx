@@ -18,6 +18,7 @@ import {
   fetchShareDetail,
   fetchWorkspaces,
   fetchRecycleBin,
+  queryAgent,
   getAuthToken,
   login,
   logout,
@@ -106,6 +107,8 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [activeMenu, setActiveMenu] = useState("files");
   const [files, setFiles] = useState([]);
   const [shares, setShares] = useState([]);
+  const [agentQuery, setAgentQuery] = useState("");
+  const [agentResult, setAgentResult] = useState(null);
   const [currentParentId, setCurrentParentId] = useState(ROOT_PARENT_ID);
   const [directoryTrail, setDirectoryTrail] = useState([{ id: ROOT_PARENT_ID, name: "根目录" }]);
   const [platforms, setPlatforms] = useState([]);
@@ -939,6 +942,30 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     notifyWarning("删除存储配置接口待后端提供");
   }, [notifyWarning]);
 
+  const handleAgentQuery = useCallback(async () => {
+    const q = String(agentQuery || "").trim();
+    if (!q) {
+      notifyWarning("请输入检索问题");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const result = await queryAgent(normalizedBaseUrl, {
+        query: q,
+        workspaceId: activeWorkspace?.workspaceId || "",
+        storageSettingId: activeStorage?.settingId || ""
+      });
+      const payload = result?.data || result;
+      setAgentResult(payload || null);
+      notifySuccess("Agent 检索完成");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Agent 检索失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [agentQuery, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess]);
+
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       notifyWarning("请先选择文件");
@@ -1126,8 +1153,12 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
     if (activeMenu === "shares") {
       loadShares();
+      return;
     }
-  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares]);
+    if (activeMenu === "agent" && agentResult == null) {
+      setAgentResult(null);
+    }
+  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares, agentResult]);
 
   useEffect(() => {
     const currentSettingId = activeStorage?.settingId || "";
@@ -1170,6 +1201,8 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     activeMenu,
     files,
     shares,
+    agentQuery,
+    agentResult,
     currentParentId,
     directoryTrail,
     platforms,
@@ -1188,6 +1221,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     columns,
     shareColumns,
     setActiveMenu,
+    setAgentQuery,
     setDrawerOpen,
     setSelectedFile,
     loadStorageMeta,
@@ -1214,6 +1248,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     handleAddWorkspaceUser,
     handleRemoveWorkspaceUser,
     handleDeleteStorageSetting,
+    handleAgentQuery,
     handleBaseFileActions: {
       renameFolder: handleRenameFolder,
       deleteFolder: handleDeleteFolder,

@@ -107,6 +107,16 @@ export function Sidebar({
         </div>
         <button
           type="button"
+          className={`mcd-sidebar-nav-item ${activeMenu === "agent" ? "active" : ""}`}
+          onClick={() => {
+            onMenuClick("agent");
+          }}
+        >
+          <DatabaseOutlined />
+          <span>Agent 检索</span>
+        </button>
+        <button
+          type="button"
           className={`mcd-sidebar-nav-item ${activeMenu === "knowledge" ? "active" : ""}`}
           onClick={() => {
             onMenuClick("knowledge");
