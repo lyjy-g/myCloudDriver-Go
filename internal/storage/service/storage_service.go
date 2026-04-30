@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -497,52 +498,62 @@ func (s *StorageService) ListActivePlatforms(ctx context.Context) ([]storageMode
 	return items, nil
 }
 
-// ListStoragePlatforms 查询平台元数据（DB 真值）。
+// ListStoragePlatforms 查询平台元数据（由 storage_settings 推导，不再依赖 storage_platform 表）。
 func (s *StorageService) ListStoragePlatforms(ctx context.Context) ([]storageModel.Platform, error) {
-	var rows []dbmodel.StoragePlatform
-	if err := s.db.WithContext(ctx).Order("id asc").Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list platforms: %w", err)
+	workspaceID := currentWorkspaceID(ctx)
+	var ids []string
+	if err := s.db.WithContext(ctx).
+		Model(&dbmodel.StorageSetting{}).
+		Where("workspace_id = ? AND deleted = ?", workspaceID, false).
+		Distinct("platform_identifier").
+		Pluck("platform_identifier", &ids).Error; err != nil {
+		return nil, fmt.Errorf("list platforms from settings: %w", err)
 	}
-
-	result := make([]storageModel.Platform, 0, len(rows))
-	for _, row := range rows {
-		item := storageModel.Platform{
-			Identifier: row.Identifier,
-			Name:       row.Name,
-			Enabled:    row.IsDefault == 1,
+	seen := make(map[string]struct{}, len(ids))
+	result := make([]storageModel.Platform, 0, len(ids))
+	for _, raw := range ids {
+		identifier := strings.ToLower(strings.TrimSpace(raw))
+		if identifier == "" {
+			continue
 		}
-		if strings.TrimSpace(row.Desc) != "" {
-			item.Description = &row.Desc
+		if _, ok := seen[identifier]; ok {
+			continue
 		}
-		result = append(result, item)
+		seen[identifier] = struct{}{}
+		name := strings.ToUpper(identifier)
+		if identifier == "local" {
+			name = "Local"
+		}
+		if identifier == "s3" {
+			name = "S3"
+		}
+		result = append(result, storageModel.Platform{
+			Identifier:  identifier,
+			Name:        name,
+			Enabled:     true,
+			Description: strPtr(fmt.Sprintf("derived from workspace(%s) storage settings", workspaceID)),
+		})
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Identifier < result[j].Identifier })
 	return result, nil
 }
 
 // GetStoragePlatformByIdentifier 按标识读取单个平台。
 func (s *StorageService) GetStoragePlatformByIdentifier(ctx context.Context, identifier string) (*storageModel.Platform, error) {
-	//pre
-	identifier = strings.TrimSpace(identifier)
-	//null
+	identifier = strings.ToLower(strings.TrimSpace(identifier))
 	if identifier == "" {
 		return nil, code.New(code.BadRequest, "identifier is required")
 	}
-	//db
-	var row dbmodel.StoragePlatform
-	if err := s.db.WithContext(ctx).Where("identifier = ?", identifier).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, code.New(code.NotFound, "platform not found")
+	items, err := s.ListStoragePlatforms(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range items {
+		if strings.EqualFold(it.Identifier, identifier) {
+			return &it, nil
 		}
-		return nil, fmt.Errorf("get platform: %w", err)
 	}
-	//convert
-	item := &storageModel.Platform{
-		Identifier: row.Identifier,
-		Name:       row.Name,
-		Enabled:    row.IsDefault == 1,
-	}
-	if strings.TrimSpace(row.Desc) != "" {
-		item.Description = &row.Desc
-	}
-	return item, nil
+	return nil, code.New(code.NotFound, "platform not found")
 }
+
+func strPtr(s string) *string { return &s }

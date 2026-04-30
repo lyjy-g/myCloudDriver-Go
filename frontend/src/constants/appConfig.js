@@ -27,7 +27,7 @@ export const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024;
 /**
  * 根目录 ID。
  */
-export const ROOT_PARENT_ID = "ROOT";
+export const ROOT_PARENT_ID = "root";
 
 /**
  * 侧栏菜单。

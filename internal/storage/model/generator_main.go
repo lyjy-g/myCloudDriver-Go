@@ -39,7 +39,7 @@ func main() {
 	}
 	g.UseDB(db)
 
-	tables := []string{"storage_platform", "storage_settings"}
+	tables := []string{"storage_settings"}
 	models := make([]any, 0, len(tables))
 	for _, table := range tables {
 		if !db.Migrator().HasTable(table) {

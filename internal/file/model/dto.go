@@ -47,18 +47,19 @@ const (
 
 // TransferTask 表示上传传输任务。
 type TransferTask struct {
-	TaskID       string             `json:"taskId"`
-	FileName     string             `json:"fileName"`
-	FileHash     string             `json:"fileHash"`
-	FileSize     int64              `json:"fileSize"`
-	ContentType  string             `json:"contentType"`
-	ParentID     string             `json:"parentId"`
-	TotalParts   int                `json:"totalParts"`
-	UploadedSize int64              `json:"uploadedSize"`
-	UploadedPart int                `json:"uploadedParts"`
-	Status       TransferTaskStatus `json:"status"`
-	CreatedAt    time.Time          `json:"createdAt"`
-	UpdatedAt    time.Time          `json:"updatedAt"`
+	TaskID           string             `json:"taskId"`
+	StorageSettingID string             `json:"-"`
+	FileName         string             `json:"fileName"`
+	FileHash         string             `json:"fileHash"`
+	FileSize         int64              `json:"fileSize"`
+	ContentType      string             `json:"contentType"`
+	ParentID         string             `json:"parentId"`
+	TotalParts       int                `json:"totalParts"`
+	UploadedSize     int64              `json:"uploadedSize"`
+	UploadedPart     int                `json:"uploadedParts"`
+	Status           TransferTaskStatus `json:"status"`
+	CreatedAt        time.Time          `json:"createdAt"`
+	UpdatedAt        time.Time          `json:"updatedAt"`
 
 	Chunks map[int][]byte `json:"-"`
 }

@@ -2,6 +2,7 @@ package security
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"gorm.io/gorm"
@@ -23,25 +24,65 @@ func WorkspaceScopeMiddleware(db *gorm.DB) func(http.Handler) http.Handler {
 			}
 
 			workspaceID := strings.TrimSpace(r.Header.Get("X-Workspace-Id"))
-			targetWorkspaceID := principal.WorkspaceID
-			if workspaceID != "" {
-				targetWorkspaceID = workspaceID
-			}
-			if strings.TrimSpace(targetWorkspaceID) == "" {
+			candidates := collectWorkspaceCandidates(r, db, principal.UserID, workspaceID, principal.WorkspaceID)
+			if len(candidates) == 0 {
 				next.ServeHTTP(w, r)
 				return
 			}
-
-			role, found, err := resolveWorkspaceRole(r, db, principal.UserID, targetWorkspaceID)
-			if err != nil || !found {
+			foundWorkspaceID := ""
+			foundRole := ""
+			for _, candidate := range candidates {
+				role, found, err := resolveWorkspaceRole(r, db, principal.UserID, candidate)
+				if err != nil || !found {
+					continue
+				}
+				foundWorkspaceID = candidate
+				foundRole = role
+				break
+			}
+			if foundWorkspaceID == "" {
 				next.ServeHTTP(w, r)
 				return
 			}
-			principal.WorkspaceID = targetWorkspaceID
-			principal.WorkspaceRole = role
+			principal.WorkspaceID = foundWorkspaceID
+			principal.WorkspaceRole = foundRole
 			next.ServeHTTP(w, r.WithContext(PutCtxInfo(r.Context(), principal)))
 		})
 	}
+}
+
+func collectWorkspaceCandidates(r *http.Request, db *gorm.DB, userID string, requestedWorkspaceID string, tokenWorkspaceID string) []string {
+	candidates := make([]string, 0, 4)
+	push := func(id string) {
+		id = strings.TrimSpace(id)
+		if id == "" || slices.Contains(candidates, id) {
+			return
+		}
+		candidates = append(candidates, id)
+	}
+	push(requestedWorkspaceID)
+	push(tokenWorkspaceID)
+
+	var defaultWorkspaceID string
+	_ = db.WithContext(r.Context()).
+		Table("user").
+		Select("default_workspace_id").
+		Where("id = ?", userID).
+		Limit(1).
+		Scan(&defaultWorkspaceID).Error
+	push(defaultWorkspaceID)
+
+	var firstWorkspaceID string
+	_ = db.WithContext(r.Context()).
+		Table("workspace_member").
+		Select("workspace_id").
+		Where("user_id = ? AND status = 1", userID).
+		Order("joined_at asc").
+		Limit(1).
+		Scan(&firstWorkspaceID).Error
+	push(firstWorkspaceID)
+
+	return candidates
 }
 
 func resolveWorkspaceRole(r *http.Request, db *gorm.DB, userID, workspaceID string) (string, bool, error) {

@@ -14,7 +14,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	filemodel "myclouddrive-go/internal/file/model"
+	filedb "myclouddrive-go/internal/file/model/dbmodel"
+	"myclouddrive-go/internal/framework/security"
 	storagemodel "myclouddrive-go/internal/storage/model"
 	storagesvc "myclouddrive-go/internal/storage/service"
 )
@@ -29,6 +34,7 @@ type StorageGateway interface {
 
 // FileService 是 file 模块的唯一实现。
 type FileService struct {
+	db      *gorm.DB
 	mu      sync.RWMutex
 	counter int64
 	items   map[string]*filemodel.FileItem
@@ -57,7 +63,14 @@ var (
 )
 
 // NewFileService 创建文件服务。
-func NewFileService(storage *storagesvc.StorageService, _ ...any) *FileService {
+func NewFileService(storage *storagesvc.StorageService, extras ...any) *FileService {
+	var db *gorm.DB
+	for _, extra := range extras {
+		if v, ok := extra.(*gorm.DB); ok {
+			db = v
+			break
+		}
+	}
 	now := time.Now()
 	root := &filemodel.FileItem{
 		ID:        "root",
@@ -67,19 +80,10 @@ func NewFileService(storage *storagesvc.StorageService, _ ...any) *FileService {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	doc := &filemodel.FileItem{
-		ID:        "f_1",
-		ParentID:  "root",
-		Name:      "readme.txt",
-		IsDir:     false,
-		Size:      128,
-		ObjectKey: "demo/readme.txt",
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
 	return &FileService{
-		counter:       2,
-		items:         map[string]*filemodel.FileItem{root.ID: root, doc.ID: doc},
+		db:            db,
+		counter:       1,
+		items:         map[string]*filemodel.FileItem{root.ID: root},
 		storage:       storage,
 		idemRecords:   make(map[string]idempotencyRecord),
 		idemTTL:       24 * time.Hour,
@@ -88,7 +92,7 @@ func NewFileService(storage *storagesvc.StorageService, _ ...any) *FileService {
 }
 
 // PrecheckUpload 上传预检（秒传判定 + 任务创建）。
-func (s *FileService) PrecheckUpload(in filemodel.UploadInitInput) (bool, string, error) {
+func (s *FileService) PrecheckUpload(in filemodel.UploadInitInput, settingID string) (bool, string, error) {
 	if strings.TrimSpace(in.FileName) == "" {
 		return false, "", errors.New("fileName is required")
 	}
@@ -122,12 +126,12 @@ func (s *FileService) PrecheckUpload(in filemodel.UploadInitInput) (bool, string
 		ContentType: in.ContentType,
 		ParentID:    parentID,
 		TotalParts:  in.TotalParts,
-	})
+	}, settingID)
 	return false, taskID, nil
 }
 
 // InitUpload 显式初始化上传任务。
-func (s *FileService) InitUpload(in filemodel.UploadInitInput) (string, error) {
+func (s *FileService) InitUpload(in filemodel.UploadInitInput, settingID string) (string, error) {
 	if strings.TrimSpace(in.FileName) == "" {
 		return "", errors.New("fileName is required")
 	}
@@ -137,10 +141,10 @@ func (s *FileService) InitUpload(in filemodel.UploadInitInput) (string, error) {
 	if in.TotalParts <= 0 {
 		return "", errors.New("totalParts must be positive")
 	}
-	return s.initTransferTask(in), nil
+	return s.initTransferTask(in, settingID), nil
 }
 
-func (s *FileService) initTransferTask(in filemodel.UploadInitInput) string {
+func (s *FileService) initTransferTask(in filemodel.UploadInitInput, settingID string) string {
 	parentID := strings.TrimSpace(in.ParentID)
 	if parentID == "" {
 		parentID = "root"
@@ -148,17 +152,18 @@ func (s *FileService) initTransferTask(in filemodel.UploadInitInput) string {
 	now := time.Now()
 	taskID := fmt.Sprintf("up_%d", now.UnixNano())
 	task := &filemodel.TransferTask{
-		TaskID:      taskID,
-		FileName:    strings.TrimSpace(in.FileName),
-		FileHash:    strings.TrimSpace(in.FileHash),
-		FileSize:    in.FileSize,
-		ContentType: strings.TrimSpace(in.ContentType),
-		ParentID:    parentID,
-		TotalParts:  in.TotalParts,
-		Status:      filemodel.TransferTaskUploading,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		Chunks:      make(map[int][]byte),
+		TaskID:           taskID,
+		StorageSettingID: strings.TrimSpace(settingID),
+		FileName:         strings.TrimSpace(in.FileName),
+		FileHash:         strings.TrimSpace(in.FileHash),
+		FileSize:         in.FileSize,
+		ContentType:      strings.TrimSpace(in.ContentType),
+		ParentID:         parentID,
+		TotalParts:       in.TotalParts,
+		Status:           filemodel.TransferTaskUploading,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		Chunks:           make(map[int][]byte),
 	}
 
 	s.transferMu.Lock()
@@ -263,15 +268,16 @@ func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*filemode
 	id := s.nextIDLocked()
 	name := s.uniqueNameLocked(task.ParentID, task.FileName)
 	item := &filemodel.FileItem{
-		ID:        id,
-		ParentID:  task.ParentID,
-		Name:      name,
-		IsDir:     false,
-		Size:      size,
-		FileHash:  task.FileHash,
-		ObjectKey: objectKey,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:               id,
+		ParentID:         task.ParentID,
+		StorageSettingID: strings.TrimSpace(task.StorageSettingID),
+		Name:             name,
+		IsDir:            false,
+		Size:             size,
+		FileHash:         task.FileHash,
+		ObjectKey:        objectKey,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 	s.items[id] = item
 	s.mu.Unlock()
@@ -283,6 +289,9 @@ func (s *FileService) MergeUpload(ctx context.Context, taskID string) (*filemode
 	s.transferMu.Unlock()
 
 	cp := *item
+	if err := s.persistFileInfo(ctx, cp); err != nil {
+		return nil, fmt.Errorf("persist merge result failed: %w", err)
+	}
 	return &cp, nil
 }
 
@@ -381,7 +390,14 @@ func (s *FileService) Home(_ context.Context) filemodel.HomeInfo {
 }
 
 // List 返回文件列表。
-func (s *FileService) List(parentID, keyword string) []filemodel.FileItem {
+func (s *FileService) List(ctx context.Context, parentID, keyword, settingID string) []filemodel.FileItem {
+	if s.db != nil {
+		items, err := s.listFromDB(ctx, parentID, keyword, settingID)
+		if err == nil {
+			return items
+		}
+		return []filemodel.FileItem{}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -392,6 +408,9 @@ func (s *FileService) List(parentID, keyword string) []filemodel.FileItem {
 			continue
 		}
 		if parentID != "" && it.ParentID != parentID {
+			continue
+		}
+		if strings.TrimSpace(settingID) != "" && it.ParentID != "" && it.StorageSettingID != strings.TrimSpace(settingID) {
 			continue
 		}
 		if keyword != "" && !strings.Contains(strings.ToLower(it.Name), keyword) {
@@ -409,8 +428,8 @@ func (s *FileService) List(parentID, keyword string) []filemodel.FileItem {
 }
 
 // ListDirs 返回目录列表。
-func (s *FileService) ListDirs(parentID string) []filemodel.FileItem {
-	items := s.List(parentID, "")
+func (s *FileService) ListDirs(ctx context.Context, parentID, settingID string) []filemodel.FileItem {
+	items := s.List(ctx, parentID, "", settingID)
 	result := make([]filemodel.FileItem, 0, len(items))
 	for _, it := range items {
 		if it.IsDir {
@@ -433,7 +452,10 @@ func (s *FileService) Get(fileID string) (*filemodel.FileItem, error) {
 }
 
 // CreateDirectory 创建目录（自动重名处理）。
-func (s *FileService) CreateDirectory(parentID, name string) (*filemodel.FileItem, error) {
+func (s *FileService) CreateDirectory(ctx context.Context, parentID, name, settingID string) (*filemodel.FileItem, error) {
+	if s.db != nil {
+		return s.createDirectoryDB(ctx, parentID, name, settingID)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -451,10 +473,163 @@ func (s *FileService) CreateDirectory(parentID, name string) (*filemodel.FileIte
 
 	now := time.Now()
 	id := s.nextIDLocked()
-	it := &filemodel.FileItem{ID: id, ParentID: parentID, Name: name, IsDir: true, CreatedAt: now, UpdatedAt: now}
+	it := &filemodel.FileItem{ID: id, ParentID: parentID, StorageSettingID: strings.TrimSpace(settingID), Name: name, IsDir: true, CreatedAt: now, UpdatedAt: now}
 	s.items[id] = it
 	cp := *it
 	return &cp, nil
+}
+
+func (s *FileService) listFromDB(ctx context.Context, parentID, keyword, settingID string) ([]filemodel.FileItem, error) {
+	p, err := security.RequireLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	parent := normalizeParentID(parentID)
+
+	query := s.db.WithContext(ctx).Model(&filedb.FileInfo{}).
+		Where("user_id = ? AND workspace_id = ? AND is_deleted = 0", p.UserID, p.WorkspaceID)
+	if parent == "" {
+		query = query.Where("(parent_id = '' OR parent_id IS NULL OR parent_id = 'root' OR parent_id = 'ROOT')")
+	} else {
+		query = query.Where("parent_id = ?", parent)
+	}
+	if strings.TrimSpace(settingID) != "" {
+		query = query.Where("storage_platform_setting_id = ?", strings.TrimSpace(settingID))
+	}
+	if strings.TrimSpace(keyword) != "" {
+		kw := "%" + strings.TrimSpace(keyword) + "%"
+		query = query.Where("display_name LIKE ?", kw)
+	}
+	var rows []filedb.FileInfo
+	if err = query.Order("is_dir desc, display_name asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]filemodel.FileItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, filemodel.FileItem{
+			ID:               row.ID,
+			ParentID:         normalizeParentOutput(row.ParentID),
+			StorageSettingID: row.StoragePlatformSettingID,
+			Name:             row.DisplayName,
+			IsDir:            row.IsDir,
+			Size:             row.Size,
+			FileHash:         row.ContentMd5,
+			ObjectKey:        row.ObjectKey,
+			CreatedAt:        row.UploadTime,
+			UpdatedAt:        row.UpdateTime,
+			Deleted:          row.IsDeleted,
+		})
+	}
+	return items, nil
+}
+
+func (s *FileService) createDirectoryDB(ctx context.Context, parentID, name, settingID string) (*filemodel.FileItem, error) {
+	p, err := security.RequireLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	parent := normalizeParentID(parentID)
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "新建文件夹"
+	}
+	now := time.Now()
+	id := fmt.Sprintf("dir_%d", now.UnixNano())
+	insert := map[string]any{
+		"id":                          id,
+		"object_key":                  "",
+		"original_name":               name,
+		"display_name":                name,
+		"suffix":                      "",
+		"size":                        int64(0),
+		"mime_type":                   "inode/directory",
+		"is_dir":                      true,
+		"parent_id":                   parent,
+		"user_id":                     p.UserID,
+		"workspace_id":                p.WorkspaceID,
+		"content_md5":                 "",
+		"storage_platform_setting_id": strings.TrimSpace(settingID),
+		"upload_time":                 now,
+		"update_time":                 now,
+		"last_access_time":            now,
+		"is_deleted":                  false,
+		"deleted_time":                nil,
+	}
+	if err = s.db.WithContext(ctx).Table("file_info").Create(insert).Error; err != nil {
+		return nil, err
+	}
+	return &filemodel.FileItem{
+		ID:               id,
+		ParentID:         normalizeParentOutput(parent),
+		StorageSettingID: strings.TrimSpace(settingID),
+		Name:             name,
+		IsDir:            true,
+		Size:             0,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}, nil
+}
+
+func (s *FileService) persistFileInfo(ctx context.Context, item filemodel.FileItem) error {
+	if s.db == nil {
+		return nil
+	}
+	p, err := security.RequireLogin(ctx)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	fileHash := strings.TrimSpace(item.FileHash)
+	if len(fileHash) > 32 {
+		// content_md5 列长度为 32，统一按前 32 位存储，避免落库失败。
+		fileHash = fileHash[:32]
+	}
+	insert := map[string]any{
+		"id":                          item.ID,
+		"object_key":                  item.ObjectKey,
+		"original_name":               item.Name,
+		"display_name":                item.Name,
+		"suffix":                      fileSuffix(item.Name),
+		"size":                        item.Size,
+		"mime_type":                   "application/octet-stream",
+		"is_dir":                      item.IsDir,
+		"parent_id":                   normalizeParentID(item.ParentID),
+		"user_id":                     p.UserID,
+		"workspace_id":                p.WorkspaceID,
+		"content_md5":                 fileHash,
+		"storage_platform_setting_id": strings.TrimSpace(item.StorageSettingID),
+		"upload_time":                 now,
+		"update_time":                 now,
+		"last_access_time":            now,
+		"is_deleted":                  false,
+		"deleted_time":                nil,
+	}
+	return s.db.WithContext(ctx).Table("file_info").Create(insert).Error
+}
+
+func normalizeParentID(parentID string) string {
+	switch strings.TrimSpace(parentID) {
+	case "", "root", "ROOT":
+		return ""
+	default:
+		return strings.TrimSpace(parentID)
+	}
+}
+
+func normalizeParentOutput(parentID string) string {
+	if strings.TrimSpace(parentID) == "" {
+		return "root"
+	}
+	return strings.TrimSpace(parentID)
+}
+
+func fileSuffix(name string) string {
+	name = strings.TrimSpace(name)
+	idx := strings.LastIndex(name, ".")
+	if idx <= 0 || idx >= len(name)-1 {
+		return ""
+	}
+	return strings.ToLower(name[idx+1:])
 }
 
 // Rename 重命名。
@@ -666,7 +841,7 @@ func (s *FileService) DirPath(dirID string) ([]filemodel.FileItem, error) {
 
 func (s *FileService) nextIDLocked() string {
 	s.counter++
-	return fmt.Sprintf("f_%d", s.counter)
+	return "f_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 }
 
 func (s *FileService) uniqueNameLocked(parentID, name string) string {

@@ -165,18 +165,11 @@ export function putJson(url, payload, withAuth = true) {
 }
 
 export function fetchPlatforms(baseUrl) {
-  return requestJson("GET", [
-    `${baseUrl}/api/v1/storage/platforms`,
-    `${baseUrl}/apis/storage/platforms`
-  ]);
+  return requestJson("GET", `${baseUrl}/apis/storage/platforms`);
 }
 
 export async function fetchStorageSettings(baseUrl) {
-  const listResp = await requestJson("GET", [
-    `${baseUrl}/api/v1/storage/settings`,
-    `${baseUrl}/apis/storage/platform/settings`,
-    `${baseUrl}/apis/storage/settings`
-  ]);
+  const listResp = await requestJson("GET", `${baseUrl}/apis/storage/platform/settings`);
   const settings = unwrapPayload(listResp) || [];
   if (!Array.isArray(settings)) {
     return { code: 200, msg: "success", data: [] };
@@ -249,10 +242,7 @@ export async function updateActiveStorage(baseUrl, payload) {
   let settingId = payload.settingId;
   const storageSettingName = String(payload.storageSettingName || "").trim();
   if (!settingId || settingId === "local-default") {
-    const createResp = await requestJson("POST", [
-      `${baseUrl}/api/v1/storage/settings`,
-      `${baseUrl}/apis/storage/settings`
-    ], {
+    const createResp = await requestJson("POST", `${baseUrl}/apis/storage/settings`, {
       body: { storageSettingName, identifier, configJson }
     });
     const created = unwrapPayload(createResp) || {};
@@ -262,10 +252,7 @@ export async function updateActiveStorage(baseUrl, payload) {
   // 可编辑时先更新配置。
   if (settingId && payload.settingId && payload.settingId !== "local-default") {
     try {
-      await requestJson("PUT", [
-        `${baseUrl}/api/v1/storage/settings/${encodeURIComponent(settingId)}`,
-        `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}`
-      ], {
+      await requestJson("PUT", `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}`, {
         body: { storageSettingName, configJson }
       });
     } catch {
@@ -274,23 +261,14 @@ export async function updateActiveStorage(baseUrl, payload) {
   }
 
   try {
-    await requestJson("POST", [
-      `${baseUrl}/api/v1/storage/settings/${encodeURIComponent(settingId)}/activate`,
-      `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}/1`
-    ], {});
+    await requestJson("POST", `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}/1`, {});
   } catch {
-    const createResp = await requestJson("POST", [
-      `${baseUrl}/api/v1/storage/settings`,
-      `${baseUrl}/apis/storage/settings`
-    ], {
+    const createResp = await requestJson("POST", `${baseUrl}/apis/storage/settings`, {
       body: { storageSettingName, identifier, configJson }
     });
     const created = unwrapPayload(createResp) || {};
     settingId = created.id || created.settingId || settingId;
-    await requestJson("POST", [
-      `${baseUrl}/api/v1/storage/settings/${encodeURIComponent(settingId)}/activate`,
-      `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}/1`
-    ], {});
+    await requestJson("POST", `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}/1`, {});
   }
 
   return {
@@ -307,10 +285,7 @@ export async function updateActiveStorage(baseUrl, payload) {
 }
 
 export function activateStorageSetting(baseUrl, settingId) {
-  return requestJson("POST", [
-    `${baseUrl}/api/v1/storage/settings/${encodeURIComponent(settingId)}/activate`,
-    `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}/1`
-  ], {});
+  return requestJson("POST", `${baseUrl}/apis/storage/settings/${encodeURIComponent(settingId)}/1`, {});
 }
 
 export function login(baseUrl, payload) {
@@ -359,10 +334,7 @@ export function fetchFileList(baseUrl) {
 
 export function fetchEntriesByParent(baseUrl, parentId) {
   const encodedParentId = encodeURIComponent(parentId || "");
-  return requestJson("GET", [
-    `${baseUrl}/apis/files/by-parent?parentId=${encodedParentId}`,
-    `${baseUrl}/apis/file/list?parentId=${encodedParentId}`
-  ]);
+  return requestJson("GET", `${baseUrl}/apis/file/list?parentId=${encodedParentId}`);
 }
 
 export function createDirectory(baseUrl, payload) {

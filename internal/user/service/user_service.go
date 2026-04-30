@@ -304,22 +304,6 @@ func (s *UserService) ensurePersonalWorkspaceAndStorageSetting(ctx context.Conte
 	}
 	if settingCount == 0 {
 		platformIdentifier := "local"
-		type platformRow struct {
-			Identifier string
-		}
-		var row platformRow
-		if err := tx.WithContext(ctx).
-			Table("storage_platform").
-			Select("identifier").
-			Where("is_default = 1").
-			Order("id asc").
-			Limit(1).
-			Scan(&row).Error; err != nil {
-			return "", fmt.Errorf("query default storage platform failed: %w", err)
-		}
-		if strings.TrimSpace(row.Identifier) != "" {
-			platformIdentifier = strings.TrimSpace(row.Identifier)
-		}
 
 		configData := "{}"
 		if platformIdentifier == "local" {

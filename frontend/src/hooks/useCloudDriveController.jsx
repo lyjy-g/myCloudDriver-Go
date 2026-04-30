@@ -947,6 +947,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         const start = (partNumber - 1) * DEFAULT_CHUNK_SIZE;
         const end = Math.min(selectedFile.size, partNumber * DEFAULT_CHUNK_SIZE);
         const chunk = selectedFile.slice(start, end);
+        const chunkMd5 = await calculateHash(chunk);
         await uploadPart(normalizedBaseUrl, {
           taskId,
           uploadId: taskId,
@@ -954,6 +955,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
           partNumber,
           totalParts,
           fileHash,
+          chunkMd5,
           file: chunk
         });
         setUploadProgress(Math.round((partNumber / totalParts) * 100));
