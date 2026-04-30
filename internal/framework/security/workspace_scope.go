@@ -23,23 +23,44 @@ func WorkspaceScopeMiddleware(db *gorm.DB) func(http.Handler) http.Handler {
 			}
 
 			workspaceID := strings.TrimSpace(r.Header.Get("X-Workspace-Id"))
-			if workspaceID == "" || workspaceID == principal.WorkspaceID {
+			targetWorkspaceID := principal.WorkspaceID
+			if workspaceID != "" {
+				targetWorkspaceID = workspaceID
+			}
+			if strings.TrimSpace(targetWorkspaceID) == "" {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			var count int64
-			err := db.WithContext(r.Context()).
-				Table("workspace_member").
-				Where("workspace_id = ? AND user_id = ? AND status = 1", workspaceID, principal.UserID).
-				Count(&count).Error
-			if err != nil || count == 0 {
+			role, found, err := resolveWorkspaceRole(r, db, principal.UserID, targetWorkspaceID)
+			if err != nil || !found {
 				next.ServeHTTP(w, r)
 				return
 			}
-
-			principal.WorkspaceID = workspaceID
+			principal.WorkspaceID = targetWorkspaceID
+			principal.WorkspaceRole = role
 			next.ServeHTTP(w, r.WithContext(PutCtxInfo(r.Context(), principal)))
 		})
 	}
+}
+
+func resolveWorkspaceRole(r *http.Request, db *gorm.DB, userID, workspaceID string) (string, bool, error) {
+	type memberRow struct {
+		Role string `gorm:"column:role"`
+	}
+	var row memberRow
+	err := db.WithContext(r.Context()).
+		Table("workspace_member").
+		Select("role").
+		Where("workspace_id = ? AND user_id = ? AND status = 1", workspaceID, userID).
+		Limit(1).
+		Scan(&row).Error
+	if err != nil {
+		return "", false, err
+	}
+	role := strings.TrimSpace(strings.ToLower(row.Role))
+	if role == "" {
+		return "", false, nil
+	}
+	return role, true, nil
 }

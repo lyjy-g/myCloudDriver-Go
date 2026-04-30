@@ -127,10 +127,11 @@ func (s *JWTService) sign(text string) string {
 // - 这是“认证结果在请求链路中的载体”，避免每层重复解析 token。
 // - 包含 UserID + WorkspaceID，天然支持“用户身份 + 租户空间”双维度鉴权。
 type CtxInfo struct {
-	UserID      string
-	Username    string
-	WorkspaceID string
-	Token       string
+	UserID        string
+	Username      string
+	WorkspaceID   string
+	WorkspaceRole string
+	Token         string
 }
 
 // ctxInfoKey 使用私有空结构体作为 context key，避免与其他包 key 冲突。

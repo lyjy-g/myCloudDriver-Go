@@ -2,6 +2,7 @@ package api
 
 import (
 	"myclouddrive-go/internal/framework/code"
+	"myclouddrive-go/internal/framework/security"
 	"myclouddrive-go/internal/framework/web"
 	gen "myclouddrive-go/internal/storage/api/gen"
 	"myclouddrive-go/internal/storage/model"
@@ -19,6 +20,9 @@ func NewHandler(svc *service.StorageService) *StorageHandler {
 }
 
 func (h *StorageHandler) ListActivePlatforms(w http.ResponseWriter, r *http.Request) {
+	if !requireStorageRead(w, r) {
+		return
+	}
 	items, err := h.svc.ListActivePlatforms(r.Context())
 	if err != nil {
 		writeStorageError(w, err)
@@ -29,6 +33,9 @@ func (h *StorageHandler) ListActivePlatforms(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Request) {
+	if !requireStorageRead(w, r) {
+		return
+	}
 	items, err := h.svc.ListStoragePlatforms(r.Context())
 	if err != nil {
 		writeStorageError(w, err)
@@ -39,6 +46,9 @@ func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Req
 }
 
 func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r *http.Request, identifier string) {
+	if !requireStorageRead(w, r) {
+		return
+	}
 	item, err := h.svc.GetStoragePlatformByIdentifier(r.Context(), identifier)
 	if err != nil {
 		writeStorageError(w, err)
@@ -49,6 +59,9 @@ func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r
 }
 
 func (h *StorageHandler) ListStorageSettings(w http.ResponseWriter, r *http.Request) {
+	if !requireStorageRead(w, r) {
+		return
+	}
 	items, err := h.svc.ListStorageSettings(r.Context())
 	if err != nil {
 		writeStorageError(w, err)
@@ -59,6 +72,9 @@ func (h *StorageHandler) ListStorageSettings(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Request) {
+	if !requireStorageManage(w, r) {
+		return
+	}
 	var req gen.CreateSettingRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
@@ -78,6 +94,9 @@ func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Req
 }
 
 func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
+	if !requireStorageManage(w, r) {
+		return
+	}
 	err := h.svc.DeleteStorageSetting(r.Context(), settingID)
 	if err != nil {
 		writeStorageError(w, err)
@@ -87,6 +106,9 @@ func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Req
 }
 
 func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
+	if !requireStorageManage(w, r) {
+		return
+	}
 	var req gen.UpdateSettingRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
@@ -105,6 +127,9 @@ func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Req
 }
 
 func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
+	if !requireStorageManage(w, r) {
+		return
+	}
 	item, err := h.svc.ActivateStorageSetting(r.Context(), settingID)
 	if err != nil {
 		writeStorageError(w, err)
@@ -116,6 +141,9 @@ func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.R
 
 // ActivateOrDisableStorageSettingByAction 兼容 action 风格开关接口：1 启用，0 禁用。
 func (h *StorageHandler) ActivateOrDisableStorageSettingByAction(w http.ResponseWriter, r *http.Request, settingID string, action string) {
+	if !requireStorageManage(w, r) {
+		return
+	}
 	switch action {
 	case "1":
 		h.ActivateStorageSetting(w, r, settingID)
@@ -184,3 +212,19 @@ func writeStorageError(w http.ResponseWriter, err error) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func requireStorageRead(w http.ResponseWriter, r *http.Request) bool {
+	if _, err := security.RequireWorkspaceRoleAtLeast(r.Context(), security.RoleMember); err != nil {
+		web.WriteError(w, http.StatusForbidden, string(code.NoPermission), err.Error())
+		return false
+	}
+	return true
+}
+
+func requireStorageManage(w http.ResponseWriter, r *http.Request) bool {
+	if _, err := security.RequireWorkspaceRoleAtLeast(r.Context(), security.RoleAdmin); err != nil {
+		web.WriteError(w, http.StatusForbidden, string(code.NoPermission), err.Error())
+		return false
+	}
+	return true
+}
