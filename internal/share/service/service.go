@@ -13,8 +13,11 @@ import (
 
 	"gorm.io/gorm"
 
+	filedb "myclouddrive-go/internal/file/model/dbmodel"
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
+	sharedto "myclouddrive-go/internal/share/model"
+	sharedb "myclouddrive-go/internal/share/model/dbmodel"
 	storagemodel "myclouddrive-go/internal/storage/model"
 )
 
@@ -24,9 +27,37 @@ type ShareService struct {
 	storage StorageGateway
 }
 
+// DTO 类型别名：保持 service/api 层调用方式不变，DTO 统一收敛到 share/model。
+type (
+	ShareVO               = sharedto.ShareVO
+	ShareFileVO           = sharedto.ShareFileVO
+	CreateShareReq        = sharedto.CreateShareReq
+	UpdateShareReq        = sharedto.UpdateShareReq
+	VerifyShareCodeReq    = sharedto.VerifyShareCodeReq
+	FileShareAccessRecord = sharedb.ShareAccessRecord
+)
+
+type shareRecord struct {
+	ID               string
+	UserID           string
+	WorkspaceID      string
+	StorageSettingID string
+	ShareName        string
+	ShareCode        string
+	ExpireTime       *time.Time
+	Scope            string
+	ViewCount        int
+	MaxViewCount     *int
+	DownloadCount    int
+	MaxDownloadCount *int
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
 // StorageGateway 定义分享模块下载文件所需的最小存储能力。
 type StorageGateway interface {
 	Get(ctx context.Context, key string) (io.ReadCloser, storagemodel.ObjectInfo, error)
+	GetBySetting(ctx context.Context, settingID string, key string) (io.ReadCloser, storagemodel.ObjectInfo, error)
 }
 
 func NewService(db *gorm.DB, storage StorageGateway) *ShareService {
@@ -45,16 +76,14 @@ func currentUserID(ctx context.Context) (string, error) {
 	return p.UserID, nil
 }
 
-func toShareVO(row FileShare, fileIDs []string) ShareVO {
+func toShareVO(row shareRecord, fileIDs []string) ShareVO {
 	allowDownload := strings.Contains(strings.ToLower(row.Scope), "download")
-	shareCode := ""
-	if row.ShareCode != nil {
-		shareCode = *row.ShareCode
-	}
 	return ShareVO{
 		ShareID:       row.ID,
 		ShareName:     row.ShareName,
-		ShareCode:     shareCode,
+		ShareCode:     row.ShareCode,
+		WorkspaceID:   row.WorkspaceID,
+		SettingID:     row.StorageSettingID,
 		AllowDownload: allowDownload,
 		ExpireTime:    row.ExpireTime,
 		ViewCount:     row.ViewCount,
@@ -67,7 +96,7 @@ func toShareVO(row FileShare, fileIDs []string) ShareVO {
 	}
 }
 
-func statusFromShare(share FileShare) int {
+func statusFromShare(share shareRecord) int {
 	now := time.Now()
 	if share.ExpireTime != nil && now.After(*share.ExpireTime) {
 		return 1
@@ -106,27 +135,43 @@ func normalizeScope(allowDownload bool) string {
 }
 
 func (s *ShareService) CreateShare(ctx context.Context, req CreateShareReq) (*ShareVO, error) {
-	userID, err := currentUserID(ctx)
+	principal, err := security.RequireLogin(ctx)
 	if err != nil {
 		return nil, err
+	}
+	userID := strings.TrimSpace(principal.UserID)
+	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	if workspaceID == "" {
+		return nil, code.New(code.BadRequest, "workspace is required")
 	}
 	if len(req.FileIDs) == 0 {
 		return nil, code.New(code.BadRequest, "fileIds is required")
 	}
 
-	fileRows := make([]FileInfo, 0)
-	if err = s.db.WithContext(ctx).Where("id IN ?", req.FileIDs).Find(&fileRows).Error; err != nil {
+	fileRows := make([]filedb.FileInfo, 0)
+	if err = s.db.WithContext(ctx).
+		Where("id IN ? AND is_deleted = 0 AND workspace_id = ?", req.FileIDs, workspaceID).
+		Find(&fileRows).Error; err != nil {
 		return nil, fmt.Errorf("query files failed: %w", err)
 	}
 	if len(fileRows) == 0 {
 		return nil, code.New(code.BadRequest, "shared files not found")
 	}
+	storageSettingID := strings.TrimSpace(fileRows[0].StoragePlatformSettingID)
+	for _, row := range fileRows {
+		if strings.TrimSpace(row.WorkspaceID) != workspaceID {
+			return nil, code.New(code.BadRequest, "files must belong to current workspace")
+		}
+		if strings.TrimSpace(row.StoragePlatformSettingID) != storageSettingID {
+			return nil, code.New(code.BadRequest, "files in one share must use same storage setting")
+		}
+	}
 
 	shareName := strings.TrimSpace(req.ShareName)
 	if shareName == "" {
-		shareName = fileRows[0].Name
+		shareName = fileRows[0].DisplayName
 		if len(fileRows) > 1 {
-			shareName = fmt.Sprintf("%s 等%d个文件", fileRows[0].Name, len(fileRows))
+			shareName = fmt.Sprintf("%s 等%d个文件", fileRows[0].DisplayName, len(fileRows))
 		}
 	}
 
@@ -146,24 +191,27 @@ func (s *ShareService) CreateShare(ctx context.Context, req CreateShareReq) (*Sh
 	}
 
 	id := randomID("shr")
-	share := &FileShare{
-		ID:         id,
-		UserID:     userID,
-		ShareName:  shareName,
-		ShareCode:  &shareCode,
-		ExpireTime: expireAt,
-		Scope:      normalizeScope(allowDownload),
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if errTx := tx.Create(share).Error; errTx != nil {
+		shareInsert := map[string]any{
+			"id":                 id,
+			"user_id":            userID,
+			"workspace_id":       workspaceID,
+			"storage_setting_id": storageSettingID,
+			"share_name":         shareName,
+			"share_code":         shareCode,
+			"expire_time":        expireAt,
+			"scope":              normalizeScope(allowDownload),
+			"view_count":         0,
+			"download_count":     0,
+			"created_at":         now,
+			"updated_at":         now,
+		}
+		if errTx := tx.Table("share_info").Create(shareInsert).Error; errTx != nil {
 			return errTx
 		}
-		items := make([]FileShareItem, 0, len(req.FileIDs))
+		items := make([]sharedb.ShareItem, 0, len(req.FileIDs))
 		for _, fid := range req.FileIDs {
-			items = append(items, FileShareItem{ShareID: id, FileID: fid, CreatedAt: now})
+			items = append(items, sharedb.ShareItem{ShareID: id, FileID: fid, CreatedAt: now})
 		}
 		if errTx := tx.Create(&items).Error; errTx != nil {
 			return errTx
@@ -174,17 +222,38 @@ func (s *ShareService) CreateShare(ctx context.Context, req CreateShareReq) (*Sh
 		return nil, fmt.Errorf("create share failed: %w", err)
 	}
 
-	vo := toShareVO(*share, req.FileIDs)
+	vo := toShareVO(shareRecord{
+		ID:               id,
+		UserID:           userID,
+		WorkspaceID:      workspaceID,
+		StorageSettingID: storageSettingID,
+		ShareName:        shareName,
+		ShareCode:        shareCode,
+		ExpireTime:       expireAt,
+		Scope:            normalizeScope(allowDownload),
+		ViewCount:        0,
+		DownloadCount:    0,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}, req.FileIDs)
+	s.fillShareScopeNames(ctx, &vo)
 	return &vo, nil
 }
 
 func (s *ShareService) ListMyShares(ctx context.Context) ([]ShareVO, error) {
-	userID, err := currentUserID(ctx)
+	principal, err := security.RequireLogin(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]FileShare, 0)
-	if err = s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at desc").Find(&rows).Error; err != nil {
+	userID := strings.TrimSpace(principal.UserID)
+	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	rows := make([]shareRecord, 0)
+	if err = s.db.WithContext(ctx).
+		Table("share_info").
+		Select("id, user_id, workspace_id, storage_setting_id, share_name, share_code, expire_time, scope, view_count, max_view_count, download_count, max_download_count, created_at, updated_at").
+		Where("user_id = ? AND workspace_id = ?", userID, workspaceID).
+		Order("created_at desc").
+		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("query shares failed: %w", err)
 	}
 
@@ -193,6 +262,7 @@ func (s *ShareService) ListMyShares(ctx context.Context) ([]ShareVO, error) {
 		ids, _ := s.loadShareFileIDs(ctx, row.ID)
 		result = append(result, toShareVO(row, ids))
 	}
+	s.fillShareScopeNamesBatch(ctx, result)
 	return result, nil
 }
 
@@ -212,6 +282,7 @@ func (s *ShareService) GetShareDetail(ctx context.Context, shareID string, requi
 	}
 	ids, _ := s.loadShareFileIDs(ctx, shareID)
 	vo := toShareVO(*row, ids)
+	s.fillShareScopeNames(ctx, &vo)
 	return &vo, nil
 }
 
@@ -252,17 +323,17 @@ func (s *ShareService) UpdateShare(ctx context.Context, shareID string, req Upda
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if errTx := tx.Model(&FileShare{}).Where("id = ?", shareID).Updates(updates).Error; errTx != nil {
+		if errTx := tx.Table("share_info").Where("id = ?", shareID).Updates(updates).Error; errTx != nil {
 			return errTx
 		}
 		if len(req.FileIDs) > 0 {
-			if errTx := tx.Where("share_id = ?", shareID).Delete(&FileShareItem{}).Error; errTx != nil {
+			if errTx := tx.Where("share_id = ?", shareID).Delete(&sharedb.ShareItem{}).Error; errTx != nil {
 				return errTx
 			}
-			items := make([]FileShareItem, 0, len(req.FileIDs))
+			items := make([]sharedb.ShareItem, 0, len(req.FileIDs))
 			now := time.Now()
 			for _, fid := range req.FileIDs {
-				items = append(items, FileShareItem{ShareID: shareID, FileID: fid, CreatedAt: now})
+				items = append(items, sharedb.ShareItem{ShareID: shareID, FileID: fid, CreatedAt: now})
 			}
 			if errTx := tx.Create(&items).Error; errTx != nil {
 				return errTx
@@ -285,10 +356,7 @@ func (s *ShareService) VerifyShareCode(ctx context.Context, shareID, shareCode s
 	if statusFromShare(*row) != 0 {
 		return false, code.New(code.BadRequest, "share expired or exhausted")
 	}
-	expect := ""
-	if row.ShareCode != nil {
-		expect = strings.TrimSpace(*row.ShareCode)
-	}
+	expect := strings.TrimSpace(row.ShareCode)
 	if expect != "" && !strings.EqualFold(expect, strings.TrimSpace(shareCode)) {
 		return false, code.New(code.BadRequest, "invalid share code")
 	}
@@ -311,7 +379,7 @@ func (s *ShareService) PublicAccess(ctx context.Context, shareID, shareCode stri
 	if err != nil {
 		return nil, err
 	}
-	_ = s.db.WithContext(ctx).Model(&FileShare{}).Where("id = ?", shareID).Update("view_count", gorm.Expr("view_count + 1")).Error
+	_ = s.db.WithContext(ctx).Table("share_info").Where("id = ?", shareID).Update("view_count", gorm.Expr("view_count + 1")).Error
 	_ = s.createAccessRecord(ctx, shareID, r)
 
 	ids := make([]string, 0, len(files))
@@ -319,6 +387,7 @@ func (s *ShareService) PublicAccess(ctx context.Context, shareID, shareCode stri
 		ids = append(ids, f.FileID)
 	}
 	vo := toShareVO(*row, ids)
+	s.fillShareScopeNames(ctx, &vo)
 	vo.Files = files
 	return &vo, nil
 }
@@ -330,6 +399,7 @@ func (s *ShareService) GetShareInfo(ctx context.Context, shareID string) (*Share
 	}
 	ids, _ := s.loadShareFileIDs(ctx, shareID)
 	vo := toShareVO(*row, ids)
+	s.fillShareScopeNames(ctx, &vo)
 	return &vo, nil
 }
 
@@ -344,7 +414,7 @@ func (s *ShareService) GetShareItems(ctx context.Context, shareID, parentID stri
 	if len(fileIDs) == 0 {
 		return []ShareFileVO{}, nil
 	}
-	rows := make([]FileInfo, 0)
+	rows := make([]filedb.FileInfo, 0)
 	q := s.db.WithContext(ctx).Where("id IN ?", fileIDs)
 	if strings.TrimSpace(parentID) != "" {
 		q = q.Where("parent_id = ?", parentID)
@@ -354,7 +424,7 @@ func (s *ShareService) GetShareItems(ctx context.Context, shareID, parentID stri
 	}
 	items := make([]ShareFileVO, 0, len(rows))
 	for _, row := range rows {
-		item := ShareFileVO{FileID: row.ID, FileName: row.Name, FileSize: row.Size, Directory: row.IsDir}
+		item := ShareFileVO{FileID: row.ID, FileName: row.DisplayName, FileSize: row.Size, Directory: row.IsDir}
 		if !row.IsDir {
 			item.DownloadURL = "/apis/shares/public/" + shareID + "/download/" + row.ID
 		}
@@ -378,8 +448,12 @@ func (s *ShareService) DownloadShareFile(ctx context.Context, shareID, fileID, s
 	if count == 0 {
 		return nil, storagemodel.ObjectInfo{}, "", code.New(code.NoPermission, "file not in share")
 	}
+	shareRow, err := s.getShare(ctx, shareID)
+	if err != nil {
+		return nil, storagemodel.ObjectInfo{}, "", err
+	}
 
-	var file FileInfo
+	var file filedb.FileInfo
 	if err = s.db.WithContext(ctx).Where("id = ?", fileID).First(&file).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, storagemodel.ObjectInfo{}, "", code.New(code.NotFound, "file not found")
@@ -389,10 +463,10 @@ func (s *ShareService) DownloadShareFile(ctx context.Context, shareID, fileID, s
 	if file.IsDir {
 		return nil, storagemodel.ObjectInfo{}, "", code.New(code.BadRequest, "directory cannot be downloaded")
 	}
-	if file.Deleted != nil && *file.Deleted {
+	if file.IsDeleted {
 		return nil, storagemodel.ObjectInfo{}, "", code.New(code.NotFound, "file not found")
 	}
-	if file.ObjectKey == nil || strings.TrimSpace(*file.ObjectKey) == "" {
+	if strings.TrimSpace(file.ObjectKey) == "" {
 		return nil, storagemodel.ObjectInfo{}, "", code.New(code.NotFound, "file object not found")
 	}
 	if s.storage == nil {
@@ -400,13 +474,21 @@ func (s *ShareService) DownloadShareFile(ctx context.Context, shareID, fileID, s
 	}
 
 	// 先读取对象成功再累加计数，保证“计数推进”和“真实可下载”一致。
-	rc, info, err := s.storage.Get(ctx, strings.TrimSpace(*file.ObjectKey))
+	targetSettingID := strings.TrimSpace(shareRow.StorageSettingID)
+	if targetSettingID == "" {
+		targetSettingID = strings.TrimSpace(file.StoragePlatformSettingID)
+	}
+	if targetSettingID == "" {
+		return nil, storagemodel.ObjectInfo{}, "", code.New(code.BadRequest, "share storage setting is empty")
+	}
+	// 关键：分享下载必须按“分享归属配置”读取，避免切换激活配置后读错存储实例。
+	rc, info, err := s.storage.GetBySetting(ctx, targetSettingID, strings.TrimSpace(file.ObjectKey))
 	if err != nil {
 		return nil, storagemodel.ObjectInfo{}, "", fmt.Errorf("open shared object failed: %w", err)
 	}
-	_ = s.db.WithContext(ctx).Model(&FileShare{}).Where("id = ?", shareID).Update("download_count", gorm.Expr("download_count + 1")).Error
+	_ = s.db.WithContext(ctx).Table("share_info").Where("id = ?", shareID).Update("download_count", gorm.Expr("download_count + 1")).Error
 	_ = s.createAccessRecord(ctx, shareID, r)
-	return rc, info, file.Name, nil
+	return rc, info, file.DisplayName, nil
 }
 
 func (s *ShareService) ListAccessRecords(ctx context.Context, shareID string) ([]FileShareAccessRecord, error) {
@@ -426,10 +508,10 @@ func (s *ShareService) CancelShares(ctx context.Context, shareIDs []string) erro
 		return nil
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if errTx := tx.Where("share_id IN ?", shareIDs).Delete(&FileShareItem{}).Error; errTx != nil {
+		if errTx := tx.Where("share_id IN ?", shareIDs).Delete(&sharedb.ShareItem{}).Error; errTx != nil {
 			return errTx
 		}
-		if errTx := tx.Where("id IN ? AND user_id = ?", shareIDs, uid).Delete(&FileShare{}).Error; errTx != nil {
+		if errTx := tx.Where("id IN ? AND user_id = ?", shareIDs, uid).Delete(&sharedb.ShareInfo{}).Error; errTx != nil {
 			return errTx
 		}
 		return nil
@@ -442,15 +524,21 @@ func (s *ShareService) CancelAllShares(ctx context.Context) error {
 		return err
 	}
 	ids := make([]string, 0)
-	if err = s.db.WithContext(ctx).Model(&FileShare{}).Where("user_id = ?", uid).Pluck("id", &ids).Error; err != nil {
+	if err = s.db.WithContext(ctx).Model(&sharedb.ShareInfo{}).Where("user_id = ?", uid).Pluck("id", &ids).Error; err != nil {
 		return fmt.Errorf("query user shares failed: %w", err)
 	}
 	return s.CancelShares(ctx, ids)
 }
 
-func (s *ShareService) getShare(ctx context.Context, shareID string) (*FileShare, error) {
-	row := &FileShare{}
-	if err := s.db.WithContext(ctx).Where("id = ?", shareID).First(row).Error; err != nil {
+func (s *ShareService) getShare(ctx context.Context, shareID string) (*shareRecord, error) {
+	row := &shareRecord{}
+	query := s.db.WithContext(ctx).Table("share_info").
+		Select("id, user_id, workspace_id, storage_setting_id, share_name, share_code, expire_time, scope, view_count, max_view_count, download_count, max_download_count, created_at, updated_at").
+		Where("id = ?", shareID)
+	if principal, ok := security.GetCtxInfo(ctx); ok && strings.TrimSpace(principal.WorkspaceID) != "" {
+		query = query.Where("workspace_id = ?", strings.TrimSpace(principal.WorkspaceID))
+	}
+	if err := query.First(row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, code.New(code.NotFound, "share not found")
 		}
@@ -459,9 +547,77 @@ func (s *ShareService) getShare(ctx context.Context, shareID string) (*FileShare
 	return row, nil
 }
 
+func (s *ShareService) fillShareScopeNames(ctx context.Context, vo *ShareVO) {
+	if vo == nil {
+		return
+	}
+	items := []ShareVO{*vo}
+	s.fillShareScopeNamesBatch(ctx, items)
+	*vo = items[0]
+}
+
+func (s *ShareService) fillShareScopeNamesBatch(ctx context.Context, items []ShareVO) {
+	if len(items) == 0 {
+		return
+	}
+	workspaceIDs := make([]string, 0)
+	settingIDs := make([]string, 0)
+	workspaceSeen := make(map[string]struct{})
+	settingSeen := make(map[string]struct{})
+	for _, item := range items {
+		ws := strings.TrimSpace(item.WorkspaceID)
+		if ws != "" {
+			if _, ok := workspaceSeen[ws]; !ok {
+				workspaceSeen[ws] = struct{}{}
+				workspaceIDs = append(workspaceIDs, ws)
+			}
+		}
+		stg := strings.TrimSpace(item.SettingID)
+		if stg != "" {
+			if _, ok := settingSeen[stg]; !ok {
+				settingSeen[stg] = struct{}{}
+				settingIDs = append(settingIDs, stg)
+			}
+		}
+	}
+
+	wsNameMap := make(map[string]string)
+	if len(workspaceIDs) > 0 {
+		type workspaceRow struct {
+			ID   string `gorm:"column:id"`
+			Name string `gorm:"column:name"`
+		}
+		var rows []workspaceRow
+		if err := s.db.WithContext(ctx).Table("workspace").Select("id, name").Where("id IN ?", workspaceIDs).Find(&rows).Error; err == nil {
+			for _, row := range rows {
+				wsNameMap[strings.TrimSpace(row.ID)] = strings.TrimSpace(row.Name)
+			}
+		}
+	}
+
+	stgNameMap := make(map[string]string)
+	if len(settingIDs) > 0 {
+		type settingRow struct {
+			ID   string `gorm:"column:id"`
+			Name string `gorm:"column:storage_setting_name"`
+		}
+		var rows []settingRow
+		if err := s.db.WithContext(ctx).Table("storage_settings").Select("id, storage_setting_name").Where("id IN ?", settingIDs).Find(&rows).Error; err == nil {
+			for _, row := range rows {
+				stgNameMap[strings.TrimSpace(row.ID)] = strings.TrimSpace(row.Name)
+			}
+		}
+	}
+
+	for i := range items {
+		items[i].WorkspaceName = wsNameMap[strings.TrimSpace(items[i].WorkspaceID)]
+		items[i].SettingName = stgNameMap[strings.TrimSpace(items[i].SettingID)]
+	}
+}
+
 func (s *ShareService) loadShareFileIDs(ctx context.Context, shareID string) ([]string, error) {
 	ids := make([]string, 0)
-	if err := s.db.WithContext(ctx).Model(&FileShareItem{}).Where("share_id = ?", shareID).Pluck("file_id", &ids).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&sharedb.ShareItem{}).Where("share_id = ?", shareID).Pluck("file_id", &ids).Error; err != nil {
 		return nil, fmt.Errorf("query share items failed: %w", err)
 	}
 	return ids, nil
@@ -469,7 +625,7 @@ func (s *ShareService) loadShareFileIDs(ctx context.Context, shareID string) ([]
 
 func (s *ShareService) isFileInShare(ctx context.Context, shareID, fileID string) (int64, error) {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&FileShareItem{}).Where("share_id = ? AND file_id = ?", shareID, fileID).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&sharedb.ShareItem{}).Where("share_id = ? AND file_id = ?", shareID, fileID).Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("query share relation failed: %w", err)
 	}
 	return count, nil
@@ -488,12 +644,12 @@ func (s *ShareService) createAccessRecord(ctx context.Context, shareID string, r
 	}
 	ua := strings.TrimSpace(r.UserAgent())
 	address := "unknown"
-	item := &FileShareAccessRecord{
+	item := &sharedb.ShareAccessRecord{
 		ShareID:       shareID,
-		AccessIP:      &ip,
-		AccessAddress: &address,
-		Browser:       &ua,
-		OS:            &ua,
+		AccessIP:      ip,
+		AccessAddress: address,
+		Browser:       ua,
+		Os:            ua,
 		AccessTime:    time.Now(),
 	}
 	return s.db.WithContext(ctx).Create(item).Error

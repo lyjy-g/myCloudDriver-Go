@@ -113,6 +113,23 @@ func (r *RunManager) Get(ctx context.Context, key string) (io.ReadCloser, Object
 	return body, out, nil
 }
 
+// GetBySetting 使用指定配置读取对象，避免依赖“当前激活配置”导致串读。
+func (r *RunManager) GetBySetting(ctx context.Context, settingID string, key string) (io.ReadCloser, ObjectInfo, error) {
+	row, err := r.getSettingByID(ctx, settingID)
+	if err != nil {
+		return nil, ObjectInfo{}, err
+	}
+	store, err := r.resolveStoreBySetting(ctx, row)
+	if err != nil {
+		return nil, ObjectInfo{}, err
+	}
+	rc, info, err := store.Get(ctx, plugin.Key(key))
+	if err != nil {
+		return nil, ObjectInfo{}, err
+	}
+	return rc, toRuntimeObjectInfo(info), nil
+}
+
 // Delete 使用当前工作空间激活的配置删除对象。
 func (r *RunManager) Delete(ctx context.Context, key string) error {
 	return r.withActiveStore(ctx, func(store plugin.StorePower) error {
@@ -195,6 +212,26 @@ func (r *RunManager) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.Sto
 			return dbmodel.StorageSetting{}, fmt.Errorf("%w: active setting for workspace %s", code.ErrSettingNotFound, workspaceID)
 		}
 		return dbmodel.StorageSetting{}, fmt.Errorf("query active storage setting failed: %w", err)
+	}
+	return *row, nil
+}
+
+func (r *RunManager) getSettingByID(ctx context.Context, settingID string) (dbmodel.StorageSetting, error) {
+	workspaceID := r.workspaceID(ctx)
+	q := modelgen.Use(r.db)
+	ss := q.StorageSetting
+	row, err := q.WithContext(ctx).StorageSetting.
+		Where(
+			ss.ID.Eq(strings.TrimSpace(settingID)),
+			ss.WorkspaceID.Eq(workspaceID),
+			ss.Deleted.Is(false),
+		).
+		First()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return dbmodel.StorageSetting{}, fmt.Errorf("%w: setting %s for workspace %s", code.ErrSettingNotFound, settingID, workspaceID)
+		}
+		return dbmodel.StorageSetting{}, fmt.Errorf("query storage setting failed: %w", err)
 	}
 	return *row, nil
 }

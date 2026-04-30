@@ -362,6 +362,14 @@ components:
       properties:
         id:
           type: string
+        workspaceId:
+          type: string
+        workspaceName:
+          type: string
+        storageSettingId:
+          type: string
+        storageSettingName:
+          type: string
         shareName:
           type: string
         shareCode:
@@ -405,6 +413,14 @@ components:
       type: object
       properties:
         id:
+          type: string
+        workspaceId:
+          type: string
+        workspaceName:
+          type: string
+        storageSettingId:
+          type: string
+        storageSettingName:
           type: string
         shareName:
           type: string

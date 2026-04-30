@@ -338,6 +338,18 @@ func (s *StorageService) Get(ctx context.Context, key string) (io.ReadCloser, dt
 	return rc, toObjectInfo(info), nil
 }
 
+// GetBySetting 使用指定存储配置读取对象。
+//
+// 面试可讲：
+// - 分享/审计等跨页面场景必须“按资源归属配置读”，不能依赖当前激活配置。
+func (s *StorageService) GetBySetting(ctx context.Context, settingID string, key string) (io.ReadCloser, dto.ObjectInfo, error) {
+	rc, info, err := s.runManager.GetBySetting(ctx, settingID, key)
+	if err != nil {
+		return nil, dto.ObjectInfo{}, err
+	}
+	return rc, toObjectInfo(info), nil
+}
+
 // Delete 删除当前激活存储对象。
 func (s *StorageService) Delete(ctx context.Context, key string) error {
 	return s.runManager.Delete(ctx, key)

@@ -614,7 +614,21 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     if (!record?.shareId) {
       return;
     }
-    window.open(`${window.location.origin}/share/${record.shareId}`, "_blank", "noopener,noreferrer");
+    const inputCode = await promptText({
+      title: "打开分享页面",
+      label: "提取码（可选，留空直接打开）",
+      initialValue: record.shareCode || "",
+      required: false
+    });
+    if (inputCode == null) {
+      return;
+    }
+    const sharePath = `/share/${record.shareId}`;
+    const code = inputCode.trim();
+    const finalURL = code
+      ? `${window.location.origin}${sharePath}?code=${encodeURIComponent(code)}`
+      : `${window.location.origin}${sharePath}`;
+    window.open(finalURL, "_blank", "noopener,noreferrer");
   }, []);
 
   const handleEditShare = useCallback(async (record) => {
@@ -1034,6 +1048,16 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const shareColumns = useMemo(() => ([
     { title: "分享ID", dataIndex: "shareId", key: "shareId" },
     { title: "名称", dataIndex: "shareName", key: "shareName" },
+    {
+      title: "归属空间",
+      key: "workspace",
+      render: (_, record) => record.workspaceName || record.workspaceId || "-"
+    },
+    {
+      title: "归属配置",
+      key: "setting",
+      render: (_, record) => record.storageSettingName || record.storageSettingId || "-"
+    },
     { title: "提取码", dataIndex: "shareCode", key: "shareCode", render: (value) => value || "无" },
     { title: "下载", dataIndex: "allowDownload", key: "allowDownload", render: (value) => (value ? "允许" : "禁止") },
     {

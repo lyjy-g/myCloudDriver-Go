@@ -86,6 +86,40 @@ export function Sidebar({
       <section className="mcd-sidebar-block">
         <div className="mcd-sidebar-l2-head">
           <DatabaseOutlined />
+          <span>我的分享</span>
+        </div>
+        <button
+          type="button"
+          className={`mcd-sidebar-nav-item ${activeMenu === "shares" ? "active" : ""}`}
+          onClick={() => {
+            onMenuClick("shares");
+          }}
+        >
+          <DatabaseOutlined />
+          <span>空间分享列表</span>
+        </button>
+      </section>
+
+      <section className="mcd-sidebar-block">
+        <div className="mcd-sidebar-l2-head">
+          <DatabaseOutlined />
+          <span>知识库</span>
+        </div>
+        <button
+          type="button"
+          className={`mcd-sidebar-nav-item ${activeMenu === "knowledge" ? "active" : ""}`}
+          onClick={() => {
+            onMenuClick("knowledge");
+          }}
+        >
+          <DatabaseOutlined />
+          <span>知识库首页</span>
+        </button>
+      </section>
+
+      <section className="mcd-sidebar-block">
+        <div className="mcd-sidebar-l2-head">
+          <DatabaseOutlined />
           <span>配置列表</span>
         </div>
         <div className="mcd-sidebar-storage-list">
@@ -103,7 +137,6 @@ export function Sidebar({
                 <div className="mcd-sidebar-storage-links-group">
                   {[
                     { key: "files", label: "全部文件" },
-                    { key: "shares", label: "我的分享" },
                     { key: "trash", label: "回收站" }
                   ].map((entry) => (
                     <button

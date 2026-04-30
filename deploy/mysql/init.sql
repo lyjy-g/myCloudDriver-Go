@@ -40,6 +40,8 @@ DROP TABLE IF EXISTS `share_info`;
 CREATE TABLE `share_info` (
                               `id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '分享ID',
                               `user_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '分享人ID',
+                              `workspace_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '归属工作空间ID',
+                              `storage_setting_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' COMMENT '归属存储配置ID',
                               `share_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '分享名称',
                               `share_code` varchar(6) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '提取码（可为空）',
                               `expire_time` datetime DEFAULT NULL COMMENT '过期时间（NULL表示永久有效）',
@@ -52,6 +54,8 @@ CREATE TABLE `share_info` (
                               `updated_at` datetime NOT NULL COMMENT '更新时间',
                               PRIMARY KEY (`id`) USING BTREE,
                               KEY `idx_user_id` (`user_id`) USING BTREE,
+                              KEY `idx_workspace_id` (`workspace_id`) USING BTREE,
+                              KEY `idx_workspace_setting` (`workspace_id`, `storage_setting_id`) USING BTREE,
                               KEY `idx_expire_time` (`expire_time`) USING BTREE,
                               KEY `idx_share_code` (`share_code`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='文件分享表' ROW_FORMAT=DYNAMIC;

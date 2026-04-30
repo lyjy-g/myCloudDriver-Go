@@ -212,5 +212,19 @@ export function FilesPanel({
     );
   }
 
+  if (activeMenu === "knowledge") {
+    return (
+      <div className="mcd-panel p-5">
+        <Text className="mcd-muted block mb-3">知识库（预留扩展模块）</Text>
+        <div className="mcd-space-home-hero">
+          <h3 style={{ margin: 0 }}>知识库建设中</h3>
+          <p className="mcd-muted" style={{ marginTop: 8 }}>
+            后续可扩展：文档分层、标签检索、向量检索、空间级权限、分享联动。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }

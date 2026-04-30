@@ -532,11 +532,14 @@ export function accessPublicShare(baseUrl, shareId, shareCode) {
 }
 
 export async function downloadPublicShareFile(baseUrl, shareId, fileId, shareCode) {
-  const response = await fetch(`${baseUrl}/apis/share/${encodeURIComponent(shareId)}/download/${encodeURIComponent(fileId)}`, {
-    method: "GET",
-    headers: {
-      "X-Share-Code": String(shareCode || "").trim()
-    }
+  const qs = new URLSearchParams();
+  const normalizedShareCode = String(shareCode || "").trim();
+  if (normalizedShareCode) {
+    qs.set("shareCode", normalizedShareCode);
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const response = await fetch(`${baseUrl}/apis/share/${encodeURIComponent(shareId)}/download/${encodeURIComponent(fileId)}${suffix}`, {
+    method: "GET"
   });
   if (!response.ok) {
     const text = await response.text();

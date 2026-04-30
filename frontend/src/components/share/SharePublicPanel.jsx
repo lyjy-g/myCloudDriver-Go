@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Input, Space, Table, Tag, Typography } from "antd";
 import { accessPublicShare, downloadPublicShareFile } from "../../api/storage.js";
 
@@ -12,6 +12,7 @@ export function SharePublicPanel({ normalizedBaseUrl, shareId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shareData, setShareData] = useState(null);
+  const [autoVerifyCode, setAutoVerifyCode] = useState("");
 
   const columns = useMemo(() => ([
     { title: "文件名", dataIndex: "fileName", key: "fileName" },
@@ -60,6 +61,25 @@ export function SharePublicPanel({ normalizedBaseUrl, shareId }) {
     }
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search || "");
+    const codeFromURL = (params.get("code") || params.get("shareCode") || "").trim();
+    if (!codeFromURL) {
+      return;
+    }
+    setShareCode(codeFromURL);
+    setAutoVerifyCode(codeFromURL);
+  }, []);
+
+  useEffect(() => {
+    if (!autoVerifyCode.trim()) {
+      return;
+    }
+    handleVerify();
+    setAutoVerifyCode("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoVerifyCode]);
+
   return (
     <div className="mcd-share-shell">
       <Card className="mcd-share-card">
@@ -78,6 +98,8 @@ export function SharePublicPanel({ normalizedBaseUrl, shareId }) {
             <>
               <Space>
                 <Tag color="blue">{shareData.shareName}</Tag>
+                <Tag color="geekblue">{shareData.workspaceName || shareData.workspaceId || "未知空间"}</Tag>
+                <Tag color="purple">{shareData.storageSettingName || shareData.storageSettingId || "未知配置"}</Tag>
                 <Tag color={shareData.allowDownload ? "green" : "orange"}>
                   {shareData.allowDownload ? "允许下载" : "仅展示不可下载"}
                 </Tag>
