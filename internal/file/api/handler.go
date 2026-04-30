@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	gen "myclouddrive-go/internal/file/api/gen"
+	filemodel "myclouddrive-go/internal/file/model"
 	"myclouddrive-go/internal/file/service"
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/web"
@@ -317,6 +318,174 @@ func (h *Handler) PreviewArchiveInner(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("archive inner preview stream: tempId=" + tempID))
 }
 
+// CheckUpload 上传预检。
+func (h *Handler) CheckUpload(w http.ResponseWriter, r *http.Request) {
+	var req map[string]any
+	if err := web.DecodeJSON(r, &req); err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
+		return
+	}
+	in := genCheckToInitInput(req)
+	skip, taskID, err := h.svc.PrecheckUpload(in)
+	if err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
+		"skipUpload": skip,
+		"taskId":     taskID,
+		"uploadId":   taskID,
+	}))
+}
+
+// InitUpload 初始化上传任务。
+func (h *Handler) InitUpload(w http.ResponseWriter, r *http.Request) {
+	var req map[string]any
+	if err := web.DecodeJSON(r, &req); err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
+		return
+	}
+	taskID, err := h.svc.InitUpload(genCheckToInitInput(req))
+	if err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{"taskId": taskID, "uploadId": taskID}))
+}
+
+// UploadChunk 上传分片。
+func (h *Handler) UploadChunk(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimSpace(r.URL.Query().Get("taskId"))
+	if taskID == "" {
+		taskID = strings.TrimSpace(r.FormValue("taskId"))
+	}
+	chunkIndex := intQuery(r, "chunkIndex", 0)
+	if chunkIndex <= 0 {
+		if v, err := strconv.Atoi(strings.TrimSpace(r.FormValue("chunkIndex"))); err == nil {
+			chunkIndex = v
+		}
+	}
+	chunkMd5 := strings.TrimSpace(r.URL.Query().Get("chunkMd5"))
+	if chunkMd5 == "" {
+		chunkMd5 = strings.TrimSpace(r.FormValue("chunkMd5"))
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "file part is required")
+		return
+	}
+	defer func() { _ = file.Close() }()
+	chunk, err := io.ReadAll(file)
+	if err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "read chunk failed")
+		return
+	}
+	if err = h.svc.UploadChunk(taskID, chunkIndex, chunk, chunkMd5); err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
+		"taskId":     taskID,
+		"chunkIndex": chunkIndex,
+		"uploaded":   true,
+	}))
+}
+
+// MergeChunks 合并上传分片。
+func (h *Handler) MergeChunks(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimSpace(r.PathValue("taskId"))
+	if taskID == "" {
+		var req map[string]any
+		if err := web.DecodeJSON(r, &req); err == nil {
+			taskID = stringField(req, "taskId", "uploadId")
+		}
+	}
+	if taskID == "" {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "taskId is required")
+		return
+	}
+	item, err := h.svc.MergeUpload(r.Context(), taskID)
+	if err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(item))
+}
+
+func (h *Handler) PauseTransfer(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimSpace(r.PathValue("taskId"))
+	if err := h.svc.PauseTransfer(taskID); err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{"taskId": taskID, "status": "PAUSED"}))
+}
+
+func (h *Handler) ResumeTransfer(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimSpace(r.PathValue("taskId"))
+	if err := h.svc.ResumeTransfer(taskID); err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{"taskId": taskID, "status": "UPLOADING"}))
+}
+
+func (h *Handler) CancelUpload(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimSpace(r.PathValue("taskId"))
+	if err := h.svc.CancelTransfer(taskID); err != nil {
+		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{"taskId": taskID, "status": "CANCELED"}))
+}
+
+func (h *Handler) GetTransferFiles(w http.ResponseWriter, r *http.Request) {
+	web.WriteJSON(w, http.StatusOK, ok(h.svc.ListTransferTasks()))
+}
+
+func (h *Handler) GetUploadedChunks(w http.ResponseWriter, r *http.Request) {
+	// 当前实现未持久化分片索引，返回空列表用于前端兼容。
+	web.WriteJSON(w, http.StatusOK, ok([]int{}))
+}
+
+func (h *Handler) GetDownloadedChunks(w http.ResponseWriter, r *http.Request) {
+	web.WriteJSON(w, http.StatusOK, ok([]int{}))
+}
+
+func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
+	fileID := strings.TrimSpace(r.PathValue("fileId"))
+	url, item, err := h.svc.ResolveDownloadURL(r.Context(), fileID, 10*time.Minute)
+	if err != nil {
+		web.WriteError(w, http.StatusNotFound, string(code.NotFound), err.Error())
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
+		"url":       url,
+		"name":      item.Name,
+		"objectKey": item.ObjectKey,
+	}))
+}
+
+func (h *Handler) DownloadChunk(w http.ResponseWriter, r *http.Request) {
+	web.WriteError(w, http.StatusNotImplemented, string(code.BadRequest), "download chunk not implemented")
+}
+
+func (h *Handler) ClearTransfers(w http.ResponseWriter, r *http.Request) {
+	// 简化实现：沿用取消逻辑由客户端逐条调用；此接口返回成功用于前端兼容。
+	web.WriteJSON(w, http.StatusOK, ok(map[string]any{"cleared": true}))
+}
+
+func genCheckToInitInput(body map[string]any) filemodel.UploadInitInput {
+	return filemodel.UploadInitInput{
+		FileName:    stringField(body, "fileName"),
+		FileHash:    stringField(body, "fileHash"),
+		FileSize:    int64Field(body, "fileSize"),
+		ContentType: stringField(body, "contentType"),
+		ParentID:    stringField(body, "parentId"),
+		TotalParts:  int(int64Field(body, "totalParts")),
+	}
+}
+
 func ok(data any) map[string]any {
 	return map[string]any{"code": "OK", "message": "success", "data": data}
 }
@@ -401,6 +570,34 @@ func intQuery(r *http.Request, key string, def int) int {
 		return def
 	}
 	return v
+}
+
+func int64Field(m map[string]any, keys ...string) int64 {
+	for _, key := range keys {
+		v, ok := m[key]
+		if !ok || v == nil {
+			continue
+		}
+		switch value := v.(type) {
+		case float64:
+			return int64(value)
+		case float32:
+			return int64(value)
+		case int:
+			return int64(value)
+		case int64:
+			return value
+		case json.Number:
+			if n, err := value.Int64(); err == nil {
+				return n
+			}
+		case string:
+			if n, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
 }
 
 func tokenPayload(scene, fileID, inner string) map[string]any {

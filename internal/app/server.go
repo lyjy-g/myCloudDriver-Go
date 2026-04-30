@@ -72,6 +72,7 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 	jwtSvc := security.NewJWTService(jwtSecret)
 
 	handler := security.AuthMiddleware(jwtSvc, rdb)(mux)
+	handler = security.WorkspaceScopeMiddleware(db)(handler)
 	handler = web.CORSMiddleware(web.DefaultCORSOptions())(handler)
 	handler = logx.LoggingMiddleware(handler)
 	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil

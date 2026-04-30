@@ -31,7 +31,9 @@ import {
   updateActiveWorkspace,
   updateActiveStorage,
   updateShare,
-  uploadPart
+  uploadPart,
+  setCurrentWorkspaceId,
+  setCurrentStorageSettingId
 } from "../api/storage.js";
 import { DEFAULT_CHUNK_SIZE, ROOT_PARENT_ID } from "../constants/appConfig.js";
 import { calculateHash } from "../utils/hash.js";
@@ -1060,6 +1062,14 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       )
     }
   ]), [handleEditShare, handleAccessShare, notifySuccess]);
+
+  useEffect(() => {
+    setCurrentWorkspaceId(activeWorkspace?.workspaceId || "");
+  }, [activeWorkspace]);
+
+  useEffect(() => {
+    setCurrentStorageSettingId(activeStorage?.settingId || "");
+  }, [activeStorage]);
 
   useEffect(() => {
     if (!authenticated) {

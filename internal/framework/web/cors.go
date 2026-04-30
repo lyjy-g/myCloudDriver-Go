@@ -21,7 +21,7 @@ func DefaultCORSOptions() CORSOptions {
 	return CORSOptions{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Authorization", "Content-Type", "X-Requested-With", "Idempotency-Key", "X-Workspace-Id"},
+		AllowHeaders:     []string{"Authorization", "Content-Type", "X-Requested-With", "Idempotency-Key", "X-Workspace-Id", "X-Storage-Setting-Id"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type", "X-Idempotent-Replayed"},
 		AllowCredentials: false,
 		MaxAgeSeconds:    600,

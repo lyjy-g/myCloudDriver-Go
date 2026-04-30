@@ -57,7 +57,7 @@ var (
 )
 
 // NewFileService 创建文件服务。
-func NewFileService(storage *storagesvc.StorageService) *FileService {
+func NewFileService(storage *storagesvc.StorageService, _ ...any) *FileService {
 	now := time.Now()
 	root := &filemodel.FileItem{
 		ID:        "root",

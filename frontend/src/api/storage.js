@@ -4,6 +4,16 @@
  */
 
 export const AUTH_TOKEN_KEY = "mcd-console-auth-token";
+let currentWorkspaceId = "";
+let currentStorageSettingId = "";
+
+export function setCurrentWorkspaceId(workspaceId) {
+  currentWorkspaceId = String(workspaceId || "").trim();
+}
+
+export function setCurrentStorageSettingId(settingId) {
+  currentStorageSettingId = String(settingId || "").trim();
+}
 
 export function saveAuthToken(token) {
   if (!token) {
@@ -37,6 +47,12 @@ function buildHeaders(headers = {}, withAuth = true, withIdempotency = false) {
   }
   if (withIdempotency) {
     finalHeaders["Idempotency-Key"] = createIdempotencyKey();
+  }
+  if (currentWorkspaceId) {
+    finalHeaders["X-Workspace-Id"] = currentWorkspaceId;
+  }
+  if (currentStorageSettingId) {
+    finalHeaders["X-Storage-Setting-Id"] = currentStorageSettingId;
   }
   return finalHeaders;
 }
