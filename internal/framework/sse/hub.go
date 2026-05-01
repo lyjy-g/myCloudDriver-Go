@@ -65,7 +65,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Send 向所有连接的客户端发送事件。
+// Send 向所有连接的客户端发送事件。仅用于全局广播（系统状态变更），
+// 禁止在此写入用户级敏感数据——这会跨用户泄漏。
 func (b *Broker) Send(evt Event) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
