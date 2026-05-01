@@ -1,0 +1,1261 @@
+openapi: 3.0.3
+info:
+  title: MyCloudDrive Agent API
+  version: 1.0.0
+  description: |
+    Agent 模块统一接口契约。四种 Agent 共享同一套接口，通过 mode/scope 参数区分行为。
+
+    ## 四种 Agent 的配合方式
+
+    ### 检索型 Agent（mode=search）
+    一问一答，同步返回。适合文件搜索、分享查询、聚合统计。
+    ```
+    用户 → POST /apis/agent/query → LLM 决策 → 工具调用 → 摘要 → 返回
+    ```
+
+    ### 执行型 Agent（mode=execute）
+    Plan-Confirm-Execute 三步流程，需人工确认高风险操作。
+    ```
+    用户 → POST /apis/agent/stream → LLM 决策 → Planner 生成 plan
+         → event: plan → 前端展示 plan 给用户
+    用户确认 → POST /apis/agent/confirm → 执行工具 → event: tool.done → 摘要
+    ```
+
+    ### RAG Agent（mode=rag）
+    知识库问答。先通过 Knowledge CRUD 管理知识库，再通过 query/stream 检索。
+    ```
+    用户 → POST /apis/agent/knowledge 管理知识库
+         → POST /apis/agent/knowledge/{kbId}/file 导入文件
+         → POST /apis/agent/query?mode=rag 提问（自动检索知识库）
+    ```
+
+    ### Workflow Agent（mode=workflow）
+    编排执行。先通过 Workflow CRUD 定义工作流，再通过 stream 执行。
+    ```
+    用户 → POST /apis/agent/workflow 创建/更新工作流定义
+         → POST /apis/agent/stream?mode=workflow 按工作流定义执行
+         → POST /apis/agent/workflow/run/{runId} 查询执行状态
+    ```
+servers:
+  - url: /
+paths:
+
+  # ============================================================
+  # Agent 查询（检索型 + RAG 型）
+  # ============================================================
+  /apis/agent/query:
+    post:
+      summary: 同步 Agent 查询
+      description: |
+        适用模式：search（检索型）、rag（知识库问答）。
+
+        流程图：
+        1. LLM 解析用户意图 → 选择工具列表
+        2. 顺序/并行调用工具
+        3. LLM 汇总工具结果
+        4. 一次性返回 QueryResponse
+
+        execute 和 workflow 模式不适用此接口，应使用流式接口。
+      operationId: agentQuery
+      tags: [Agent 查询]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /apis/agent/stream:
+    post:
+      summary: 流式 Agent 查询（SSE）
+      description: |
+        适用模式：search / execute / rag / workflow（所有模式均支持流式）。
+
+        SSE 事件类型（按 event 字段区分）：
+
+        | event | 触发时机 | data 说明 |
+        |-------|---------|---------|
+        | start | 请求开始 | mode, query |
+        | llm.decide.start | LLM 开始决策 | query |
+        | llm.decide.done | LLM 决策完成 | intent, tools |
+        | tool.start | 工具开始执行 | tool |
+        | tool.done | 工具执行完成 | tool, source, count, latencyMs |
+        | tool.error | 工具执行失败 | tool, error, latencyMs |
+        | plan | 执行计划生成 | PlanId, steps, risk, summary |
+        | confirm.required | 高风险操作待确认 | planId, risk, message |
+        | confirm.accepted | 用户确认通过 | planId |
+        | confirm.rejected | 用户拒绝 | planId |
+        | summarize.start | LLM 开始汇总 | items 数量 |
+        | summarize.done | 汇总完成 | summary |
+        | error | 流程中发生异常 | message |
+        | done | 全部完成 | status: "ok" |
+
+        execute 模式的完整流程：
+        ```
+        event: start
+        event: llm.decide.done  →  {intent:"create_share", tools:["tool.share.create"]}
+        event: plan             →  展示执行计划
+        event: confirm.required →  前端弹窗等待用户
+        (用户调用 POST /apis/agent/confirm)
+        event: confirm.accepted
+        event: tool.start       →  {tool:"tool.share.create"}
+        event: tool.done        →  {tool:"tool.share.create", status:"ok"}
+        event: summarize.done
+        event: done
+        ```
+      operationId: agentStreamQuery
+      tags: [Agent 查询]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: SSE 事件流（text/event-stream）
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================================
+  # Agent 执行记录
+  # ============================================================
+  /apis/agent/actions:
+    get:
+      summary: 获取执行记录列表
+      description: |
+        按时间倒序返回当前用户的 Agent 执行记录。
+        支持按 mode、status、workspace 过滤。
+        适用于四种 Agent 的历史回溯。
+      operationId: listAgentActions
+      tags: [Agent 执行记录]
+      parameters:
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [search, execute, rag, workflow]
+          description: 按执行模式过滤
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [running, success, failed, waiting_confirm]
+          description: 按状态过滤
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 执行记录列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionListResponse'
+
+  /apis/agent/action/{traceId}:
+    get:
+      summary: 查询单次执行记录详情
+      description: |
+        包含完整的步骤列表、工具调用记录和执行结果。
+        适用于审计回溯和面试展示"全链路可观测性"。
+      operationId: getAgentAction
+      tags: [Agent 执行记录]
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 执行记录详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResponse'
+        '404':
+          description: 记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================================
+  # 执行确认（执行型 Agent 专用）
+  # ============================================================
+  /apis/agent/confirm/{traceId}:
+    post:
+      summary: 确认或拒绝高风险操作
+      description: |
+        仅 execute 模式使用。用户在 stream 中收到 confirm.required 事件后，
+        调用此接口确认或拒绝执行计划。
+
+        确认后服务端继续执行：tool.start → tool.done → summarize → done
+        拒绝后直接结束：event: confirm.rejected → event: done
+      operationId: confirmAction
+      tags: [Agent 执行]
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Workspace-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+      responses:
+        '200':
+          description: 确认成功，开始执行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecuteResponse'
+        '400':
+          description: 参数错误或确认超时
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================================
+  # 会话管理（所有模式共享）
+  # ============================================================
+  /apis/agent/session:
+    post:
+      summary: 创建或恢复多轮对话会话
+      description: |
+        四种 Agent 共享会话管理。会话用于保持多轮对话的上下文：
+        - 历史消息（user query + agent response）
+        - 引用的文件/分享 ID
+        - 临时变量
+
+        会话 TTL 默认 30 分钟，超过自动过期。
+      operationId: createSession
+      tags: [Agent 会话]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRequest'
+      responses:
+        '200':
+          description: 会话创建/恢复成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+
+  /apis/agent/session/{sessionId}:
+    delete:
+      summary: 关闭并清理会话
+      operationId: deleteSession
+      tags: [Agent 会话]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 已关闭
+
+  /apis/agent/sessions:
+    get:
+      summary: 获取当前用户的活跃会话列表
+      operationId: listSessions
+      tags: [Agent 会话]
+      responses:
+        '200':
+          description: 会话列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+
+  # ============================================================
+  # 知识库管理（RAG Agent 专用）
+  # ============================================================
+  /apis/agent/knowledge:
+    post:
+      summary: 创建知识库
+      description: |
+        RAG Agent 专用。知识库是文档检索的容器，一个工作空间可创建多个知识库。
+        创建后可通过导入文件接口添加文档。
+      operationId: createKnowledge
+      tags: [Agent 知识库]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateKnowledgeRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeResponse'
+    get:
+      summary: 获取知识库列表
+      description: 查询当前工作空间的所有知识库。
+      operationId: listKnowledge
+      tags: [Agent 知识库]
+      responses:
+        '200':
+          description: 知识库列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeListResponse'
+
+  /apis/agent/knowledge/{kbId}:
+    get:
+      summary: 查询知识库详情
+      operationId: getKnowledge
+      tags: [Agent 知识库]
+      parameters:
+        - name: kbId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 知识库详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeResponse'
+        '404':
+          description: 知识库不存在
+    delete:
+      summary: 删除知识库（含所有文件）
+      operationId: deleteKnowledge
+      tags: [Agent 知识库]
+      parameters:
+        - name: kbId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 已删除
+
+  /apis/agent/knowledge/{kbId}/file:
+    post:
+      summary: 导入文件到知识库
+      description: |
+        将存储中的文件导入知识库。导入后自动触发：
+        解析（parse） → 切片（chunk） → 向量化（embed） → 入索引（index）
+        可通过文件状态接口查询各阶段进度。
+      operationId: addKnowledgeFile
+      tags: [Agent 知识库]
+      parameters:
+        - name: kbId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddKnowledgeFileRequest'
+      responses:
+        '200':
+          description: 导入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeFileResponse'
+    get:
+      summary: 获取知识库文件列表
+      operationId: listKnowledgeFiles
+      tags: [Agent 知识库]
+      parameters:
+        - name: kbId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 文件列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeFileListResponse'
+
+  /apis/agent/knowledge/{kbId}/file/{fileId}:
+    delete:
+      summary: 从知识库移除文件
+      operationId: removeKnowledgeFile
+      tags: [Agent 知识库]
+      parameters:
+        - name: kbId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 已移除
+
+  # ============================================================
+  # 工作流管理（Workflow Agent 专用）
+  # ============================================================
+  /apis/agent/workflow:
+    post:
+      summary: 创建或更新工作流定义
+      description: |
+        Workflow Agent 专用。使用 JSON DSL 定义工作流。
+        支持四种节点：tool（工具调用）、condition（条件分支）、
+        llm（大模型处理）、manual_confirm（人工确认）。
+
+        示例 DSL 见 components.schemas.WorkflowDefinition。
+      operationId: saveWorkflow
+      tags: [Agent 工作流]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveWorkflowRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+    get:
+      summary: 获取工作流定义列表
+      operationId: listWorkflows
+      tags: [Agent 工作流]
+      responses:
+        '200':
+          description: 工作流列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowListResponse'
+
+  /apis/agent/workflow/{wfId}:
+    get:
+      summary: 查询工作流定义详情
+      operationId: getWorkflow
+      tags: [Agent 工作流]
+      parameters:
+        - name: wfId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 工作流详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '404':
+          description: 不存在
+    delete:
+      summary: 删除工作流定义
+      operationId: deleteWorkflow
+      tags: [Agent 工作流]
+      parameters:
+        - name: wfId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 已删除
+
+  /apis/agent/workflow/run/{wfRunId}:
+    get:
+      summary: 查询工作流运行状态
+      description: |
+        按 workflow mode 执行后，通过此接口轮询或查询运行结果。
+        包含每个节点的执行状态、输入输出、耗时等。
+      operationId: getWorkflowRun
+      tags: [Agent 工作流]
+      parameters:
+        - name: wfRunId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 运行记录详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunResponse'
+        '404':
+          description: 不存在
+
+  /apis/agent/workflow/hook:
+    post:
+      summary: 外部事件触发工作流（Webhook）
+      description: |
+        支持通过外部事件（文件上传完成/分享创建等）触发工作流执行。
+        body 中的事件类型映射到已注册的工作流定义。
+      operationId: triggerWorkflowWebhook
+      tags: [Agent 工作流]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookRequest'
+      responses:
+        '200':
+          description: 触发成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunResponse'
+
+  # ============================================================
+  # 工具调用历史（通用）
+  # ============================================================
+  /apis/agent/tool/calls:
+    get:
+      summary: 获取工具调用历史
+      description: |
+        所有 Agent 模式共享的工具调用记录。用于调试、审计和面试展示"可观测性"。
+        支持按 traceId、toolName、status 过滤。
+      operationId: listToolCalls
+      tags: [Agent 审计]
+      parameters:
+        - name: traceId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: toolName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failed]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 工具调用记录列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCallListResponse'
+
+components:
+  schemas:
+    # ============================================================
+    # 查询请求/响应
+    # ============================================================
+    QueryRequest:
+      type: object
+      description: |
+        Agent 查询的统一入参。四种 Agent 共享此结构，通过 mode 区分行为。
+
+        - search 模式：必需 query，同步/流式均可
+        - execute 模式：必需 query，建议用流式（stream）以支持 Plan-Confirm 流程
+        - rag 模式：必需 query，可选 kbId 指定知识库
+        - workflow 模式：必需 query + wfId 指定工作流
+      properties:
+        query:
+          type: string
+          description: 用户查询内容，如"最近上传了哪些文件"、"帮我创建24小时分享"
+        scope:
+          type: string
+          enum: [auto, workspace, storage_setting]
+          default: auto
+          description: 查询范围。auto=自动判断，workspace=整个工作空间，storage_setting=指定存储配置
+        mode:
+          type: string
+          enum: [search, execute, rag, workflow]
+          default: search
+          description: |
+            执行模式：
+            - search: 检索型 Agent，LLM 决策 → 工具调用 → 摘要
+            - execute: 执行型 Agent，LLM 决策 → Plan → Confirm → 执行
+            - rag: RAG Agent，检索知识库 → 混合召回 → LLM 回答
+            - workflow: Workflow Agent，按预设工作流编排执行
+        workspaceId:
+          type: string
+          description: 工作空间 ID（默认从 X-Workspace-Id Header 读取）
+        storageSettingId:
+          type: string
+          description: 存储配置 ID（默认从 X-Storage-Setting-Id Header 读取）
+        traceId:
+          type: string
+          description: 链路追踪 ID。留空自动生成，用于串联审计日志
+        sessionId:
+          type: string
+          description: 多轮对话会话 ID。留空则每次视为独立查询
+        kbId:
+          type: string
+          description: rag 模式专用：知识库 ID，指定检索范围
+        wfId:
+          type: string
+          description: workflow 模式专用：工作流定义 ID
+      required: [query]
+
+    QueryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        msg:
+          type: string
+          example: success
+        data:
+          $ref: '#/components/schemas/AgentResult'
+
+    AgentResult:
+      type: object
+      description: 同步查询的统一响应。含 traceId 便于串联审计。
+      properties:
+        traceId:
+          type: string
+        routeMode:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        intent:
+          type: string
+        sources:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            type: object
+        summary:
+          type: string
+        toolResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolResult'
+        partial:
+          type: boolean
+          description: 部分结果（某些工具执行失败时仍返回已成功的结果）
+        createdAt:
+          type: string
+          format: date-time
+
+    ToolResult:
+      type: object
+      properties:
+        tool:
+          type: string
+        status:
+          type: string
+          enum: [ok, error]
+        latencyMs:
+          type: integer
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: object
+          nullable: true
+
+    # ============================================================
+    # 执行确认
+    # ============================================================
+    ConfirmRequest:
+      type: object
+      description: |
+        用户对高风险执行计划的确认/拒绝。
+        前端从 stream 的 confirm.required 事件获取 planId。
+      properties:
+        confirmed:
+          type: boolean
+          description: true=确认执行，false=拒绝
+        planId:
+          type: string
+          description: 执行计划 ID（从 stream 的 confirm.required 事件中获取）
+      required: [confirmed, planId]
+
+    ExecuteResponse:
+      type: object
+      description: 确认后的执行结果（流式场景下后续事件继续通过 SSE 推送）
+      properties:
+        code:
+          type: integer
+          example: 200
+        msg:
+          type: string
+          example: accepted
+
+    # ============================================================
+    # 执行记录
+    # ============================================================
+    ActionListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: object
+          properties:
+            total:
+              type: integer
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ActionSummary'
+            page:
+              type: integer
+            size:
+              type: integer
+
+    ActionSummary:
+      type: object
+      properties:
+        traceId:
+          type: string
+        mode:
+          type: string
+        query:
+          type: string
+        intent:
+          type: string
+        status:
+          type: string
+        riskLevel:
+          type: string
+        toolCount:
+          type: integer
+        totalLatencyMs:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ActionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          $ref: '#/components/schemas/ActionDetail'
+
+    ActionDetail:
+      type: object
+      description: 含完整步骤和工具调用的执行记录详情。
+      properties:
+        traceId:
+          type: string
+        sessionId:
+          type: string
+        workspaceId:
+          type: string
+        userId:
+          type: string
+        query:
+          type: string
+        mode:
+          type: string
+        status:
+          type: string
+        riskLevel:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionStep'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ActionStep:
+      type: object
+      properties:
+        stepNo:
+          type: integer
+        stepType:
+          type: string
+          enum: [plan, tool_call, observe, final]
+        toolName:
+          type: string
+        status:
+          type: string
+        content:
+          type: string
+        latencyMs:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    # ============================================================
+    # 会话
+    # ============================================================
+    SessionRequest:
+      type: object
+      description: 创建新会话或恢复已有会话。
+      properties:
+        sessionId:
+          type: string
+          description: 已有 sessionId 时恢复对话；为空则新建
+        workspaceId:
+          type: string
+          description: 工作空间 ID
+
+    SessionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          $ref: '#/components/schemas/SessionDetail'
+
+    SessionDetail:
+      type: object
+      description: 会话详情，含上下文信息。
+      properties:
+        sessionId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: TTL 过期时间
+        historyCount:
+          type: integer
+          description: 历史消息条数
+        mode:
+          type: string
+          description: 上次使用的模式
+
+    SessionListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionDetail'
+
+    # ============================================================
+    # 知识库（RAG Agent）
+    # ============================================================
+    CreateKnowledgeRequest:
+      type: object
+      description: 创建知识库。一个 workspace 可有多个知识库，每个知识库对应独立的向量索引。
+      properties:
+        name:
+          type: string
+          description: 知识库名称
+        description:
+          type: string
+          description: 知识库描述
+      required: [name]
+
+    KnowledgeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          $ref: '#/components/schemas/KnowledgeDetail'
+
+    KnowledgeDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        fileCount:
+          type: integer
+          description: 已导入文件数
+        chunkCount:
+          type: integer
+          description: 切片数
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    KnowledgeListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeDetail'
+
+    AddKnowledgeFileRequest:
+      type: object
+      description: 导入文件到知识库。文件需在当前 workspace 的存储配置中。
+      properties:
+        fileId:
+          type: string
+          description: 文件 ID
+        storageSettingId:
+          type: string
+          description: 文件所属的存储配置 ID
+      required: [fileId]
+
+    KnowledgeFileResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          $ref: '#/components/schemas/KnowledgeFileDetail'
+
+    KnowledgeFileDetail:
+      type: object
+      description: 文件处理状态。通过 parseStatus/chunkStatus/embedStatus/indexStatus 追踪进度。
+      properties:
+        id:
+          type: integer
+        fileId:
+          type: string
+        fileName:
+          type: string
+        parseStatus:
+          type: string
+          enum: [pending, processing, done, failed]
+        chunkStatus:
+          type: string
+          enum: [pending, processing, done, failed]
+        embedStatus:
+          type: string
+          enum: [pending, processing, done, failed]
+        indexStatus:
+          type: string
+          enum: [pending, processing, done, failed]
+        createdAt:
+          type: string
+          format: date-time
+
+    KnowledgeFileListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeFileDetail'
+
+    # ============================================================
+    # 工作流（Workflow Agent）
+    # ============================================================
+    SaveWorkflowRequest:
+      type: object
+      description: |
+        保存工作流定义。使用 JSON DSL 描述。
+
+        示例：
+        {
+          "name": "文件扫描并创建分享",
+          "dsl": {
+            "startNodeId": "n1",
+            "nodes": [
+              {"id": "n1", "type": "tool", "label": "搜索文件", "config": {"toolName": "tool.file.search"}, "next": "n2"},
+              {"id": "n2", "type": "condition", "label": "数量检查", "config": {"field": "items.length", "operator": "gt", "value": "10"}, "nextOnOk": "n3", "nextOnNo": "n4"},
+              {"id": "n3", "type": "manual_confirm", "label": "确认分享", "config": {"message": "是否创建分享？", "timeoutSec": 300}}
+            ]
+          }
+        }
+      properties:
+        id:
+          type: string
+          description: 留空时创建新工作流，不为空时更新已有定义
+        name:
+          type: string
+          description: 工作流名称
+        dsl:
+          type: object
+          description: 工作流 JSON DSL
+        enabled:
+          type: boolean
+          description: 是否启用
+          default: true
+
+    WorkflowResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          $ref: '#/components/schemas/WorkflowDetail'
+
+    WorkflowDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        runCount:
+          type: integer
+        lastRunAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    WorkflowListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowDetail'
+
+    WorkflowRunResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          $ref: '#/components/schemas/WorkflowRunDetail'
+
+    WorkflowRunDetail:
+      type: object
+      description: 工作流运行记录，含每个节点的执行详情。
+      properties:
+        id:
+          type: integer
+        workflowId:
+          type: integer
+        status:
+          type: string
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              nodeId:
+                type: string
+              nodeType:
+                type: string
+              status:
+                type: string
+              input:
+                type: object
+              output:
+                type: object
+              error:
+                type: string
+              latencyMs:
+                type: integer
+              startedAt:
+                type: string
+                format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WebhookRequest:
+      type: object
+      description: |
+        外部事件 webhook 触发工作流。eventType 映射到已注册的工作流定义。
+        当前支持的事件类型：
+        - file.uploaded: 文件上传完成
+        - share.created: 分享创建完成
+        - schedule.cron: 定时触发
+      properties:
+        eventType:
+          type: string
+          description: 事件类型，如 file.uploaded
+        payload:
+          type: object
+          description: 事件载荷（文件ID、分享ID等）
+      required: [eventType]
+
+    # ============================================================
+    # 工具调用历史
+    # ============================================================
+    ToolCallListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: object
+          properties:
+            total:
+              type: integer
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ToolCallRecord'
+            page:
+              type: integer
+            size:
+              type: integer
+
+    ToolCallRecord:
+      type: object
+      description: 工具调用记录。含入参、出参、耗时、状态，用于全链路审计。
+      properties:
+        id:
+          type: integer
+        runId:
+          type: string
+        stepId:
+          type: integer
+        toolName:
+          type: string
+        status:
+          type: string
+        input:
+          type: object
+        output:
+          type: object
+        errorMessage:
+          type: string
+        costMs:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
