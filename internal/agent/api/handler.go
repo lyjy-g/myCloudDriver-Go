@@ -36,6 +36,12 @@ func (h *Handler) Query(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.StorageSettingID) == "" {
 		req.StorageSettingID = strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id"))
 	}
+	if strings.TrimSpace(req.Scope) == "" {
+		req.Scope = "auto"
+	}
+	if strings.TrimSpace(req.Mode) == "" {
+		req.Mode = "search"
+	}
 	resp, err := h.svc.Query(r.Context(), req)
 	if err != nil {
 		switch {

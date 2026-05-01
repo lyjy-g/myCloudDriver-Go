@@ -2,12 +2,13 @@ package module
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"myclouddrive-go/internal/agent/api"
-	agentaudit "myclouddrive-go/internal/agent/audit"
 	agentllm "myclouddrive-go/internal/agent/llm"
 	agentsvc "myclouddrive-go/internal/agent/service"
 	agenttool "myclouddrive-go/internal/agent/tool"
@@ -43,14 +44,16 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 		agenttool.NewShareListTool(shareService),
 		agenttool.NewShareRecordsTool(shareService),
 	)
+	if strings.EqualFold(strings.TrimSpace(deps.Config.LLM.Provider), "deepseek") && strings.TrimSpace(deps.Config.LLM.APIKey) == "" {
+		return fmt.Errorf("llm.api_key is empty in configs/config.yaml")
+	}
 	llmProvider := agentllm.NewDeepSeekProvider(
 		deps.Config.LLM.BaseURL,
 		deps.Config.LLM.APIKey,
 		deps.Config.LLM.Model,
 		time.Duration(deps.Config.LLM.TimeoutMs)*time.Millisecond,
 	)
-	audit := agentaudit.NewLogger(deps.DB)
-	svc := agentsvc.New(registry, audit, llmProvider)
+	svc := agentsvc.New(registry, llmProvider)
 	if err := svc.EnsureSchema(context.Background()); err != nil {
 		log.Printf("agent ensure schema failed: %v", err)
 	}

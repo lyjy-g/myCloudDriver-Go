@@ -172,6 +172,8 @@ export function queryAgent(baseUrl, payload) {
   return requestJson("POST", `${baseUrl}/apis/agent/query`, {
     body: {
       query: payload?.query || "",
+      scope: payload?.scope || "auto",
+      mode: payload?.mode || "search",
       workspaceId: payload?.workspaceId || "",
       storageSettingId: payload?.storageSettingId || "",
       traceId: payload?.traceId || ""

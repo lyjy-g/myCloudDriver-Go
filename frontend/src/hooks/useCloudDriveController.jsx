@@ -109,6 +109,11 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [shares, setShares] = useState([]);
   const [agentQuery, setAgentQuery] = useState("");
   const [agentResult, setAgentResult] = useState(null);
+  const [agentScope, setAgentScope] = useState("auto");
+  const [agentMode, setAgentMode] = useState("search");
+  const [agentChatCollapsed, setAgentChatCollapsed] = useState(false);
+  const [agentInputCollapsed, setAgentInputCollapsed] = useState(false);
+  const [agentRunning, setAgentRunning] = useState(false);
   const [currentParentId, setCurrentParentId] = useState(ROOT_PARENT_ID);
   const [directoryTrail, setDirectoryTrail] = useState([{ id: ROOT_PARENT_ID, name: "根目录" }]);
   const [platforms, setPlatforms] = useState([]);
@@ -146,6 +151,15 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     () => `mcd-enabled-storage:${activeWorkspace?.workspaceId || "default"}`,
     [activeWorkspace?.workspaceId]
   );
+  const agentScopeOptions = useMemo(() => {
+    const options = (storageSettings || []).map((item) => ({
+      value: item.settingId,
+      label: item.storageSettingName || item.name || item.settingId
+    }));
+    options.push({ value: "workspace", label: "工作空间" });
+    options.push({ value: "auto", label: "自动" });
+    return options;
+  }, [storageSettings]);
 
   const loadStorageMeta = useCallback(async () => {
     setError("");
@@ -943,6 +957,9 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   }, [notifyWarning]);
 
   const handleAgentQuery = useCallback(async () => {
+    if (agentRunning) {
+      return;
+    }
     const q = String(agentQuery || "").trim();
     if (!q) {
       notifyWarning("请输入检索问题");
@@ -950,11 +967,26 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
     setError("");
     setLoading(true);
+    setAgentRunning(true);
     try {
+      const selectedScope = String(agentScope || "").trim();
+      let scope = "auto";
+      let storageSettingId = activeStorage?.settingId || "";
+      if (selectedScope === "workspace") {
+        scope = "workspace";
+        storageSettingId = "";
+      } else if (selectedScope === "auto") {
+        scope = "auto";
+      } else if (selectedScope) {
+        scope = "storage_setting";
+        storageSettingId = selectedScope;
+      }
       const result = await queryAgent(normalizedBaseUrl, {
         query: q,
+        scope,
+        mode: agentMode,
         workspaceId: activeWorkspace?.workspaceId || "",
-        storageSettingId: activeStorage?.settingId || ""
+        storageSettingId
       });
       const payload = result?.data || result;
       setAgentResult(payload || null);
@@ -963,8 +995,21 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setError(err instanceof Error ? err.message : "Agent 检索失败");
     } finally {
       setLoading(false);
+      setAgentRunning(false);
     }
-  }, [agentQuery, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess]);
+  }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess]);
+
+  useEffect(() => {
+    if (activeMenu === "knowledge") {
+      setAgentScope("workspace");
+      return;
+    }
+    if (activeMenu === "files" || activeMenu === "trash") {
+      setAgentScope(activeStorage?.settingId || "auto");
+      return;
+    }
+    setAgentScope("auto");
+  }, [activeMenu, activeStorage]);
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
@@ -1203,6 +1248,12 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     shares,
     agentQuery,
     agentResult,
+    agentScope,
+    agentScopeOptions,
+    agentMode,
+    agentChatCollapsed,
+    agentInputCollapsed,
+    agentRunning,
     currentParentId,
     directoryTrail,
     platforms,
@@ -1222,6 +1273,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     shareColumns,
     setActiveMenu,
     setAgentQuery,
+    setAgentScope,
+    setAgentMode,
+    setAgentChatCollapsed,
+    setAgentInputCollapsed,
     setDrawerOpen,
     setSelectedFile,
     loadStorageMeta,

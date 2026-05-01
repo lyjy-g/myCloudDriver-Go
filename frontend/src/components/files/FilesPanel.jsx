@@ -32,7 +32,8 @@ const { Text } = Typography;
  *   agentQuery: string,
  *   agentResult: object,
  *   onAgentQueryChange: Function,
- *   onAgentSubmit: Function
+ *   onAgentSubmit: Function,
+ *   agentChatCollapsed: boolean
  * }} props 组件参数
  * @returns {JSX.Element | null} 面板
  */
@@ -61,7 +62,8 @@ export function FilesPanel({
   agentQuery,
   agentResult,
   onAgentQueryChange,
-  onAgentSubmit
+  onAgentSubmit,
+  agentChatCollapsed
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState({
@@ -248,22 +250,28 @@ export function FilesPanel({
           />
           <Button type="primary" onClick={() => onAgentSubmit?.()}>检索</Button>
         </Space.Compact>
-        <div className="mcd-muted" style={{ marginBottom: 12 }}>
-          traceId: {agentResult?.traceId || "-"} | mode: {agentResult?.routeMode || "-"} | model: {agentResult?.model || "-"} | sources: {(agentResult?.sources || []).join(", ") || "-"}
-        </div>
-        <div className="mcd-muted" style={{ marginBottom: 12 }}>{agentResult?.summary || "暂无结果"}</div>
-        <Table
-          className="mcd-table"
-          rowKey={(row, idx) => row?.id || row?.fileId || row?.shareId || String(idx)}
-          columns={[
-            { title: "条目", dataIndex: "fileName", key: "fileName", render: (_, row) => row.fileName || row.shareName || row.shareId || "-" },
-            { title: "类型", key: "type", render: (_, row) => (row.isDir ? "目录" : row.shareId ? "分享" : "文件") },
-            { title: "补充信息", key: "meta", render: (_, row) => row.updatedAt || row.accessTime || row.status || "-" }
-          ]}
-          dataSource={items}
-          pagination={{ pageSize: 8 }}
-          locale={{ emptyText: "暂无检索结果" }}
-        />
+        {!agentChatCollapsed ? (
+          <>
+            <div className="mcd-muted" style={{ marginBottom: 12 }}>
+              traceId: {agentResult?.traceId || "-"} | mode: {agentResult?.routeMode || "-"} | model: {agentResult?.model || "-"} | sources: {(agentResult?.sources || []).join(", ") || "-"}
+            </div>
+            <div className="mcd-muted" style={{ marginBottom: 12 }}>{agentResult?.summary || "暂无结果"}</div>
+            <Table
+              className="mcd-table"
+              rowKey={(row, idx) => row?.id || row?.fileId || row?.shareId || String(idx)}
+              columns={[
+                { title: "条目", dataIndex: "fileName", key: "fileName", render: (_, row) => row.fileName || row.shareName || row.shareId || "-" },
+                { title: "类型", key: "type", render: (_, row) => (row.isDir ? "目录" : row.shareId ? "分享" : "文件") },
+                { title: "补充信息", key: "meta", render: (_, row) => row.updatedAt || row.accessTime || row.status || "-" }
+              ]}
+              dataSource={items}
+              pagination={{ pageSize: 8 }}
+              locale={{ emptyText: "暂无检索结果" }}
+            />
+          </>
+        ) : (
+          <Text className="mcd-muted">对话已收起，可在下方操作栏重新展开。</Text>
+        )}
       </div>
     );
   }

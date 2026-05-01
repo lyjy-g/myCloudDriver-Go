@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -21,9 +20,6 @@ type DeepSeekProvider struct {
 }
 
 func NewDeepSeekProvider(baseURL, apiKey, model string, timeout time.Duration) *DeepSeekProvider {
-	if strings.TrimSpace(apiKey) == "" {
-		apiKey = strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
-	}
 	if strings.TrimSpace(baseURL) == "" {
 		baseURL = "https://api.deepseek.com"
 	}

@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Card, Input, Space, Typography } from "antd";
+import { App as AntApp, Button, Card, Input, Select, Space, Typography } from "antd";
 import React, { useState } from "react";
 import {
   ICON_RAIL_ITEMS,
@@ -158,6 +158,7 @@ export default function App() {
               agentResult={controller.agentResult}
               onAgentQueryChange={controller.setAgentQuery}
               onAgentSubmit={controller.handleAgentQuery}
+              agentChatCollapsed={controller.agentChatCollapsed}
             />
 
             <StorageSettingsPanel
@@ -188,13 +189,96 @@ export default function App() {
               onDeleteSetting={controller.handleDeleteStorageSetting}
             />
 
-            <div className="mcd-footer-chat">
-              <div className="mcd-footer-bubble">知识搜索/问答/创作/AI全网搜索</div>
-              <div className="mcd-footer-actions">
-                <button type="button" className="mcd-footer-btn">↑</button>
-                <button type="button" className="mcd-footer-btn primary">✦</button>
-              </div>
+            <div className={`mcd-agent-float ${controller.agentInputCollapsed ? "collapsed" : "expanded"}`}>
+              {!controller.agentInputCollapsed ? (
+                <div className="mcd-agent-panel">
+                  {!controller.agentChatCollapsed ? (
+                    <div className="mcd-agent-panel-body">
+                      <div className="mcd-agent-tip">我可以基于当前作用域做检索、执行、RAG、Workflow 编排。</div>
+                      <div className="mcd-agent-suggestion-row">
+                        <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近上传了什么文件")}>最近上传了什么文件</button>
+                        <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近谁访问了我的分享")}>最近谁访问了我的分享</button>
+                        <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("当前配置有哪些目录")}>当前配置有哪些目录</button>
+                      </div>
+                      <div className="mcd-agent-result">
+                        <div className="mcd-agent-result-meta">
+                          traceId: {controller.agentResult?.traceId || "-"} | mode: {controller.agentResult?.routeMode || "-"} | model: {controller.agentResult?.model || "-"}
+                        </div>
+                        <div className="mcd-agent-result-summary">
+                          {controller.agentResult?.summary || "等待你的问题，我会在这里展示回答结果。"}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mcd-agent-composer">
+                    <Select
+                      className="mcd-agent-select"
+                      style={{ width: 138 }}
+                      value={controller.agentScope}
+                      onChange={controller.setAgentScope}
+                      options={controller.agentScopeOptions}
+                    />
+                    <Select
+                      className="mcd-agent-select"
+                      style={{ width: 148 }}
+                      value={controller.agentMode}
+                      onChange={controller.setAgentMode}
+                      options={[
+                        { value: "search", label: "检索" },
+                        { value: "rag", label: "RAG" },
+                        { value: "workflow", label: "workflow" },
+                        { value: "execute", label: "执行" }
+                      ]}
+                    />
+                    <Input
+                      className="mcd-agent-input"
+                      placeholder="知识搜索/问答/创作/AI全网搜索~"
+                      value={controller.agentQuery}
+                      onChange={(event) => controller.setAgentQuery(event.target.value)}
+                      onPressEnter={controller.handleAgentQuery}
+                      disabled={controller.agentRunning}
+                    />
+                    <Button
+                      type="primary"
+                      className="mcd-agent-send-btn"
+                      onClick={controller.handleAgentQuery}
+                      loading={controller.agentRunning}
+                      disabled={controller.agentRunning}
+                    >
+                      {!controller.agentRunning ? "➤" : ""}
+                    </Button>
+                    <button
+                      type="button"
+                      className="mcd-agent-icon-btn ghost"
+                      title={controller.agentChatCollapsed ? "展开对话" : "收起对话"}
+                      onClick={() => controller.setAgentChatCollapsed(!controller.agentChatCollapsed)}
+                      disabled={controller.agentRunning}
+                    >
+                      {controller.agentChatCollapsed ? "▾" : "▴"}
+                    </button>
+                    <button
+                      type="button"
+                      className="mcd-agent-icon-btn ghost"
+                      title="关闭询问框"
+                      onClick={() => controller.setAgentInputCollapsed(true)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
+            {controller.agentInputCollapsed ? (
+              <button
+                type="button"
+                className="mcd-agent-toggle"
+                title="打开询问框"
+                onClick={() => controller.setAgentInputCollapsed(false)}
+              >
+                ◉
+              </button>
+            ) : null}
           </main>
         </div>
 
