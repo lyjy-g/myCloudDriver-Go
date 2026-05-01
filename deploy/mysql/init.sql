@@ -311,3 +311,75 @@ INSERT INTO `user_transfer_setting` (
          );
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ----------------------------
+-- Table structure for agent_audit_log
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_audit_log`;
+CREATE TABLE `agent_audit_log` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+    `trace_id` VARCHAR(64) NOT NULL COMMENT '链路追踪ID',
+    `user_id` VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `storage_setting_id` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '存储配置ID',
+    `route_mode` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '路由模式',
+    `llm_provider` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'LLM 厂商',
+    `llm_model` VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'LLM 模型名',
+    `query_text` VARCHAR(1024) NOT NULL COMMENT '原始查询',
+    `intent` VARCHAR(64) NOT NULL COMMENT 'LLM 判定的意图',
+    `tool_name` VARCHAR(64) NOT NULL COMMENT '工具名 / llm.decide / llm.summarize',
+    `error_category` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '错误分类',
+    `status` VARCHAR(32) NOT NULL COMMENT '状态 ok/error',
+    `error_message` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '错误信息',
+    `latency_ms` BIGINT NOT NULL DEFAULT 0 COMMENT '耗时',
+    `input_snapshot` TEXT COMMENT '入参快照',
+    `output_snapshot` TEXT COMMENT '出参快照',
+    `created_at` DATETIME NOT NULL COMMENT '创建时间',
+    INDEX `idx_trace_id` (`trace_id`),
+    INDEX `idx_workspace_tool` (`workspace_id`, `tool_name`),
+    INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 调用审计日志';
+
+-- ----------------------------
+-- Table structure for agent_run
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_run`;
+CREATE TABLE `agent_run` (
+    `id` VARCHAR(128) NOT NULL COMMENT '执行ID',
+    `trace_id` VARCHAR(64) NOT NULL COMMENT '链路追踪ID',
+    `user_id` VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `mode` VARCHAR(32) NOT NULL DEFAULT 'search' COMMENT '执行模式',
+    `query` VARCHAR(1024) NOT NULL COMMENT '用户查询',
+    `intent` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'LLM 意图',
+    `status` VARCHAR(32) NOT NULL DEFAULT 'running' COMMENT '状态',
+    `created_at` DATETIME NOT NULL COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL COMMENT '更新时间',
+    PRIMARY KEY (`id`) USING BTREE,
+    INDEX `idx_trace_id` (`trace_id`),
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_workspace_id` (`workspace_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 执行记录';
+
+-- ----------------------------
+-- Table structure for agent_step
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_step`;
+CREATE TABLE `agent_step` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+    `run_id` VARCHAR(128) NOT NULL COMMENT '所属执行ID',
+    `step_index` INT NOT NULL COMMENT '步骤序号',
+    `tool_name` VARCHAR(64) NOT NULL COMMENT '工具名',
+    `status` VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT '状态',
+    `input` TEXT COMMENT '入参',
+    `output` TEXT COMMENT '出参',
+    `latency_ms` BIGINT NOT NULL DEFAULT 0 COMMENT '耗时',
+    `created_at` DATETIME NOT NULL COMMENT '创建时间',
+    INDEX `idx_run_id` (`run_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 执行步骤';
+
+-- ----------------------------
+-- Seed data for agent
+-- ----------------------------
+INSERT INTO `agent_audit_log` (`trace_id`, `user_id`, `workspace_id`, `storage_setting_id`, `route_mode`, `llm_provider`, `llm_model`, `query_text`, `intent`, `tool_name`, `error_category`, `status`, `error_message`, `latency_ms`, `input_snapshot`, `output_snapshot`, `created_at`)
+VALUES ('seed_init', '01jrvgs943q0f43h0aa5mjde0y', 'ws_01jrvgs943q0f43h0aa5mjde0y_personal', 'local_default', 'llm', 'deepseek', 'deepseek-chat', '系统初始化', 'init', 'llm.decide', '', 'ok', '', 0, '{}', '{}', NOW());

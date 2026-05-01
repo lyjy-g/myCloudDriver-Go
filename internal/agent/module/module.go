@@ -1,15 +1,14 @@
 package module
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"myclouddrive-go/internal/agent/api"
 	agentllm "myclouddrive-go/internal/agent/llm"
+	agentdb "myclouddrive-go/internal/agent/model/dbmodel"
 	agentsvc "myclouddrive-go/internal/agent/service"
 	agenttool "myclouddrive-go/internal/agent/tool"
 	"myclouddrive-go/internal/app"
@@ -31,7 +30,7 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Models() []any {
-	return nil
+	return []any{&agentdb.AgentAuditLog{}, &agentdb.AgentRun{}, &agentdb.AgentStep{}}
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
@@ -41,8 +40,17 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 
 	registry := agenttool.NewRegistry(
 		agenttool.NewFileListTool(fileService),
+		agenttool.NewFileSearchTool(fileService),
+		agenttool.NewFileStatsTool(fileService),
+		agenttool.NewFileTrashListTool(fileService),
+		agenttool.NewFileRankTool(fileService),
 		agenttool.NewShareListTool(shareService),
+		agenttool.NewShareSearchTool(shareService),
 		agenttool.NewShareRecordsTool(shareService),
+		agenttool.NewShareStatsTool(shareService),
+		agenttool.NewShareRevokeTool(shareService),
+		agenttool.NewShareCreateTool(shareService),
+		agenttool.NewTransferStatusTool(fileService),
 	)
 	if strings.EqualFold(strings.TrimSpace(deps.Config.LLM.Provider), "deepseek") && strings.TrimSpace(deps.Config.LLM.APIKey) == "" {
 		return fmt.Errorf("llm.api_key is empty in configs/config.yaml")
@@ -54,9 +62,6 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 		time.Duration(deps.Config.LLM.TimeoutMs)*time.Millisecond,
 	)
 	svc := agentsvc.New(registry, llmProvider)
-	if err := svc.EnsureSchema(context.Background()); err != nil {
-		log.Printf("agent ensure schema failed: %v", err)
-	}
 	api.RegisterRoutes(mux, svc)
 	return nil
 }

@@ -62,6 +62,13 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 
 	deps := &Dependencies{Config: cfg, DB: db, Redis: rdb}
 	for _, module := range modules {
+		// AutoMigrate 模块注册的模型。自动创建表、加列，不会删除已有列/数据。
+		if models := module.Models(); len(models) > 0 {
+			if err = db.AutoMigrate(models...); err != nil {
+				return nil, fmt.Errorf("auto migrate module %s: %w", module.Name(), err)
+			}
+			log.Printf("auto migrated %d models for module: %s", len(models), module.Name())
+		}
 		if err = module.RegisterRoutes(mux, deps); err != nil {
 			return nil, fmt.Errorf("register module %s: %w", module.Name(), err)
 		}
