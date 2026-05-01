@@ -181,6 +181,78 @@ export function queryAgent(baseUrl, payload) {
   });
 }
 
+/**
+ * 流式 Agent 查询（SSE）。
+ * @param {string} baseUrl
+ * @param {object} payload 同 queryAgent
+ * @param {function} onEvent 回调 (eventName, data) => void
+ * @returns {AbortController} 用于取消请求
+ */
+export function streamAgentQuery(baseUrl, payload, onEvent) {
+  const controller = new AbortController();
+  const body = JSON.stringify({
+    query: payload?.query || "",
+    scope: payload?.scope || "auto",
+    mode: payload?.mode || "search",
+    workspaceId: payload?.workspaceId || "",
+    storageSettingId: payload?.storageSettingId || "",
+    traceId: payload?.traceId || ""
+  });
+
+  fetch(`${baseUrl}/apis/agent/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "text/event-stream",
+      "Authorization": getAuthToken() ? `Bearer ${getAuthToken()}` : ""
+    },
+    body,
+    signal: controller.signal
+  }).then(async (response) => {
+    if (!response.ok) {
+      const text = await response.text();
+      onEvent("error", { message: text || `HTTP ${response.status}` });
+      return;
+    }
+    const reader = response.body?.getReader();
+    if (!reader) {
+      onEvent("error", { message: "no response body" });
+      return;
+    }
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // 按行解析 SSE
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      let currentEvent = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const raw = line.slice(6).trim();
+          try {
+            const data = JSON.parse(raw);
+            onEvent(currentEvent || "message", data);
+          } catch {
+            onEvent(currentEvent || "message", { raw });
+          }
+          currentEvent = "";
+        }
+      }
+    }
+  }).catch((err) => {
+    if (err.name !== "AbortError") {
+      onEvent("error", { message: err.message });
+    }
+  });
+
+  return controller;
+}
+
 export async function fetchStorageSettings(baseUrl) {
   const listResp = await requestJson("GET", `${baseUrl}/apis/storage/platform/settings`);
   const settings = unwrapPayload(listResp) || [];

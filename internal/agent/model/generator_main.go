@@ -41,8 +41,17 @@ func main() {
 
 	tables := []string{
 		"agent_audit_log",
-		"agent_run",
-		"agent_step",
+		"agent_action",
+		"agent_action_step",
+		"agent_prompt_template",
+		"agent_tool",
+		"agent_tool_call",
+		"knowledge",
+		"knowledge_file",
+		"knowledge_document_chunk",
+		"workflow_definition",
+		"workflow_run",
+		"workflow_node_run",
 	}
 	models := make([]any, 0, len(tables))
 	for _, table := range tables {

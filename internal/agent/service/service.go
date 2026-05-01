@@ -183,6 +183,102 @@ func (s *AgentService) queryExecuteMode(ctx context.Context, req agentmodel.Quer
 	return resp, nil
 }
 
+// StreamQuery 流式执行 Agent 查询，通过 eventFn 回传每一阶段的中间结果。
+func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequest, eventFn func(event string, data any)) {
+	if strings.TrimSpace(req.Query) == "" {
+		eventFn("error", map[string]any{"message": "query is required"})
+		return
+	}
+	eventFn("start", map[string]any{"mode": req.Mode, "query": req.Query})
+
+	mode := strings.TrimSpace(req.Mode)
+	if mode == "" {
+		mode = "search"
+	}
+	principal, err := security.RequireLogin(ctx)
+	if err != nil {
+		eventFn("error", map[string]any{"message": err.Error()})
+		return
+	}
+	traceID := strings.TrimSpace(req.TraceID)
+	if traceID == "" {
+		traceID = "agt_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	}
+	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	storageSettingID := strings.TrimSpace(req.StorageSettingID)
+
+	eventFn("llm.decide.start", map[string]any{"query": req.Query})
+	decision, err := s.llm.DecideTools(ctx, req.Query)
+	if err != nil {
+		eventFn("llm.decide.error", map[string]any{"error": err.Error()})
+		return
+	}
+	eventFn("llm.decide.done", map[string]any{"intent": decision.Intent, "tools": decision.Tools})
+
+	intent := strings.TrimSpace(decision.Intent)
+	if intent == "" {
+		intent = "llm_decision"
+	}
+	toolNames := decision.Tools
+	if len(toolNames) == 0 {
+		toolNames = []string{"tool.file.list"}
+	}
+	callCtx := agenttool.CallContext{
+		TraceID:          traceID,
+		UserID:           strings.TrimSpace(principal.UserID),
+		WorkspaceID:      workspaceID,
+		StorageSettingID: storageSettingID,
+		Query:            strings.TrimSpace(req.Query),
+	}
+
+	// execute mode: 生成 plan 并返回等待确认
+	if mode == "execute" {
+		plan, planErr := s.planner.BuildPlan(req.Query, intent, toolNames, callCtx)
+		if planErr != nil {
+			eventFn("error", map[string]any{"message": planErr.Error()})
+			return
+		}
+		eventFn("plan", plan)
+		if agentutils.NeedsConfirmation(plan) {
+			eventFn("confirm.required", map[string]any{
+				"message": "此操作需要确认", "risk": plan.Risk,
+				"planId": plan.PlanID,
+			})
+			return
+		}
+	}
+
+	// search & execute 模式都执行工具
+	items := make([]any, 0)
+	sources := make([]string, 0)
+	for _, toolName := range toolNames {
+		eventFn("tool.start", map[string]any{"tool": toolName})
+		if err := s.registry.MustAllowed(toolName); err != nil {
+			eventFn("tool.error", map[string]any{"tool": toolName, "error": err.Error()})
+			continue
+		}
+		started := time.Now()
+		result, callErr := s.registry.Call(ctx, toolName, callCtx, 2*time.Second)
+		latency := time.Since(started).Milliseconds()
+		if callErr != nil {
+			eventFn("tool.error", map[string]any{"tool": toolName, "error": callErr.Error(), "latencyMs": latency})
+		} else {
+			sources = append(sources, result.Source)
+			items = append(items, result.Items...)
+			eventFn("tool.done", map[string]any{"tool": toolName, "source": result.Source, "count": len(result.Items), "latencyMs": latency})
+		}
+	}
+
+	// summarize
+	eventFn("summarize.start", map[string]any{"items": len(items)})
+	llmSummary, sumErr := s.llm.Summarize(ctx, req.Query, decision, items)
+	if sumErr != nil {
+		eventFn("summarize.error", map[string]any{"error": sumErr.Error()})
+	} else {
+		eventFn("summarize.done", map[string]any{"summary": llmSummary})
+	}
+}
+
 func (s *AgentService) executeTools(ctx context.Context, traceID string, toolNames []string,
 	callCtx agenttool.CallContext, resp *agentmodel.QueryResponse) *agentmodel.QueryResponse {
 

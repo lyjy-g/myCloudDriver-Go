@@ -312,12 +312,16 @@ INSERT INTO `user_transfer_setting` (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- ============================================================
+-- Agent 模块表
+-- ============================================================
+
 -- ----------------------------
 -- Table structure for agent_audit_log
 -- ----------------------------
 DROP TABLE IF EXISTS `agent_audit_log`;
 CREATE TABLE `agent_audit_log` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     `trace_id` VARCHAR(64) NOT NULL COMMENT '链路追踪ID',
     `user_id` VARCHAR(128) NOT NULL COMMENT '用户ID',
     `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
@@ -331,7 +335,7 @@ CREATE TABLE `agent_audit_log` (
     `error_category` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '错误分类',
     `status` VARCHAR(32) NOT NULL COMMENT '状态 ok/error',
     `error_message` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '错误信息',
-    `latency_ms` BIGINT NOT NULL DEFAULT 0 COMMENT '耗时',
+    `latency_ms` BIGINT NOT NULL DEFAULT 0 COMMENT '耗时毫秒',
     `input_snapshot` TEXT COMMENT '入参快照',
     `output_snapshot` TEXT COMMENT '出参快照',
     `created_at` DATETIME NOT NULL COMMENT '创建时间',
@@ -341,45 +345,208 @@ CREATE TABLE `agent_audit_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 调用审计日志';
 
 -- ----------------------------
--- Table structure for agent_run
+-- Table structure for agent_action
 -- ----------------------------
-DROP TABLE IF EXISTS `agent_run`;
-CREATE TABLE `agent_run` (
-    `id` VARCHAR(128) NOT NULL COMMENT '执行ID',
-    `trace_id` VARCHAR(64) NOT NULL COMMENT '链路追踪ID',
-    `user_id` VARCHAR(128) NOT NULL COMMENT '用户ID',
+DROP TABLE IF EXISTS `agent_action`;
+CREATE TABLE `agent_action` (
+    `id` VARCHAR(128) NOT NULL COMMENT '主键ID',
+    `session_id` VARCHAR(128) DEFAULT NULL COMMENT '会话ID',
     `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
-    `mode` VARCHAR(32) NOT NULL DEFAULT 'search' COMMENT '执行模式',
-    `query` VARCHAR(1024) NOT NULL COMMENT '用户查询',
-    `intent` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'LLM 意图',
-    `status` VARCHAR(32) NOT NULL DEFAULT 'running' COMMENT '状态',
-    `created_at` DATETIME NOT NULL COMMENT '创建时间',
-    `updated_at` DATETIME NOT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`) USING BTREE,
-    INDEX `idx_trace_id` (`trace_id`),
-    INDEX `idx_user_id` (`user_id`),
-    INDEX `idx_workspace_id` (`workspace_id`)
+    `user_id` VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `user_input` TEXT COMMENT '用户输入',
+    `run_type` VARCHAR(32) NOT NULL COMMENT '类型：retrieve / execute / rag / workflow',
+    `status` VARCHAR(32) NOT NULL COMMENT '状态：running / success / failed / waiting_confirm',
+    `risk_level` VARCHAR(32) DEFAULT 'read' COMMENT '风险等级：read / write / danger / export / cross_ws',
+    `is_confirm` VARCHAR(128) DEFAULT NULL COMMENT '风险操作用户是否同意执行',
+    `trace_id` VARCHAR(64) DEFAULT NULL COMMENT '链路追踪ID',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    INDEX `idx_session` (`session_id`),
+    INDEX `idx_workspace_user` (`workspace_id`, `user_id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 执行记录';
 
 -- ----------------------------
--- Table structure for agent_step
+-- Table structure for agent_action_step
 -- ----------------------------
-DROP TABLE IF EXISTS `agent_step`;
-CREATE TABLE `agent_step` (
-    `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+DROP TABLE IF EXISTS `agent_action_step`;
+CREATE TABLE `agent_action_step` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     `run_id` VARCHAR(128) NOT NULL COMMENT '所属执行ID',
-    `step_index` INT NOT NULL COMMENT '步骤序号',
-    `tool_name` VARCHAR(64) NOT NULL COMMENT '工具名',
-    `status` VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT '状态',
-    `input` TEXT COMMENT '入参',
-    `output` TEXT COMMENT '出参',
-    `latency_ms` BIGINT NOT NULL DEFAULT 0 COMMENT '耗时',
-    `created_at` DATETIME NOT NULL COMMENT '创建时间',
-    INDEX `idx_run_id` (`run_id`)
+    `step_no` INT NOT NULL COMMENT '步骤序号',
+    `step_type` VARCHAR(32) NOT NULL COMMENT '类型：plan / tool_call / observe / final',
+    `content` TEXT COMMENT '步骤内容（思考/总结/中间结果）',
+    `status` VARCHAR(32) NOT NULL COMMENT '状态：running / success / failed',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_run` (`run_id`),
+    INDEX `idx_run_step` (`run_id`, `step_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 执行步骤';
 
 -- ----------------------------
--- Seed data for agent
+-- Table structure for agent_prompt_template
 -- ----------------------------
-INSERT INTO `agent_audit_log` (`trace_id`, `user_id`, `workspace_id`, `storage_setting_id`, `route_mode`, `llm_provider`, `llm_model`, `query_text`, `intent`, `tool_name`, `error_category`, `status`, `error_message`, `latency_ms`, `input_snapshot`, `output_snapshot`, `created_at`)
-VALUES ('seed_init', '01jrvgs943q0f43h0aa5mjde0y', 'ws_01jrvgs943q0f43h0aa5mjde0y_personal', 'local_default', 'llm', 'deepseek', 'deepseek-chat', '系统初始化', 'init', 'llm.decide', '', 'ok', '', 0, '{}', '{}', NOW());
+DROP TABLE IF EXISTS `agent_prompt_template`;
+CREATE TABLE `agent_prompt_template` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `name` VARCHAR(128) NOT NULL COMMENT '模板名称',
+    `version` INT NOT NULL DEFAULT 1 COMMENT '版本号',
+    `content` TEXT NOT NULL COMMENT '模板内容',
+    `enabled` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY `uk_name_version` (`name`, `version`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 提示词模板';
+
+-- ----------------------------
+-- Table structure for agent_tool
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_tool`;
+CREATE TABLE `agent_tool` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `name` VARCHAR(128) NOT NULL COMMENT '工具唯一名称，如 tool.file.search',
+    `description` VARCHAR(512) DEFAULT NULL COMMENT '工具描述，给 LLM 使用',
+    `schema_json` JSON COMMENT '工具输入输出 schema',
+    `risk_level` VARCHAR(32) DEFAULT 'read' COMMENT '风险等级：read / write / danger / export / cross_ws',
+    `enabled` TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+    `timeout_ms` INT DEFAULT 5000 COMMENT '超时时间',
+    `retry_times` INT DEFAULT 0 COMMENT '重试次数',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY `uk_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent 工具注册表';
+
+-- ----------------------------
+-- Table structure for agent_tool_call
+-- ----------------------------
+DROP TABLE IF EXISTS `agent_tool_call`;
+CREATE TABLE `agent_tool_call` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `run_id` VARCHAR(128) NOT NULL COMMENT '所属执行ID',
+    `step_id` BIGINT NOT NULL COMMENT '所属步骤ID',
+    `tool_name` VARCHAR(128) NOT NULL COMMENT '工具名',
+    `input_json` JSON COMMENT '工具输入参数',
+    `output_json` JSON COMMENT '工具输出结果',
+    `status` VARCHAR(32) NOT NULL COMMENT '状态：success / failed',
+    `error_message` TEXT COMMENT '错误信息',
+    `idempotency_key` VARCHAR(128) DEFAULT NULL COMMENT '幂等key',
+    `cost_ms` INT DEFAULT NULL COMMENT '耗时毫秒',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_run` (`run_id`),
+    INDEX `idx_step` (`step_id`),
+    INDEX `idx_tool` (`tool_name`),
+    INDEX `idx_idempotency` (`idempotency_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='工具调用记录';
+
+-- ============================================================
+-- RAG 知识库模块
+-- ============================================================
+
+-- ----------------------------
+-- Table structure for knowledge
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge`;
+CREATE TABLE `knowledge` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `name` VARCHAR(128) NOT NULL COMMENT '知识库名称',
+    `description` VARCHAR(512) DEFAULT NULL COMMENT '知识库描述',
+    `created_by` VARCHAR(128) NOT NULL COMMENT '创建者用户ID',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_workspace` (`workspace_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='知识库';
+
+-- ----------------------------
+-- Table structure for knowledge_file
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge_file`;
+CREATE TABLE `knowledge_file` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `knowledge_base_id` BIGINT NOT NULL COMMENT '所属知识库ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `storage_setting_id` VARCHAR(128) NOT NULL COMMENT '存储配置ID',
+    `file_id` VARCHAR(128) NOT NULL COMMENT '文件ID',
+    `parse_status` VARCHAR(32) DEFAULT 'pending' COMMENT '解析状态',
+    `chunk_status` VARCHAR(32) DEFAULT 'pending' COMMENT '切片状态',
+    `embed_status` VARCHAR(32) DEFAULT 'pending' COMMENT '向量化状态',
+    `index_status` VARCHAR(32) DEFAULT 'pending' COMMENT '索引状态',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_kb` (`knowledge_base_id`),
+    INDEX `idx_workspace` (`workspace_id`),
+    INDEX `idx_file` (`file_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='知识库文件';
+
+-- ----------------------------
+-- Table structure for knowledge_document_chunk
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge_document_chunk`;
+CREATE TABLE `knowledge_document_chunk` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `knowledge_base_id` BIGINT NOT NULL COMMENT '所属知识库ID',
+    `file_id` VARCHAR(128) NOT NULL COMMENT '文件ID',
+    `chunk_no` INT NOT NULL COMMENT '切片序号',
+    `content` TEXT COMMENT '切片内容',
+    `token_count` INT DEFAULT NULL COMMENT 'Token 数',
+    `vector_id` VARCHAR(128) DEFAULT NULL COMMENT '向量库中的ID',
+    `metadata_json` JSON COMMENT '元数据（含 workspaceId / storageSettingId 等）',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_kb` (`knowledge_base_id`),
+    INDEX `idx_file` (`file_id`),
+    INDEX `idx_kb_file` (`knowledge_base_id`, `file_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='文档切片';
+
+-- ============================================================
+-- Workflow 模块
+-- ============================================================
+
+-- ----------------------------
+-- Table structure for workflow_definition
+-- ----------------------------
+DROP TABLE IF EXISTS `workflow_definition`;
+CREATE TABLE `workflow_definition` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `name` VARCHAR(128) NOT NULL COMMENT '工作流名称',
+    `description` VARCHAR(512) DEFAULT NULL COMMENT '工作流描述',
+    `dsl_json` JSON COMMENT 'Workflow 定义 JSON',
+    `enabled` TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+    `created_by` VARCHAR(128) NOT NULL COMMENT '创建者用户ID',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_workspace` (`workspace_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='工作流定义';
+
+-- ----------------------------
+-- Table structure for workflow_run
+-- ----------------------------
+DROP TABLE IF EXISTS `workflow_run`;
+CREATE TABLE `workflow_run` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `workflow_id` BIGINT NOT NULL COMMENT '所属工作流定义ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `user_id` VARCHAR(128) NOT NULL COMMENT '用户ID',
+    `input_json` JSON COMMENT '输入参数',
+    `status` VARCHAR(32) NOT NULL COMMENT '状态：running / success / failed',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_workflow` (`workflow_id`),
+    INDEX `idx_workspace_user` (`workspace_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='工作流运行';
+
+-- ----------------------------
+-- Table structure for workflow_node_run
+-- ----------------------------
+DROP TABLE IF EXISTS `workflow_node_run`;
+CREATE TABLE `workflow_node_run` (
+    `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    `workflow_run_id` BIGINT NOT NULL COMMENT '所属工作流运行ID',
+    `node_id` VARCHAR(64) NOT NULL COMMENT '节点ID',
+    `node_type` VARCHAR(32) NOT NULL COMMENT '节点类型',
+    `input_json` JSON COMMENT '输入参数',
+    `output_json` JSON COMMENT '输出结果',
+    `status` VARCHAR(32) NOT NULL COMMENT '状态',
+    `error_message` TEXT COMMENT '错误信息',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_run` (`workflow_run_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='工作流节点运行';
+

@@ -10,4 +10,5 @@ import (
 func RegisterRoutes(mux *http.ServeMux, svc *agentsvc.AgentService) {
 	h := NewHandler(svc)
 	mux.HandleFunc("POST /apis/agent/query", h.Query)
+	mux.HandleFunc("POST /apis/agent/stream", h.StreamQuery)
 }
