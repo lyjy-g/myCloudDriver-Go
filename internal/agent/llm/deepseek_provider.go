@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -46,6 +47,7 @@ func (p *DeepSeekProvider) DecideTools(ctx context.Context, query string) (Decis
 	if err != nil {
 		return Decision{}, err
 	}
+	content = sanitizeJSONBlock(content)
 	start := strings.Index(content, "{")
 	end := strings.LastIndex(content, "}")
 	if start < 0 || end <= start {
@@ -59,6 +61,7 @@ func (p *DeepSeekProvider) DecideTools(ctx context.Context, query string) (Decis
 	if len(d.Tools) == 0 {
 		d.Tools = []string{"tool.file.list"}
 	}
+	d.Tools = normalizeTools(d.Tools)
 	return d, nil
 }
 
@@ -110,4 +113,39 @@ func (p *DeepSeekProvider) chat(ctx context.Context, prompt string) (string, err
 		return "", fmt.Errorf("empty llm choices")
 	}
 	return strings.TrimSpace(out.Choices[0].Message.Content), nil
+}
+
+func sanitizeJSONBlock(raw string) string {
+	s := strings.TrimSpace(raw)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSuffix(s, "```")
+	return strings.TrimSpace(s)
+}
+
+func normalizeTools(tools []string) []string {
+	allow := map[string]struct{}{
+		"tool.file.list":     {},
+		"tool.share.list":    {},
+		"tool.share.records": {},
+	}
+	seen := make(map[string]struct{}, len(tools))
+	out := make([]string, 0, len(tools))
+	for _, t := range tools {
+		name := strings.TrimSpace(t)
+		if _, ok := allow[name]; !ok {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	if len(out) == 0 {
+		out = []string{"tool.file.list"}
+	}
+	// 固定顺序，避免相同问题跨次输出工具顺序抖动。
+	sort.SliceStable(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }

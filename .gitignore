@@ -3,3 +3,6 @@
 
 # Runtime data directory
 .data/
+
+# local runtime secrets
+configs/config.yaml

@@ -32,9 +32,13 @@ trace_id VARCHAR(64) NOT NULL,
 user_id VARCHAR(128) NOT NULL,
 workspace_id VARCHAR(128) NOT NULL,
 storage_setting_id VARCHAR(128) NOT NULL DEFAULT '',
+route_mode VARCHAR(32) NOT NULL DEFAULT '',
+llm_provider VARCHAR(64) NOT NULL DEFAULT '',
+llm_model VARCHAR(128) NOT NULL DEFAULT '',
 query_text VARCHAR(1024) NOT NULL,
 intent VARCHAR(64) NOT NULL,
 tool_name VARCHAR(64) NOT NULL,
+error_category VARCHAR(32) NOT NULL DEFAULT '',
 status VARCHAR(32) NOT NULL,
 error_message VARCHAR(1024) NOT NULL DEFAULT '',
 latency_ms BIGINT NOT NULL DEFAULT 0,
@@ -45,7 +49,20 @@ KEY idx_trace_id(trace_id),
 KEY idx_workspace_tool(workspace_id,tool_name),
 KEY idx_created_at(created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
-	return l.db.WithContext(ctx).Exec(sql).Error
+	if err := l.db.WithContext(ctx).Exec(sql).Error; err != nil {
+		return err
+	}
+	// 老版本表结构平滑升级，避免线上已有表缺列导致审计信息丢失。
+	patches := []string{
+		"ALTER TABLE agent_audit_log ADD COLUMN route_mode VARCHAR(32) NOT NULL DEFAULT ''",
+		"ALTER TABLE agent_audit_log ADD COLUMN llm_provider VARCHAR(64) NOT NULL DEFAULT ''",
+		"ALTER TABLE agent_audit_log ADD COLUMN llm_model VARCHAR(128) NOT NULL DEFAULT ''",
+		"ALTER TABLE agent_audit_log ADD COLUMN error_category VARCHAR(32) NOT NULL DEFAULT ''",
+	}
+	for _, p := range patches {
+		_ = l.db.WithContext(ctx).Exec(p).Error
+	}
+	return nil
 }
 
 func clip(v string, n int) string {
@@ -79,5 +96,5 @@ func (l *Logger) Write(ctx context.Context, row agentmodel.AuditLog) {
 	_ = l.db.WithContext(ctx).Create(&row).Error
 }
 
-func ToInputSnapshot(v any) string { return toJSON(v) }
+func ToInputSnapshot(v any) string  { return toJSON(v) }
 func ToOutputSnapshot(v any) string { return toJSON(v) }

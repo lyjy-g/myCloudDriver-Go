@@ -12,17 +12,17 @@ type QueryRequest struct {
 
 // QueryResponse 是检索型 Agent 响应。
 type QueryResponse struct {
-	TraceID     string        `json:"traceId"`
-	RouteMode   string        `json:"routeMode"`
-	Provider    string        `json:"provider,omitempty"`
-	Model       string        `json:"model,omitempty"`
-	Intent      string        `json:"intent"`
-	Sources     []string      `json:"sources"`
-	Items       []any         `json:"items"`
-	Summary     string        `json:"summary"`
-	ToolResults []ToolResult  `json:"toolResults"`
-	Partial     bool          `json:"partial"`
-	CreatedAt   time.Time     `json:"createdAt"`
+	TraceID     string       `json:"traceId"`
+	RouteMode   string       `json:"routeMode"`
+	Provider    string       `json:"provider,omitempty"`
+	Model       string       `json:"model,omitempty"`
+	Intent      string       `json:"intent"`
+	Sources     []string     `json:"sources"`
+	Items       []any        `json:"items"`
+	Summary     string       `json:"summary"`
+	ToolResults []ToolResult `json:"toolResults"`
+	Partial     bool         `json:"partial"`
+	CreatedAt   time.Time    `json:"createdAt"`
 }
 
 // ToolResult 记录单工具调用结果。
@@ -40,9 +40,13 @@ type AuditLog struct {
 	UserID           string    `gorm:"column:user_id;type:varchar(128);index"`
 	WorkspaceID      string    `gorm:"column:workspace_id;type:varchar(128);index"`
 	StorageSettingID string    `gorm:"column:storage_setting_id;type:varchar(128);index"`
+	RouteMode        string    `gorm:"column:route_mode;type:varchar(32)"`
+	LLMProvider      string    `gorm:"column:llm_provider;type:varchar(64)"`
+	LLMModel         string    `gorm:"column:llm_model;type:varchar(128)"`
 	QueryText        string    `gorm:"column:query_text;type:varchar(1024)"`
 	Intent           string    `gorm:"column:intent;type:varchar(64)"`
 	ToolName         string    `gorm:"column:tool_name;type:varchar(64);index"`
+	ErrorCategory    string    `gorm:"column:error_category;type:varchar(32)"`
 	Status           string    `gorm:"column:status;type:varchar(32);index"`
 	ErrorMessage     string    `gorm:"column:error_message;type:varchar(1024)"`
 	LatencyMs        int64     `gorm:"column:latency_ms"`

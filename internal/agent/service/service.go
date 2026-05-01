@@ -45,6 +45,22 @@ func summary(intent string, n int, partial bool, llmSummary string) string {
 	return s
 }
 
+func classifyErrorCategory(err error) string {
+	if err == nil {
+		return ""
+	}
+	switch {
+	case code.Is(err, code.BadRequest):
+		return "parameter_error"
+	case code.Is(err, code.NoPermission):
+		return "permission_error"
+	case code.Is(err, code.NotFound):
+		return "business_error"
+	default:
+		return "system_error"
+	}
+}
+
 func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (*agentmodel.QueryResponse, error) {
 	if strings.TrimSpace(req.Query) == "" {
 		return nil, code.New(code.BadRequest, "query is required")
@@ -106,6 +122,24 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 		StorageSettingID: storageSettingID,
 		Query:            strings.TrimSpace(req.Query),
 	}
+	if s.audit != nil {
+		s.audit.Write(ctx, agentmodel.AuditLog{
+			TraceID:          traceID,
+			UserID:           principal.UserID,
+			WorkspaceID:      workspaceID,
+			StorageSettingID: callCtx.StorageSettingID,
+			RouteMode:        resp.RouteMode,
+			LLMProvider:      resp.Provider,
+			LLMModel:         resp.Model,
+			QueryText:        req.Query,
+			Intent:           intent,
+			ToolName:         "llm.decide",
+			Status:           "ok",
+			LatencyMs:        0,
+			InputSnapshot:    agentaudit.ToInputSnapshot(map[string]any{"query": req.Query}),
+			OutputSnapshot:   agentaudit.ToOutputSnapshot(decision),
+		})
+	}
 
 	for _, toolName := range toolNames {
 		if err = s.registry.MustAllowed(toolName); err != nil {
@@ -136,9 +170,13 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 				UserID:           principal.UserID,
 				WorkspaceID:      workspaceID,
 				StorageSettingID: callCtx.StorageSettingID,
+				RouteMode:        resp.RouteMode,
+				LLMProvider:      resp.Provider,
+				LLMModel:         resp.Model,
 				QueryText:        req.Query,
 				Intent:           intent,
 				ToolName:         toolName,
+				ErrorCategory:    classifyErrorCategory(callErr),
 				Status:           status,
 				ErrorMessage:     errMsg,
 				LatencyMs:        latency,
@@ -151,6 +189,34 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	llmSummary, sumErr := s.llm.Summarize(ctx, req.Query, decision, resp.Items)
 	if sumErr != nil {
 		llmSummary = ""
+	}
+	if s.audit != nil {
+		sumStatus := "ok"
+		sumErrMsg := ""
+		sumErrCat := ""
+		if sumErr != nil {
+			sumStatus = "error"
+			sumErrMsg = sumErr.Error()
+			sumErrCat = "system_error"
+		}
+		s.audit.Write(ctx, agentmodel.AuditLog{
+			TraceID:          traceID,
+			UserID:           principal.UserID,
+			WorkspaceID:      workspaceID,
+			StorageSettingID: callCtx.StorageSettingID,
+			RouteMode:        resp.RouteMode,
+			LLMProvider:      resp.Provider,
+			LLMModel:         resp.Model,
+			QueryText:        req.Query,
+			Intent:           intent,
+			ToolName:         "llm.summarize",
+			ErrorCategory:    sumErrCat,
+			Status:           sumStatus,
+			ErrorMessage:     sumErrMsg,
+			LatencyMs:        0,
+			InputSnapshot:    agentaudit.ToInputSnapshot(map[string]any{"items": len(resp.Items)}),
+			OutputSnapshot:   agentaudit.ToOutputSnapshot(map[string]any{"summary": llmSummary}),
+		})
 	}
 	resp.Summary = summary(intent, len(resp.Items), resp.Partial, llmSummary)
 	return resp, nil
