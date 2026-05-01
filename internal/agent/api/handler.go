@@ -1,9 +1,12 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
+	agentapi "myclouddrive-go/internal/agent/api/gen"
 	agentmodel "myclouddrive-go/internal/agent/model"
 	agentsvc "myclouddrive-go/internal/agent/service"
 	"myclouddrive-go/internal/framework/code"
@@ -11,7 +14,7 @@ import (
 	"myclouddrive-go/internal/framework/web"
 )
 
-// Handler 提供 Agent 检索 API。
+// Handler 实现 agentapi.ServerInterface，处理 Agent HTTP 请求。
 type Handler struct {
 	svc *agentsvc.AgentService
 }
@@ -20,55 +23,173 @@ func NewHandler(svc *agentsvc.AgentService) *Handler {
 	return &Handler{svc: svc}
 }
 
-// Query 执行检索型 Agent 查询。
-func (h *Handler) Query(w http.ResponseWriter, r *http.Request) {
+var _ agentapi.ServerInterface = (*Handler)(nil)
+
+// ============================================================
+// Agent 查询
+// ============================================================
+
+// AgentQuery 同步 Agent 查询（search / rag 模式）。
+func (h *Handler) AgentQuery(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.svc == nil {
-		web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "agent service unavailable", "data": nil})
+		writeError(w, http.StatusInternalServerError, "agent service unavailable")
 		return
 	}
 	var req agentmodel.QueryRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "invalid request body", "data": nil})
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if strings.TrimSpace(req.WorkspaceID) == "" {
-		req.WorkspaceID = strings.TrimSpace(r.Header.Get("X-Workspace-Id"))
-	}
-	if strings.TrimSpace(req.StorageSettingID) == "" {
-		req.StorageSettingID = strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id"))
-	}
-	if strings.TrimSpace(req.Scope) == "" {
-		req.Scope = "auto"
-	}
-	if strings.TrimSpace(req.Mode) == "" {
-		req.Mode = "search"
-	}
+	fillRequestFromHeader(&req, r)
 	resp, err := h.svc.Query(r.Context(), req)
 	if err != nil {
-		switch {
-		case code.Is(err, code.BadRequest):
-			web.WriteJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": err.Error(), "data": nil})
-		case code.Is(err, code.NoPermission):
-			web.WriteJSON(w, http.StatusForbidden, map[string]any{"code": 403, "msg": err.Error(), "data": nil})
-		default:
-			web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": err.Error(), "data": nil})
-		}
+		writeServiceError(w, err)
 		return
 	}
 	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": resp})
 }
 
-// StreamQuery 流式 Agent 查询（SSE）。
-func (h *Handler) StreamQuery(w http.ResponseWriter, r *http.Request) {
+// AgentStreamQuery 流式 Agent 查询（SSE）。
+func (h *Handler) AgentStreamQuery(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.svc == nil {
-		web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "agent service unavailable", "data": nil})
+		writeError(w, http.StatusInternalServerError, "agent service unavailable")
 		return
 	}
 	var req agentmodel.QueryRequest
 	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "invalid request body", "data": nil})
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	fillRequestFromHeader(&req, r)
+
+	ch, cancel := sse.NewResponseWriter(w)
+	if ch == nil {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+	defer cancel()
+
+	sse.SendTo(ch, sse.Event{Event: "start", Data: map[string]any{"mode": req.Mode, "query": req.Query}})
+	eventFn := func(event string, data any) {
+		sse.SendTo(ch, sse.Event{Event: event, Data: data})
+	}
+	h.svc.StreamQuery(r.Context(), req, eventFn)
+	sse.SendTo(ch, sse.Event{Event: "done", Data: map[string]any{"status": "ok"}})
+}
+
+// ============================================================
+// 执行确认（execute 模式）
+// ============================================================
+
+func (h *Handler) ConfirmAction(w http.ResponseWriter, r *http.Request, traceId string, params agentapi.ConfirmActionParams) {
+	if h == nil || h.svc == nil {
+		writeError(w, http.StatusInternalServerError, "agent service unavailable")
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "accepted", "data": map[string]string{"traceId": traceId}})
+}
+
+// ============================================================
+// 执行记录
+// ============================================================
+
+func (h *Handler) ListAgentActions(w http.ResponseWriter, r *http.Request, params agentapi.ListAgentActionsParams) {
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": map[string]any{"total": 0, "items": []any{}, "page": 1, "size": 20}})
+}
+
+func (h *Handler) GetAgentAction(w http.ResponseWriter, r *http.Request, traceId string) {
+	writeError(w, http.StatusNotFound, "action not found: "+traceId)
+}
+
+// ============================================================
+// 会话管理
+// ============================================================
+
+func (h *Handler) CreateSession(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "session not implemented")
+}
+
+func (h *Handler) DeleteSession(w http.ResponseWriter, r *http.Request, sessionId string) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": []any{}})
+}
+
+// ============================================================
+// 知识库管理（RAG Agent）
+// ============================================================
+
+func (h *Handler) ListKnowledge(w http.ResponseWriter, r *http.Request) {
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": []any{}})
+}
+
+func (h *Handler) CreateKnowledge(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "knowledge not implemented")
+}
+
+func (h *Handler) GetKnowledge(w http.ResponseWriter, r *http.Request, kbId string) {
+	writeError(w, http.StatusNotFound, "knowledge not found: "+kbId)
+}
+
+func (h *Handler) DeleteKnowledge(w http.ResponseWriter, r *http.Request, kbId string) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ListKnowledgeFiles(w http.ResponseWriter, r *http.Request, kbId string) {
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": []any{}})
+}
+
+func (h *Handler) AddKnowledgeFile(w http.ResponseWriter, r *http.Request, kbId string) {
+	writeError(w, http.StatusNotImplemented, "knowledge import not implemented")
+}
+
+func (h *Handler) RemoveKnowledgeFile(w http.ResponseWriter, r *http.Request, kbId string, fileId string) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ============================================================
+// 工作流管理（Workflow Agent）
+// ============================================================
+
+func (h *Handler) ListWorkflows(w http.ResponseWriter, r *http.Request) {
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": []any{}})
+}
+
+func (h *Handler) SaveWorkflow(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "workflow save not implemented")
+}
+
+func (h *Handler) GetWorkflow(w http.ResponseWriter, r *http.Request, wfId string) {
+	writeError(w, http.StatusNotFound, "workflow not found: "+wfId)
+}
+
+func (h *Handler) DeleteWorkflow(w http.ResponseWriter, r *http.Request, wfId string) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GetWorkflowRun(w http.ResponseWriter, r *http.Request, wfRunId string) {
+	writeError(w, http.StatusNotFound, "workflow run not found: "+wfRunId)
+}
+
+func (h *Handler) TriggerWorkflowWebhook(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "workflow webhook not implemented")
+}
+
+// ============================================================
+// 工具调用历史
+// ============================================================
+
+func (h *Handler) ListToolCalls(w http.ResponseWriter, r *http.Request, params agentapi.ListToolCallsParams) {
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "success", "data": map[string]any{"total": 0, "items": []any{}, "page": 1, "size": 20}})
+}
+
+// ============================================================
+// 辅助方法
+// ============================================================
+
+func fillRequestFromHeader(req *agentmodel.QueryRequest, r *http.Request) {
 	if strings.TrimSpace(req.WorkspaceID) == "" {
 		req.WorkspaceID = strings.TrimSpace(r.Header.Get("X-Workspace-Id"))
 	}
@@ -81,19 +202,23 @@ func (h *Handler) StreamQuery(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Mode) == "" {
 		req.Mode = "search"
 	}
-	ch, cancel := sse.NewResponseWriter(w)
-	if ch == nil {
-		web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "streaming not supported", "data": nil})
-		return
-	}
-	defer cancel()
-
-	sse.SendTo(ch, sse.Event{Event: "start", Data: map[string]any{"mode": req.Mode, "query": req.Query}})
-
-	eventFn := func(event string, data any) {
-		sse.SendTo(ch, sse.Event{Event: event, Data: data})
-	}
-	h.svc.StreamQuery(r.Context(), req, eventFn)
-
-	sse.SendTo(ch, sse.Event{Event: "done", Data: map[string]any{"status": "ok"}})
 }
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	web.WriteJSON(w, status, map[string]any{"code": status, "msg": msg, "data": nil})
+}
+
+func writeServiceError(w http.ResponseWriter, err error) {
+	switch {
+	case code.Is(err, code.BadRequest):
+		web.WriteJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": err.Error(), "data": nil})
+	case code.Is(err, code.NoPermission):
+		web.WriteJSON(w, http.StatusForbidden, map[string]any{"code": 403, "msg": err.Error(), "data": nil})
+	default:
+		web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": err.Error(), "data": nil})
+	}
+}
+
+// 确保导入不被移除
+var _ = json.Marshal
+var _ = fmt.Sprintf
