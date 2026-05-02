@@ -708,7 +708,22 @@ func (s *FileService) Move(fileIDs []string, targetParentID string) error {
 }
 
 // Recycle 软删除。
-func (s *FileService) Recycle(fileIDs []string) {
+func (s *FileService) Recycle(ctx context.Context, fileIDs []string) {
+	if s.db != nil {
+		p, err := security.RequireLogin(ctx)
+		if err == nil && len(fileIDs) > 0 {
+			now := time.Now()
+			_ = s.db.WithContext(ctx).
+				Model(&filedb.FileInfo{}).
+				Where("id IN ? AND user_id = ? AND workspace_id = ? AND is_deleted = 0", fileIDs, p.UserID, p.WorkspaceID).
+				Updates(map[string]any{
+					"is_deleted":   true,
+					"deleted_time": now,
+					"update_time":  now,
+				}).Error
+			return
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
@@ -722,7 +737,22 @@ func (s *FileService) Recycle(fileIDs []string) {
 }
 
 // Restore 从回收站恢复。
-func (s *FileService) Restore(fileIDs []string) {
+func (s *FileService) Restore(ctx context.Context, fileIDs []string) {
+	if s.db != nil {
+		p, err := security.RequireLogin(ctx)
+		if err == nil && len(fileIDs) > 0 {
+			now := time.Now()
+			_ = s.db.WithContext(ctx).
+				Model(&filedb.FileInfo{}).
+				Where("id IN ? AND user_id = ? AND workspace_id = ? AND is_deleted = 1", fileIDs, p.UserID, p.WorkspaceID).
+				Updates(map[string]any{
+					"is_deleted":   false,
+					"deleted_time": nil,
+					"update_time":  now,
+				}).Error
+			return
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, id := range fileIDs {
@@ -805,7 +835,51 @@ func (s *FileService) ClearRecycle(ctx context.Context) filemodel.HardDeleteRepo
 }
 
 // ListRecycle 分页返回回收站。
-func (s *FileService) ListRecycle(page, size int) ([]filemodel.FileItem, int) {
+func (s *FileService) ListRecycle(ctx context.Context, page, size int) ([]filemodel.FileItem, int) {
+	if s.db != nil {
+		p, err := security.RequireLogin(ctx)
+		if err == nil {
+			if page <= 0 {
+				page = 1
+			}
+			if size <= 0 {
+				size = 20
+			}
+			query := s.db.WithContext(ctx).Model(&filedb.FileInfo{}).
+				Where("user_id = ? AND workspace_id = ? AND is_deleted = 1", p.UserID, p.WorkspaceID)
+			var total int64
+			if err = query.Count(&total).Error; err != nil {
+				return []filemodel.FileItem{}, 0
+			}
+			var rows []filedb.FileInfo
+			if err = query.Order("update_time desc").Offset((page - 1) * size).Limit(size).Find(&rows).Error; err != nil {
+				return []filemodel.FileItem{}, int(total)
+			}
+			items := make([]filemodel.FileItem, 0, len(rows))
+			for _, row := range rows {
+				var deletedAt *time.Time
+				if !row.DeletedTime.IsZero() {
+					t := row.DeletedTime
+					deletedAt = &t
+				}
+				items = append(items, filemodel.FileItem{
+					ID:               row.ID,
+					ParentID:         normalizeParentOutput(row.ParentID),
+					StorageSettingID: row.StoragePlatformSettingID,
+					Name:             row.DisplayName,
+					IsDir:            row.IsDir,
+					Size:             row.Size,
+					FileHash:         row.ContentMd5,
+					ObjectKey:        row.ObjectKey,
+					CreatedAt:        row.UploadTime,
+					UpdatedAt:        row.UpdateTime,
+					Deleted:          row.IsDeleted,
+					DeletedAt:        deletedAt,
+				})
+			}
+			return items, int(total)
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if page <= 0 {

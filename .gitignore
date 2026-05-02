@@ -6,3 +6,6 @@
 
 # local runtime secrets
 configs/config.yaml
+
+# local test corpus
+test_files/

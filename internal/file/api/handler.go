@@ -187,7 +187,7 @@ func (h *Handler) DeleteFiles(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
 		}
-		h.svc.Recycle(ids)
+		h.svc.Recycle(r.Context(), ids)
 		return http.StatusOK, ok(map[string]any{"deleted": len(ids)}), nil
 	})
 }
@@ -202,7 +202,7 @@ func (h *Handler) RestoreFile(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
 		}
-		h.svc.Restore(ids)
+		h.svc.Restore(r.Context(), ids)
 		return http.StatusOK, ok(map[string]any{"restored": len(ids)}), nil
 	})
 }
@@ -240,7 +240,7 @@ func (h *Handler) GetRecyclePages(w http.ResponseWriter, r *http.Request) {
 	}
 	page := intQuery(r, "page", 1)
 	size := intQuery(r, "size", 20)
-	items, total := h.svc.ListRecycle(page, size)
+	items, total := h.svc.ListRecycle(r.Context(), page, size)
 	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
 		"page":  page,
 		"size":  size,

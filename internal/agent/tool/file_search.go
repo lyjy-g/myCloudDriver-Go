@@ -18,7 +18,8 @@ type FileSearchTool struct {
 }
 
 func NewFileSearchTool(svc *filesvc.FileService) *FileSearchTool { return &FileSearchTool{svc: svc} }
-func (t *FileSearchTool) Name() string                           { return "tool.file.search" }
+
+func (t *FileSearchTool) Name() string { return "tool.file.search" }
 
 func (t *FileSearchTool) Call(ctx context.Context, callCtx CallContext) (ToolResult, error) {
 	if t == nil || t.svc == nil {
@@ -126,7 +127,7 @@ func (t *FileTrashListTool) Call(ctx context.Context, callCtx CallContext) (Tool
 	if t == nil || t.svc == nil {
 		return ToolResult{}, fmt.Errorf("file service unavailable")
 	}
-	items, _ := t.svc.ListRecycle(1, 100)
+	items, _ := t.svc.ListRecycle(ctx, 1, 100)
 	result := make([]any, 0, len(items))
 	for _, item := range items {
 		result = append(result, map[string]any{

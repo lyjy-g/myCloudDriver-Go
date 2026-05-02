@@ -25,11 +25,26 @@ type AgentService struct {
 	llm      agentllm.Provider
 	planner  *agentplanner.Planner
 	history  *agenthistory.Service
+	runSvc   *runService
 
 	// 流式查询取消管理
 	streamCancel map[string]context.CancelFunc
 	streamState  map[string]*agentmodel.StreamState
 	streamMu     sync.Mutex
+
+	// execute 模式待确认计划缓存（traceId -> pending）
+	pendingMu    sync.Mutex
+	pendingPlans map[string]*pendingExecution
+}
+
+type pendingExecution struct {
+	TraceID  string
+	Plan     agentmodel.ExecutionPlan
+	Decision agentllm.Decision
+	CallCtx  agenttool.CallContext
+	Query    string
+	Intent   string
+	Mode     string
 }
 
 func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service) *AgentService {
@@ -38,8 +53,10 @@ func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthist
 		llm:          llm,
 		planner:      agentplanner.NewPlanner(registry),
 		history:      history,
+		runSvc:       newRunService(),
 		streamCancel: make(map[string]context.CancelFunc),
 		streamState:  make(map[string]*agentmodel.StreamState),
+		pendingPlans: make(map[string]*pendingExecution),
 	}
 }
 
@@ -125,6 +142,8 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	if mode != "search" && mode != "execute" && mode != "rag" && mode != "workflow" {
 		return nil, code.New(code.BadRequest, "invalid mode, allowed: search/execute/rag/workflow")
 	}
+
+	//占位符
 	if mode != "search" && mode != "execute" {
 		return nil, code.New(code.BadRequest, "mode not implemented yet: "+mode)
 	}

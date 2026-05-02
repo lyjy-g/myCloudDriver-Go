@@ -18,6 +18,7 @@ import {
   fetchShareDetail,
   fetchWorkspaces,
   fetchRecycleBin,
+  confirmAgentAction,
   queryAgent,
   fetchAgentHistory,
   stopAgentQuery,
@@ -1165,15 +1166,67 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       const data = result?.data || result || {};
       const traceId = data.traceId || "";
       agentCurrentTraceIdRef.current = traceId;
-      setAgentResult(data || null);
-      updateLastAssistant((msg) => ({
-        ...msg,
-        traceId,
-        isStreaming: false,
-        content: data.summary || "检索完成",
-        itemCount: Array.isArray(data.items) ? data.items.length : (msg.itemCount || 0),
-        items: data.items || []
-      }));
+      // execute 模式：先返回计划，用户确认后再调用 confirm 真正执行
+      const executionPlan = Array.isArray(data.items)
+        ? data.items.find((it) => it && typeof it === "object" && it.executionPlan)?.executionPlan
+        : null;
+      const requiresConfirm = agentMode === "execute" && executionPlan && String(executionPlan.risk || "").toUpperCase() !== "READ";
+
+      if (requiresConfirm) {
+        updateLastAssistant((msg) => ({
+          ...msg,
+          traceId,
+          isStreaming: false,
+          content: data.summary || "已生成执行计划，请确认",
+          itemCount: Array.isArray(data.items) ? data.items.length : (msg.itemCount || 0),
+          items: data.items || []
+        }));
+        setAgentResult(data || null);
+
+        const stepLines = Array.isArray(executionPlan.steps)
+          ? executionPlan.steps.map((s) => `${s.index}. [${s.risk}] ${s.description}`).join("\n")
+          : "";
+        const confirmed = await confirmAction({
+          title: "确认执行计划",
+          content: `${data.summary || "即将执行以下操作："}\n\n${stepLines}`,
+          okText: "确认执行",
+          cancelText: "取消",
+          okType: "primary"
+        });
+        if (!confirmed) {
+          updateLastAssistant((msg) => ({
+            ...msg,
+            isStreaming: false,
+            content: `${msg.content || "已生成执行计划"}\n\n已取消执行。`
+          }));
+          return;
+        }
+
+        const confirmResult = await confirmAgentAction(normalizedBaseUrl, traceId, {
+          confirmed: true,
+          planId: executionPlan.planId || ""
+        });
+        const confirmData = confirmResult?.data || confirmResult || {};
+        setAgentResult(confirmData || null);
+        updateLastAssistant((msg) => ({
+          ...msg,
+          traceId,
+          isStreaming: false,
+          content: confirmData.summary || "执行完成",
+          itemCount: Array.isArray(confirmData.items) ? confirmData.items.length : (msg.itemCount || 0),
+          items: confirmData.items || []
+        }));
+      } else {
+        setAgentResult(data || null);
+        updateLastAssistant((msg) => ({
+          ...msg,
+          traceId,
+          isStreaming: false,
+          content: data.summary || "检索完成",
+          itemCount: Array.isArray(data.items) ? data.items.length : (msg.itemCount || 0),
+          items: data.items || []
+        }));
+      }
     } catch (err) {
       updateLastAssistant((msg) => ({
         ...msg,

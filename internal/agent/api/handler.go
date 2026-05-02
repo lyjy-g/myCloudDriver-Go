@@ -84,7 +84,16 @@ func (h *Handler) ConfirmAction(w http.ResponseWriter, r *http.Request, traceId 
 		writeError(w, http.StatusInternalServerError, "agent service unavailable")
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "accepted", "data": map[string]string{"traceId": traceId}})
+	resp, err := h.svc.ConfirmExecute(r.Context(), strings.TrimSpace(traceId))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, map[string]any{
+		"code": 200,
+		"msg":  "success",
+		"data": resp,
+	})
 }
 
 // ============================================================

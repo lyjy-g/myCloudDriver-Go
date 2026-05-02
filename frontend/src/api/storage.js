@@ -181,6 +181,15 @@ export function queryAgent(baseUrl, payload) {
   });
 }
 
+export function confirmAgentAction(baseUrl, traceId, payload = {}) {
+  return requestJson("POST", `${baseUrl}/apis/agent/confirm/${encodeURIComponent(traceId)}`, {
+    body: {
+      confirmed: payload.confirmed !== false,
+      planId: payload.planId || ""
+    }
+  });
+}
+
 /**
  * 流式 Agent 查询（SSE）。
  * @param {string} baseUrl

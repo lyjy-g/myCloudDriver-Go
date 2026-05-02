@@ -62,11 +62,11 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 		agenttool.NewShareRecordsTool(shareService),
 		agenttool.NewShareStatsTool(shareService),
 		agenttool.NewShareRevokeTool(shareService),
-		agenttool.NewShareCreateTool(shareService),
+		agenttool.NewShareCreateTool(shareService, fileService),
 		agenttool.NewTransferStatusTool(fileService),
 	)
 	if strings.EqualFold(strings.TrimSpace(deps.Config.LLM.Provider), "deepseek") && strings.TrimSpace(deps.Config.LLM.APIKey) == "" {
-		return fmt.Errorf("llm.api_key is empty in configs/config.yaml")
+		return fmt.Errorf("llm.api_key is empty ")
 	}
 	llmProvider := agentllm.NewDeepSeekProvider(
 		deps.Config.LLM.BaseURL,
