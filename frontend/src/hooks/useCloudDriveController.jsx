@@ -19,6 +19,7 @@ import {
   fetchWorkspaces,
   fetchRecycleBin,
   queryAgent,
+  streamAgentQuery,
   getAuthToken,
   login,
   logout,
@@ -968,34 +969,61 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     setError("");
     setLoading(true);
     setAgentRunning(true);
-    try {
-      const selectedScope = String(agentScope || "").trim();
-      let scope = "auto";
-      let storageSettingId = activeStorage?.settingId || "";
-      if (selectedScope === "workspace") {
-        scope = "workspace";
-        storageSettingId = "";
-      } else if (selectedScope === "auto") {
-        scope = "auto";
-      } else if (selectedScope) {
-        scope = "storage_setting";
-        storageSettingId = selectedScope;
-      }
-      const result = await queryAgent(normalizedBaseUrl, {
-        query: q,
-        scope,
-        mode: agentMode,
-        workspaceId: activeWorkspace?.workspaceId || "",
-        storageSettingId
+
+    const selectedScope = String(agentScope || "").trim();
+    let scope = "auto";
+    let storageSettingId = activeStorage?.settingId || "";
+    if (selectedScope === "workspace") {
+      scope = "workspace";
+      storageSettingId = "";
+    } else if (selectedScope === "auto") {
+      scope = "auto";
+    } else if (selectedScope) {
+      scope = "storage_setting";
+      storageSettingId = selectedScope;
+    }
+    const payload = {
+      query: q,
+      scope,
+      mode: agentMode,
+      workspaceId: activeWorkspace?.workspaceId || "",
+      storageSettingId
+    };
+
+    if (agentMode === "execute" || agentMode === "rag" || agentMode === "workflow") {
+      // 流式模式
+      streamAgentQuery(normalizedBaseUrl, payload, (event, data) => {
+        if (event === "error") {
+          setError(data.message || "Agent 检索失败");
+          setAgentRunning(false);
+          setLoading(false);
+          return;
+        }
+        if (event === "llm.decide.done" || event === "plan") {
+          setAgentResult((prev) => ({ ...prev, ...data }));
+        }
+        if (event === "summarize.done") {
+          setAgentResult((prev) => ({ ...prev, summary: data.summary }));
+          notifySuccess("Agent 检索完成");
+        }
+        if (event === "done" || event === "confirm.required") {
+          setAgentRunning(false);
+          setLoading(false);
+        }
       });
-      const payload = result?.data || result;
-      setAgentResult(payload || null);
-      notifySuccess("Agent 检索完成");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Agent 检索失败");
-    } finally {
-      setLoading(false);
-      setAgentRunning(false);
+    } else {
+      // 同步模式（search）
+      try {
+        const result = await queryAgent(normalizedBaseUrl, payload);
+        const payloadData = result?.data || result;
+        setAgentResult(payloadData || null);
+        notifySuccess("Agent 检索完成");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Agent 检索失败");
+      } finally {
+        setLoading(false);
+        setAgentRunning(false);
+      }
     }
   }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess]);
 

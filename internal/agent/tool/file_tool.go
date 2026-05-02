@@ -27,10 +27,10 @@ func (t *FileListTool) Call(ctx context.Context, callCtx CallContext) (ToolResul
 	}
 	q := strings.TrimSpace(callCtx.Query)
 	recentMode := strings.Contains(q, "最近") || strings.Contains(strings.ToLower(q), "recent") || strings.Contains(q, "最新")
+	onlyDir := strings.Contains(q, "目录") || strings.Contains(q, "文件夹")
 	parentID := "root"
-	keyword := NormalizeKeyword(q)
+	keyword := ""
 	if recentMode {
-		// “最近上传”语义应跨目录查询，不应被根目录与关键字过滤误伤。
 		parentID = ""
 		keyword = ""
 	}
@@ -50,6 +50,9 @@ func (t *FileListTool) Call(ctx context.Context, callCtx CallContext) (ToolResul
 	}
 	result := make([]any, 0, len(items))
 	for _, item := range items {
+		if onlyDir && !item.IsDir {
+			continue
+		}
 		result = append(result, map[string]any{
 			"fileId":    item.ID,
 			"fileName":  item.Name,

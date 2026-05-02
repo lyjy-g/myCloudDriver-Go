@@ -67,13 +67,20 @@ func (r *Registry) Call(ctx context.Context, name string, callCtx CallContext, t
 
 func NormalizeKeyword(query string) string {
 	q := strings.TrimSpace(query)
-	repl := []string{"最近", "上传", "访问", "分享", "文件", "配置", "空间", "查询", "搜索", "有哪些", "有没有"}
+	// 仅移除句子开头的提问语气词和结尾标点，保留内容关键词（如"配置"、"文件"）
+	repl := []string{"请问", "帮我", "我想", "我要", "有没有", "有哪些", "哪些", "最近", "一些"}
 	for _, p := range repl {
 		q = strings.ReplaceAll(q, p, "")
 	}
 	q = strings.TrimSpace(q)
-	if q == "" {
-		return ""
+	// 去除尾部标点语气词
+	for strings.HasSuffix(q, "？") || strings.HasSuffix(q, "?") || strings.HasSuffix(q, "。") || strings.HasSuffix(q, "的") || strings.HasSuffix(q, "了") {
+		q = strings.TrimSuffix(q, "？")
+		q = strings.TrimSuffix(q, "?")
+		q = strings.TrimSuffix(q, "。")
+		q = strings.TrimSuffix(q, "的")
+		q = strings.TrimSuffix(q, "了")
+		q = strings.TrimSpace(q)
 	}
 	return q
 }

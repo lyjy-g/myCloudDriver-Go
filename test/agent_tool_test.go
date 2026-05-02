@@ -155,11 +155,12 @@ func TestNormalizeKeyword(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"最近上传了哪些文件", "了哪些"},
-		{"配置中心", "中心"},
+		{"最近上传了哪些文件", "上传了文件"},
+		{"配置中心", "配置中心"},
 		{"PDF文档", "PDF文档"},
-		{"有哪些分享", ""},
+		{"有哪些分享", "分享"},
 		{"hello world", "hello world"},
+		{"当前配置有哪些目录", "当前配置目录"},
 	}
 	for _, c := range cases {
 		got := agenttool.NormalizeKeyword(c.input)
