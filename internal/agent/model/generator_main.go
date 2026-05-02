@@ -40,7 +40,6 @@ func main() {
 	g.UseDB(db)
 
 	tables := []string{
-		"agent_audit_log",
 		"agent_action",
 		"agent_action_step",
 		"agent_prompt_template",

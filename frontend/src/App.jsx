@@ -358,6 +358,19 @@ export default function App() {
                         { value: "execute", label: "执行" }
                       ]}
                     />
+                    <Select
+                      className="mcd-agent-select"
+                      style={{ width: 220 }}
+                      value={controller.agentPresetQuestion || undefined}
+                      placeholder="预设问题"
+                      onChange={(value) => {
+                        controller.setAgentPresetQuestion(value);
+                        controller.setAgentQuery(value);
+                      }}
+                      options={controller.agentPresetOptions}
+                      showSearch
+                      optionFilterProp="label"
+                    />
                     <Input
                       className="mcd-agent-input"
                       placeholder="知识搜索/问答/创作/AI全网搜索~"

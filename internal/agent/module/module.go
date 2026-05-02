@@ -31,7 +31,19 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Models() []any {
-	return []any{&agentdb.AgentAuditLog{}, &agentdb.AgentAction{}, &agentdb.AgentActionStep{}, &agentdb.AgentTool{}}
+	return []any{
+		&agentdb.AgentAction{},
+		&agentdb.AgentActionStep{},
+		&agentdb.AgentTool{},
+		&agentdb.AgentToolCall{},
+		&agentdb.AgentPromptTemplate{},
+		&agentdb.Knowledge{},
+		&agentdb.KnowledgeFile{},
+		&agentdb.KnowledgeDocumentChunk{},
+		&agentdb.WorkflowDefinition{},
+		&agentdb.WorkflowRun{},
+		&agentdb.WorkflowNodeRun{},
+	}
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {

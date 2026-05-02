@@ -166,9 +166,6 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 		intent = "llm_decision"
 	}
 	toolNames := decision.Tools
-	if len(toolNames) == 0 {
-		return nil, code.New(code.BadRequest, "llm returned empty tools")
-	}
 
 	callCtx := agenttool.CallContext{
 		TraceID:          traceID,
@@ -251,11 +248,6 @@ func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequ
 		intent = "llm_decision"
 	}
 	state.Intent = intent
-
-	toolNames := decision.Tools
-	if len(toolNames) == 0 {
-		toolNames = []string{"tool.file.list"}
-	}
 
 	storageSettingID, _ := resolveScope(req.Scope, req.StorageSettingID)
 	callCtx := agenttool.CallContext{

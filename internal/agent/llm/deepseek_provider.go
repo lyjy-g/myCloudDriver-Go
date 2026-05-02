@@ -43,6 +43,7 @@ func (p *DeepSeekProvider) DecideTools(ctx context.Context, query string) (Decis
 		"tool.share.list(分享列表), tool.share.search(分享搜索), tool.share.records(访问记录), tool.share.stats(分享统计), tool.share.revoke(撤销分享), " +
 		"tool.share.create(创建分享), tool.transfer.status(传输任务状态), tool.rag.search(知识库检索), tool.workflow(工作流编排)。" +
 		"输出严格 JSON: {\"intent\":\"...\",\"tools\":[\"tool.file.list\"]}。" +
+		"如果用户是闲聊、问候、身份类问题（如“你是谁”“在吗”“发生什么了”）或问题与网盘数据无关，tools 必须返回空数组 []，不要硬选任何工具。" +
 		"规则：文件搜索/过滤用 tool.file.search；统计计数用 tool.file.stats；回收站用 tool.file.trash.list；重要文件排序用 tool.file.rank；" +
 		"分享统计用 tool.share.stats；分享记录用 tool.share.records；创建分享用 tool.share.create；撤销分享用 tool.share.revoke。用户问题: " + query
 	content, err := p.chat(ctx, prompt)
@@ -59,9 +60,6 @@ func (p *DeepSeekProvider) DecideTools(ctx context.Context, query string) (Decis
 	var d Decision
 	if err = json.Unmarshal([]byte(content), &d); err != nil {
 		return Decision{}, fmt.Errorf("parse decision failed: %w", err)
-	}
-	if len(d.Tools) == 0 {
-		d.Tools = []string{"tool.file.list"}
 	}
 	d.Tools = normalizeTools(d.Tools)
 	return d, nil
@@ -264,7 +262,7 @@ func normalizeTools(tools []string) []string {
 		out = append(out, name)
 	}
 	if len(out) == 0 {
-		out = []string{"tool.file.list"}
+		return []string{}
 	}
 	// 固定顺序，避免相同问题跨次输出工具顺序抖动。
 	sort.SliceStable(out, func(i, j int) bool { return out[i] < out[j] })

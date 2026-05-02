@@ -110,9 +110,11 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [files, setFiles] = useState([]);
   const [shares, setShares] = useState([]);
   const [agentQuery, setAgentQuery] = useState("");
+  const [agentResult, setAgentResult] = useState(null);
   const [agentMessages, setAgentMessages] = useState([]);
   const [agentScope, setAgentScope] = useState("auto");
   const [agentMode, setAgentMode] = useState("search");
+  const [agentPresetQuestion, setAgentPresetQuestion] = useState("");
   const [agentChatCollapsed, setAgentChatCollapsed] = useState(false);
   const [agentInputCollapsed, setAgentInputCollapsed] = useState(false);
   const [agentRunning, setAgentRunning] = useState(false);
@@ -167,6 +169,61 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     options.push({ value: "auto", label: "自动" });
     return options;
   }, [storageSettings]);
+
+  const agentPresetOptions = useMemo(() => {
+    const presetsByMode = {
+      search: [
+        "当前配置有哪些目录",
+        "最近上传了什么文件",
+        "按关键词“合同”搜索文件",
+        "过去7天新增了哪些文件",
+        "根目录下最大的5个文件",
+        "回收站里有哪些文件",
+        "最近修改过哪些文件",
+        "当前配置下有多少个文件夹",
+        "列出扩展名为 pdf 的文件",
+        "最近访问最多的文件有哪些"
+      ],
+      execute: [
+        "把根目录下 test.txt 重命名为 test-1.txt",
+        "创建目录：项目资料",
+        "把 sample1.pptx 移动到目录 fun",
+        "删除目录 123",
+        "恢复回收站中最近删除的文件",
+        "为 file_example_MP3_5MG.mp3 创建分享",
+        "撤销最近创建的一条分享",
+        "把根目录下的无后缀文件移动到 other",
+        "删除 7 天前的临时文件",
+        "重建当前配置的文件索引"
+      ],
+      rag: [
+        "基于知识库总结本周上传文件主题",
+        "知识库里有哪些与网盘架构相关的文档",
+        "帮我找“幂等性设计”相关内容",
+        "对比上传链路和下载链路的差异",
+        "总结分享模块的核心流程",
+        "列出权限控制相关的设计要点",
+        "归纳文件架构文档中的高频面试点",
+        "提取与 Redis 使用相关的关键结论",
+        "整理数据库表结构和职责分工",
+        "输出 30 秒面试回答模板"
+      ],
+      workflow: [
+        "创建工作流：每日巡检上传失败任务",
+        "创建工作流：新文件上传后自动分享",
+        "创建工作流：每周生成存储使用报告",
+        "创建工作流：回收站文件7天自动清理",
+        "创建工作流：分享过期前1天提醒",
+        "创建工作流：检测大文件并打标签",
+        "创建工作流：统计活跃用户与下载量",
+        "创建工作流：异常登录后冻结分享",
+        "创建工作流：知识库文档每日增量入库",
+        "创建工作流：跨配置同步目录结构"
+      ]
+    };
+    const selected = presetsByMode[agentMode] || presetsByMode.search;
+    return selected.map((q) => ({ value: q, label: q }));
+  }, [agentMode]);
 
   const loadStorageMeta = useCallback(async () => {
     setError("");
@@ -1131,6 +1188,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, addConversationPair, updateLastAssistant]);
 
   useEffect(() => {
+    setAgentPresetQuestion("");
+  }, [agentMode]);
+
+  useEffect(() => {
     if (activeMenu === "knowledge") {
       setAgentScope("workspace");
       return;
@@ -1378,10 +1439,13 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     files,
     shares,
     agentQuery,
+    agentResult,
     agentMessages,
     agentScope,
     agentScopeOptions,
     agentMode,
+    agentPresetQuestion,
+    agentPresetOptions,
     agentChatCollapsed,
     agentInputCollapsed,
     agentRunning,
@@ -1409,6 +1473,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     setAgentQuery,
     setAgentScope,
     setAgentMode,
+    setAgentPresetQuestion,
     setAgentChatCollapsed,
     setAgentInputCollapsed,
     setDrawerOpen,

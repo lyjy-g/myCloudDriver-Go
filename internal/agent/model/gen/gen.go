@@ -19,7 +19,6 @@ var (
 	Q                      = new(Query)
 	AgentAction            *agentAction
 	AgentActionStep        *agentActionStep
-	AgentAuditLog          *agentAuditLog
 	AgentPromptTemplate    *agentPromptTemplate
 	AgentTool              *agentTool
 	AgentToolCall          *agentToolCall
@@ -35,7 +34,6 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	AgentAction = &Q.AgentAction
 	AgentActionStep = &Q.AgentActionStep
-	AgentAuditLog = &Q.AgentAuditLog
 	AgentPromptTemplate = &Q.AgentPromptTemplate
 	AgentTool = &Q.AgentTool
 	AgentToolCall = &Q.AgentToolCall
@@ -52,7 +50,6 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		db:                     db,
 		AgentAction:            newAgentAction(db, opts...),
 		AgentActionStep:        newAgentActionStep(db, opts...),
-		AgentAuditLog:          newAgentAuditLog(db, opts...),
 		AgentPromptTemplate:    newAgentPromptTemplate(db, opts...),
 		AgentTool:              newAgentTool(db, opts...),
 		AgentToolCall:          newAgentToolCall(db, opts...),
@@ -70,7 +67,6 @@ type Query struct {
 
 	AgentAction            agentAction
 	AgentActionStep        agentActionStep
-	AgentAuditLog          agentAuditLog
 	AgentPromptTemplate    agentPromptTemplate
 	AgentTool              agentTool
 	AgentToolCall          agentToolCall
@@ -89,7 +85,6 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		db:                     db,
 		AgentAction:            q.AgentAction.clone(db),
 		AgentActionStep:        q.AgentActionStep.clone(db),
-		AgentAuditLog:          q.AgentAuditLog.clone(db),
 		AgentPromptTemplate:    q.AgentPromptTemplate.clone(db),
 		AgentTool:              q.AgentTool.clone(db),
 		AgentToolCall:          q.AgentToolCall.clone(db),
@@ -115,7 +110,6 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		db:                     db,
 		AgentAction:            q.AgentAction.replaceDB(db),
 		AgentActionStep:        q.AgentActionStep.replaceDB(db),
-		AgentAuditLog:          q.AgentAuditLog.replaceDB(db),
 		AgentPromptTemplate:    q.AgentPromptTemplate.replaceDB(db),
 		AgentTool:              q.AgentTool.replaceDB(db),
 		AgentToolCall:          q.AgentToolCall.replaceDB(db),
@@ -131,7 +125,6 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 type queryCtx struct {
 	AgentAction            *agentActionDo
 	AgentActionStep        *agentActionStepDo
-	AgentAuditLog          *agentAuditLogDo
 	AgentPromptTemplate    *agentPromptTemplateDo
 	AgentTool              *agentToolDo
 	AgentToolCall          *agentToolCallDo
@@ -147,7 +140,6 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
 		AgentAction:            q.AgentAction.WithContext(ctx),
 		AgentActionStep:        q.AgentActionStep.WithContext(ctx),
-		AgentAuditLog:          q.AgentAuditLog.WithContext(ctx),
 		AgentPromptTemplate:    q.AgentPromptTemplate.WithContext(ctx),
 		AgentTool:              q.AgentTool.WithContext(ctx),
 		AgentToolCall:          q.AgentToolCall.WithContext(ctx),
