@@ -328,6 +328,44 @@ paths:
                 $ref: '#/components/schemas/SessionListResponse'
 
   # ============================================================
+  # 对话历史（所有模式共享）
+  # ============================================================
+  /apis/agent/session/history:
+    get:
+      summary: 获取对话历史
+      description: |
+        按时间倒序返回最近的历史对话记录。支持 cursor 分页（基于 traceId）。
+        每次返回最多 10 条，前端向上翻找时通过 before 参数请求更早的记录。
+      operationId: listHistory
+      tags: [Agent 会话]
+      parameters:
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 上一页最后一条的 traceId，传此参数获取更早的记录
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 历史记录列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================================
   # 知识库管理（RAG Agent 专用）
   # ============================================================
   /apis/agent/knowledge:
@@ -633,6 +671,55 @@ paths:
 
 components:
   schemas:
+    # ============================================================
+    # 对话历史
+    # ============================================================
+    HistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/HistoryEntry'
+            hasMore:
+              type: boolean
+              description: 是否还有更多记录
+            before:
+              type: string
+              description: 当前分页游标
+
+    HistoryEntry:
+      type: object
+      description: 单条对话历史记录，按 created_at 倒序排列。
+      properties:
+        traceId:
+          type: string
+        query:
+          type: string
+          description: 用户问题
+        summary:
+          type: string
+          description: Agent 回答摘要
+        intent:
+          type: string
+          description: LLM 判定的意图
+        mode:
+          type: string
+        source:
+          type: string
+        itemCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
     # ============================================================
     # 查询请求/响应
     # ============================================================

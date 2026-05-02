@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 	agentmodel "myclouddrive-go/internal/agent/model"
 	agentsvc "myclouddrive-go/internal/agent/service"
 	"myclouddrive-go/internal/framework/code"
+	"myclouddrive-go/internal/framework/security"
 	"myclouddrive-go/internal/framework/sse"
 	"myclouddrive-go/internal/framework/web"
 )
@@ -186,6 +186,44 @@ func (h *Handler) ListToolCalls(w http.ResponseWriter, r *http.Request, params a
 }
 
 // ============================================================
+// 对话历史
+// ============================================================
+
+// ListHistory 获取对话历史（OpenAPI 生成接口）。
+func (h *Handler) ListHistory(w http.ResponseWriter, r *http.Request, params agentapi.ListHistoryParams) {
+	if h == nil || h.svc == nil {
+		writeError(w, http.StatusInternalServerError, "agent service unavailable")
+		return
+	}
+	n := 10
+	if params.Size != nil && *params.Size > 0 {
+		n = *params.Size
+	}
+	beforeTraceID := ""
+	if params.Before != nil {
+		beforeTraceID = *params.Before
+	}
+	principal, err := security.RequireLogin(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	entries, hasMore, err := h.svc.ListHistory(r.Context(), principal.UserID, principal.WorkspaceID, beforeTraceID, n)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, map[string]any{
+		"code": 200, "msg": "success",
+		"data": map[string]any{
+			"items":   entries,
+			"hasMore": hasMore,
+			"before":  beforeTraceID,
+		},
+	})
+}
+
+// ============================================================
 // 辅助方法
 // ============================================================
 
@@ -221,4 +259,3 @@ func writeServiceError(w http.ResponseWriter, err error) {
 
 // 确保导入不被移除
 var _ = json.Marshal
-var _ = fmt.Sprintf

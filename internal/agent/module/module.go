@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"myclouddrive-go/internal/agent/api"
+	agenthistory "myclouddrive-go/internal/agent/history"
 	agentllm "myclouddrive-go/internal/agent/llm"
 	agentdb "myclouddrive-go/internal/agent/model/dbmodel"
 	agentsvc "myclouddrive-go/internal/agent/service"
@@ -30,7 +31,7 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Models() []any {
-	return []any{&agentdb.AgentAuditLog{}, &agentdb.AgentRun{}, &agentdb.AgentStep{}}
+	return []any{&agentdb.AgentAuditLog{}, &agentdb.AgentAction{}, &agentdb.AgentActionStep{}, &agentdb.AgentTool{}}
 }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
@@ -61,7 +62,8 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 		deps.Config.LLM.Model,
 		time.Duration(deps.Config.LLM.TimeoutMs)*time.Millisecond,
 	)
-	svc := agentsvc.New(registry, llmProvider)
+	historySvc := agenthistory.NewService(deps.Redis)
+	svc := agentsvc.New(registry, llmProvider, historySvc)
 	api.RegisterRoutes(mux, svc)
 	return nil
 }

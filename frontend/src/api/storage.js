@@ -675,3 +675,18 @@ export function fetchShareDetail(baseUrl, shareId) {
 export function updateShare(baseUrl, shareId, payload) {
   return requestJson("PUT", `${baseUrl}/apis/share/${encodeURIComponent(shareId)}`, { body: payload });
 }
+
+/**
+ * 获取 Agent 对话历史。
+ * @param {string} baseUrl
+ * @param {object} opts - { before?: string, size?: number }
+ * @returns {Promise<{items: Array, hasMore: boolean}>}
+ */
+export function fetchAgentHistory(baseUrl, opts = {}) {
+  const params = new URLSearchParams();
+  if (opts.before) params.set("before", opts.before);
+  if (opts.size) params.set("size", String(opts.size));
+  const qs = params.toString();
+  const url = `${baseUrl}/apis/agent/session/history${qs ? "?" + qs : ""}`;
+  return requestJson("GET", url).then((res) => res?.data || res || { items: [], hasMore: false });
+}

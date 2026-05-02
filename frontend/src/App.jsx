@@ -194,6 +194,36 @@ export default function App() {
                 <div className="mcd-agent-panel">
                   {!controller.agentChatCollapsed ? (
                     <div className="mcd-agent-panel-body">
+
+                      {/* 对话历史 */}
+                      {controller.agentHistory?.length > 0 ? (
+                        <div style={{ marginBottom: 8, fontSize: 13 }}>
+                          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, fontWeight: 600 }}>历史对话</div>
+                          {controller.agentHistory.map((item) => (
+                            <div key={item.traceId}
+                              style={{
+                                padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 13,
+                                background: "#f3f6ff", marginBottom: 2, display: "flex", justifyContent: "space-between", gap: 8
+                              }}
+                              onClick={() => controller.setAgentQuery(item.query)}
+                            >
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.query}</span>
+                              <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>{item.intent || item.summary?.slice(0, 30) || ""}</span>
+                            </div>
+                          ))}
+                          {controller.agentHistoryHasMore ? (
+                            <button
+                              type="button"
+                              style={{ fontSize: 12, color: "#6366f1", cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "center", padding: 4 }}
+                              onClick={() => {
+                                const items = controller.agentHistory;
+                                if (items.length > 0) controller.loadAgentHistory(items[items.length - 1].traceId);
+                              }}
+                            >加载更多...</button>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                       <div className="mcd-agent-suggestion-row">
                         <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近上传了什么文件")}>最近上传了什么文件</button>
                         <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近谁访问了我的分享")}>最近谁访问了我的分享</button>

@@ -112,13 +112,16 @@ func NewResponseWriter(w http.ResponseWriter) (chan Event, func()) {
 	done := make(chan struct{})
 
 	go func() {
+		defer func() { recover() }() // 防止 handler 返回后 flush 已关闭的连接
 		for {
 			evt, ok := <-ch
 			if !ok {
 				return
 			}
 			writeEvent(w, evt)
-			flusher.Flush()
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}()
 

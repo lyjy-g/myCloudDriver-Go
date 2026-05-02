@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
+	agenthistory "myclouddrive-go/internal/agent/history"
 	agentllm "myclouddrive-go/internal/agent/llm"
 	agentmodel "myclouddrive-go/internal/agent/model"
 	agentplanner "myclouddrive-go/internal/agent/planner"
@@ -21,14 +23,55 @@ type AgentService struct {
 	registry *agenttool.Registry
 	llm      agentllm.Provider
 	planner  *agentplanner.Planner
+	history  *agenthistory.Service
 }
 
-func New(registry *agenttool.Registry, llm agentllm.Provider) *AgentService {
+func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service) *AgentService {
 	return &AgentService{
 		registry: registry,
 		llm:      llm,
 		planner:  agentplanner.NewPlanner(registry),
+		history:  history,
 	}
+}
+
+// ListHistory 返回最近的 n 条对话历史。beforeTraceID 不为空时翻页。
+func (s *AgentService) ListHistory(ctx context.Context, userID, workspaceID, beforeTraceID string, n int) ([]agenthistory.Entry, bool, error) {
+	if s.history == nil {
+		return nil, false, nil
+	}
+	entries, err := s.history.List(ctx, userID, workspaceID, beforeTraceID, n)
+	if err != nil {
+		return nil, false, err
+	}
+	hasMore := false
+	if len(entries) > 0 {
+		lastID := entries[len(entries)-1].TraceID
+		hasMore, _ = s.history.HasMore(ctx, userID, workspaceID, lastID)
+	}
+	return entries, hasMore, nil
+}
+
+// recordHistory 将本次查询写入历史。
+func (s *AgentService) recordHistory(userID, workspaceID string, req agentmodel.QueryRequest, resp *agentmodel.QueryResponse) {
+	if s.history == nil || resp == nil {
+		return
+	}
+	source := ""
+	if len(resp.Sources) > 0 {
+		source = resp.Sources[0]
+	}
+	entry := &agenthistory.Entry{
+		TraceID:   resp.TraceID,
+		Query:     req.Query,
+		Summary:   resp.Summary,
+		Intent:    resp.Intent,
+		Mode:      req.Mode,
+		Source:    source,
+		ItemCount: len(resp.Items),
+		CreatedAt: time.Now(),
+	}
+	_ = s.history.Record(context.Background(), userID, workspaceID, entry)
 }
 
 // Query 统一入口。校验入参 → 鉴权 → scope 解析 → 按 mode 分发。
@@ -97,12 +140,17 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	}
 
 	// 按 mode 分发
+	var resp *agentmodel.QueryResponse
 	switch mode {
 	case "execute":
-		return s.executeMode(ctx, req, traceID, intent, toolNames, scope, callCtx)
+		resp, err = s.executeMode(ctx, req, traceID, intent, toolNames, scope, callCtx)
 	default:
-		return s.searchMode(ctx, req, traceID, intent, toolNames, scope, callCtx)
+		resp, err = s.searchMode(ctx, req, traceID, intent, toolNames, scope, callCtx)
 	}
+	if err == nil && resp != nil {
+		s.recordHistory(principal.UserID, workspaceID, req, resp)
+	}
+	return resp, err
 }
 
 // StreamQuery 流式执行，通过 eventFn 逐步回传中间结果。

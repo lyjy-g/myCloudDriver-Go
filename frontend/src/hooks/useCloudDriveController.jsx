@@ -19,6 +19,7 @@ import {
   fetchWorkspaces,
   fetchRecycleBin,
   queryAgent,
+  fetchAgentHistory,
   streamAgentQuery,
   getAuthToken,
   login,
@@ -115,6 +116,8 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [agentChatCollapsed, setAgentChatCollapsed] = useState(false);
   const [agentInputCollapsed, setAgentInputCollapsed] = useState(false);
   const [agentRunning, setAgentRunning] = useState(false);
+  const [agentHistory, setAgentHistory] = useState([]);
+  const [agentHistoryHasMore, setAgentHistoryHasMore] = useState(false);
   const [currentParentId, setCurrentParentId] = useState(ROOT_PARENT_ID);
   const [directoryTrail, setDirectoryTrail] = useState([{ id: ROOT_PARENT_ID, name: "根目录" }]);
   const [platforms, setPlatforms] = useState([]);
@@ -957,6 +960,20 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     notifyWarning("删除存储配置接口待后端提供");
   }, [notifyWarning]);
 
+  const loadAgentHistory = useCallback(async (before = "") => {
+    try {
+      const result = await fetchAgentHistory(normalizedBaseUrl, { before, size: 10 });
+      if (!before) {
+        setAgentHistory(result.items || []);
+      } else {
+        setAgentHistory((prev) => [...prev, ...(result.items || [])]);
+      }
+      setAgentHistoryHasMore(result.hasMore !== false);
+    } catch (_) {
+      // 静默失败，历史加载不影响主功能
+    }
+  }, [normalizedBaseUrl]);
+
   const handleAgentQuery = useCallback(async () => {
     if (agentRunning) {
       return;
@@ -1033,9 +1050,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         setAgentRunning(false);
         setLoading(false);
         notifySuccess("Agent 检索完成");
+        loadAgentHistory();
       }
     });
-  }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess]);
+  }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess, loadAgentHistory]);
 
   useEffect(() => {
     if (activeMenu === "knowledge") {
@@ -1350,6 +1368,9 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       deleteFile: handleDeleteFile,
       restore: handleRestore
     },
+    agentHistory,
+    agentHistoryHasMore,
+    loadAgentHistory,
     handleCreateShare,
     handleAccessShare,
     handleEditShare
