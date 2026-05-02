@@ -1,4 +1,4 @@
-package utils
+package planner
 
 import (
 	"fmt"
@@ -123,7 +123,6 @@ func NeedsConfirmation(plan agentmodel.ExecutionPlan) bool {
 	if plan.Risk == agentmodel.RiskRead {
 		return false
 	}
-	// WRITE / DANGER / EXPORT / CROSS_WS 都需要确认
 	return true
 }
 

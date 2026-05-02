@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	agentmodel "myclouddrive-go/internal/agent/model"
+	agentplanner "myclouddrive-go/internal/agent/planner"
 	agenttool "myclouddrive-go/internal/agent/tool"
-	agentutils "myclouddrive-go/internal/agent/utils"
 	filemodel "myclouddrive-go/internal/file/model"
 	filesvc "myclouddrive-go/internal/file/service"
 	sharesvc "myclouddrive-go/internal/share/service"
@@ -105,7 +105,7 @@ func TestPlannerBuildPlan(t *testing.T) {
 		agenttool.NewFileSearchTool(fs),
 		agenttool.NewFileStatsTool(fs),
 	)
-	p := agentutils.NewPlanner(r)
+	p := agentplanner.NewPlanner(r)
 	cc := agenttool.CallContext{
 		TraceID: "test", UserID: "u1", WorkspaceID: "ws1", Query: "搜索pdf文件",
 	}
@@ -119,7 +119,7 @@ func TestPlannerBuildPlan(t *testing.T) {
 	if plan.Risk != agentmodel.RiskRead {
 		t.Errorf("search should be READ risk, got %s", plan.Risk)
 	}
-	if agentutils.NeedsConfirmation(plan) {
+	if agentplanner.NeedsConfirmation(plan) {
 		t.Error("read-only plan should not need confirmation")
 	}
 }
@@ -131,7 +131,7 @@ func TestPlannerDangerousPlan(t *testing.T) {
 		agenttool.NewFileSearchTool(fs),
 		agenttool.NewShareRevokeTool(ss),
 	)
-	p := agentutils.NewPlanner(r)
+	p := agentplanner.NewPlanner(r)
 	cc := agenttool.CallContext{
 		TraceID: "test", UserID: "u1", WorkspaceID: "ws1", Query: "撤销分享shr_123",
 	}
@@ -142,10 +142,10 @@ func TestPlannerDangerousPlan(t *testing.T) {
 	if plan.Risk != agentmodel.RiskDanger {
 		t.Errorf("revoke should be DANGER risk, got %s", plan.Risk)
 	}
-	if !agentutils.NeedsConfirmation(plan) {
+	if !agentplanner.NeedsConfirmation(plan) {
 		t.Error("dangerous plan should need confirmation")
 	}
-	if !agentutils.HasDangerousSteps(plan) {
+	if !agentplanner.HasDangerousSteps(plan) {
 		t.Error("plan with revoke should have dangerous steps")
 	}
 }
@@ -177,5 +177,5 @@ var _ = agentmodel.RiskRead
 var _ = filemodel.FileItem{}
 var _ = filesvc.NewFileService
 var _ = sharesvc.NewService
-var _ = agentutils.NewPlanner
+var _ = agentplanner.NewPlanner
 var _ = agenttool.CallContext{}
