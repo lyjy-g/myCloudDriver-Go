@@ -990,41 +990,51 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       storageSettingId
     };
 
-    if (agentMode === "execute" || agentMode === "rag" || agentMode === "workflow") {
-      // 流式模式
-      streamAgentQuery(normalizedBaseUrl, payload, (event, data) => {
-        if (event === "error") {
-          setError(data.message || "Agent 检索失败");
-          setAgentRunning(false);
-          setLoading(false);
-          return;
-        }
-        if (event === "llm.decide.done" || event === "plan") {
-          setAgentResult((prev) => ({ ...prev, ...data }));
-        }
-        if (event === "summarize.done") {
-          setAgentResult((prev) => ({ ...prev, summary: data.summary }));
-          notifySuccess("Agent 检索完成");
-        }
-        if (event === "done" || event === "confirm.required") {
-          setAgentRunning(false);
-          setLoading(false);
-        }
-      });
-    } else {
-      // 同步模式（search）
-      try {
-        const result = await queryAgent(normalizedBaseUrl, payload);
-        const payloadData = result?.data || result;
-        setAgentResult(payloadData || null);
-        notifySuccess("Agent 检索完成");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Agent 检索失败");
-      } finally {
-        setLoading(false);
+    // 所有模式都用 SSE 流式输出，search 模式也一样
+    setAgentResult(null);
+    streamAgentQuery(normalizedBaseUrl, payload, (event, data) => {
+      if (event === "error") {
+        setError(data.message || "Agent 检索失败");
         setAgentRunning(false);
+        setLoading(false);
+        return;
       }
-    }
+      if (event === "start") {
+        setAgentResult((prev) => ({ ...prev, traceId: "streaming...", summary: "正在处理..." }));
+      }
+      if (event === "llm.decide.done") {
+        setAgentResult((prev) => ({ ...prev, intent: data.intent, routeMode: "llm" }));
+      }
+      if (event === "tool.start") {
+        setAgentResult((prev) => ({ ...prev, summary: "正在调用工具: " + (data.tool || "") }));
+      }
+      if (event === "tool.done") {
+        setAgentResult((prev) => {
+          const items = [...(prev?.items || []), ...(data.items || [])];
+          const sources = [...(prev?.sources || []), data.source].filter(Boolean);
+          return { ...prev, items, sources };
+        });
+      }
+      if (event === "summary.token") {
+        setAgentResult((prev) => ({ ...prev, summary: data.summary }));
+      }
+      if (event === "summarize.done") {
+        setAgentResult((prev) => ({ ...prev, summary: data.summary }));
+      }
+      if (event === "plan") {
+        setAgentResult((prev) => ({ ...prev, summary: data.summary, executionPlan: data }));
+      }
+      if (event === "confirm.required") {
+        setAgentResult((prev) => ({ ...prev, waitingConfirm: true }));
+        setAgentRunning(false);
+        setLoading(false);
+      }
+      if (event === "done") {
+        setAgentRunning(false);
+        setLoading(false);
+        notifySuccess("Agent 检索完成");
+      }
+    });
   }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess]);
 
   useEffect(() => {

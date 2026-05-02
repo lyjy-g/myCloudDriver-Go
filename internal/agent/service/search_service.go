@@ -71,11 +71,15 @@ func (s *AgentService) streamSearch(ctx context.Context, query string, decision 
 	_ = sources
 
 	eventFn("summarize.start", map[string]any{"items": len(items)})
-	llmSummary, sumErr := s.llm.Summarize(ctx, query, decision, items)
+	summaryBuf := ""
+	sumErr := s.llm.SummarizeStream(ctx, query, decision, items, func(token string) {
+		summaryBuf += token
+		eventFn("summary.token", map[string]any{"token": token, "summary": summaryBuf})
+	})
 	if sumErr != nil {
 		eventFn("summarize.error", map[string]any{"error": sumErr.Error()})
 	} else {
-		eventFn("summarize.done", map[string]any{"summary": llmSummary})
+		eventFn("summarize.done", map[string]any{"summary": summaryBuf})
 	}
 }
 

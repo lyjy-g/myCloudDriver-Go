@@ -1,10 +1,12 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -72,6 +74,13 @@ func (p *DeepSeekProvider) Summarize(ctx context.Context, query string, decision
 	return p.chat(ctx, prompt)
 }
 
+func (p *DeepSeekProvider) SummarizeStream(ctx context.Context, query string, decision Decision, items []any, onToken func(string)) error {
+	raw, _ := json.Marshal(items)
+	prompt := "你是网盘检索助手。请根据用户问题和检索结果给出简短中文总结，不要编造。" +
+		"用户问题: " + query + "；路由意图: " + decision.Intent + "；结果JSON: " + string(raw)
+	return p.chatStream(ctx, prompt, onToken)
+}
+
 func (p *DeepSeekProvider) chat(ctx context.Context, prompt string) (string, error) {
 	if strings.TrimSpace(p.apiKey) == "" {
 		return "", fmt.Errorf("deepseek api key is empty")
@@ -113,6 +122,107 @@ func (p *DeepSeekProvider) chat(ctx context.Context, prompt string) (string, err
 		return "", fmt.Errorf("empty llm choices")
 	}
 	return strings.TrimSpace(out.Choices[0].Message.Content), nil
+}
+
+// chatStream 流式调用 DeepSeek Chat API，通过 onToken 回传每个 token。
+func (p *DeepSeekProvider) chatStream(ctx context.Context, prompt string, onToken func(string)) error {
+	if strings.TrimSpace(p.apiKey) == "" {
+		return fmt.Errorf("deepseek api key is empty")
+	}
+	payload := map[string]any{
+		"model": p.model,
+		"messages": []map[string]string{
+			{"role": "user", "content": prompt},
+		},
+		"temperature": 0,
+		"stream":      true,
+	}
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("deepseek stream status=%d", resp.StatusCode)
+	}
+
+	decoder := NewSSEDecoder(resp.Body)
+	for {
+		evt, err := decoder.Decode()
+		if err != nil {
+			return nil // 正常结束
+		}
+		if evt == nil {
+			continue
+		}
+		// 解析 delta
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+				FinishReason *string `json:"finish_reason"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(evt.Data, &chunk); err != nil {
+			continue
+		}
+		if len(chunk.Choices) > 0 {
+			content := chunk.Choices[0].Delta.Content
+			if content != "" {
+				onToken(content)
+			}
+			if chunk.Choices[0].FinishReason != nil {
+				return nil
+			}
+		}
+	}
+}
+
+// SSEData 表示一条 SSE 事件的数据。
+type SSEData struct {
+	Data []byte
+}
+
+// SSEDecoder 解析 SSE 流。
+type SSEDecoder struct {
+	body   io.ReadCloser
+	reader *bufio.Reader
+}
+
+func NewSSEDecoder(body io.ReadCloser) *SSEDecoder {
+	return &SSEDecoder{body: body, reader: bufio.NewReader(body)}
+}
+
+// Decode 读取下一条 SSE 事件。返回 nil, nil 表示连接正常结束。
+func (d *SSEDecoder) Decode() (*SSEData, error) {
+	for {
+		line, err := d.reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue // 空行是事件分隔符
+		}
+		if strings.HasPrefix(line, "data: ") {
+			data := strings.TrimPrefix(line, "data: ")
+			if data == "[DONE]" {
+				return nil, nil
+			}
+			return &SSEData{Data: []byte(data)}, nil
+		}
+		// event: 行跳过，只关心 data
+	}
 }
 
 func sanitizeJSONBlock(raw string) string {

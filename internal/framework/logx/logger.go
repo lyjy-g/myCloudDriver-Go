@@ -28,9 +28,14 @@ func (l *loggingResponseWriter) WriteHeader(statusCode int) {
 }
 
 func (l *loggingResponseWriter) Write(b []byte) (int, error) {
-	// 缓存响应体摘要用于日志，不影响真实响应写出。
 	_, _ = l.body.Write(b)
 	return l.ResponseWriter.Write(b)
+}
+
+func (l *loggingResponseWriter) Flush() {
+	if f, ok := l.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 const maxLogBodyBytes = 2048

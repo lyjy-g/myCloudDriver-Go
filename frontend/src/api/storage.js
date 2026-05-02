@@ -199,12 +199,17 @@ export function streamAgentQuery(baseUrl, payload, onEvent) {
     traceId: payload?.traceId || ""
   });
 
+  const extraHeaders = {};
+  if (currentWorkspaceId) { extraHeaders["X-Workspace-Id"] = currentWorkspaceId; }
+  if (currentStorageSettingId) { extraHeaders["X-Storage-Setting-Id"] = currentStorageSettingId; }
+
   fetch(`${baseUrl}/apis/agent/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Accept": "text/event-stream",
-      "Authorization": getAuthToken() ? `Bearer ${getAuthToken()}` : ""
+      "Authorization": getAuthToken() ? `Bearer ${getAuthToken()}` : "",
+      ...extraHeaders
     },
     body,
     signal: controller.signal
