@@ -984,71 +984,233 @@ body {
   transition: transform .24s ease, opacity .24s ease, box-shadow .24s ease;
 }
 
-.mcd-agent-panel-body {
-  padding: 10px 16px 12px;
+/* ---- 可调节高度的对话区域 ---- */
+
+.mcd-agent-chat-area {
+  position: relative;
   border: 1px solid #d7deec;
-  border-radius: 16px;
+  border-radius: 16px 16px 0 0;
   background: linear-gradient(180deg, #f8faff 0%, #f2f6fd 100%);
   margin: 8px 12px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 40px;
 }
 
-.mcd-agent-tip {
+.mcd-agent-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 5;
+  background: transparent;
+}
+
+.mcd-agent-resize-handle:hover,
+.mcd-agent-resize-handle:active {
+  background: rgba(100, 140, 255, 0.20);
+}
+
+/* ---- 消息滚动容器 ---- */
+
+.mcd-agent-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcd-agent-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.mcd-agent-messages::-webkit-scrollbar-thumb {
+  background: #cdd6e8;
+  border-radius: 999px;
+}
+
+/* ---- 空状态 ---- */
+
+.mcd-agent-empty {
+  text-align: center;
+  color: #8a96b2;
   font-size: 14px;
-  color: #42506f;
-  margin-bottom: 12px;
+  padding: 30px 0;
 }
 
-.mcd-agent-suggestion-row {
+/* ---- 单条消息 ---- */
+
+.mcd-agent-msg {
   display: flex;
   gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  max-width: 92%;
 }
 
-.mcd-agent-suggestion {
-  border: 1px solid #d3dced;
-  background: #eef3fb;
-  color: #233252;
+.mcd-agent-msg-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.mcd-agent-msg-assistant {
+  align-self: flex-start;
+}
+
+.mcd-agent-msg-label {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.mcd-agent-msg-user .mcd-agent-msg-label {
+  background: #4f7dff;
+  color: #fff;
+}
+
+.mcd-agent-msg-assistant .mcd-agent-msg-label {
+  background: #e8edf7;
+  color: #3a4a6b;
+}
+
+.mcd-agent-msg-content {
+  padding: 8px 14px;
   border-radius: 14px;
-  height: 38px;
-  padding: 0 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mcd-agent-msg-user .mcd-agent-msg-content {
+  background: #4f7dff;
+  color: #fff;
+  border-radius: 18px 6px 18px 18px;
+}
+
+.mcd-agent-msg-assistant .mcd-agent-msg-content {
+  background: #ffffff;
+  color: #1f2b47;
+  border: 1px solid #e2e8f5;
+  border-radius: 6px 18px 18px 18px;
+}
+
+/* ---- 思考中动画（三点脉冲） ---- */
+
+.mcd-agent-thinking {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.mcd-agent-dot-pulse {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.mcd-agent-dot-pulse span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7b8db5;
+  animation: mcd-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mcd-dot-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: .4; }
+  40% { transform: scale(1.0); opacity: 1; }
+}
+
+/* ---- 光标闪烁（流式输出时） ---- */
+
+.mcd-agent-cursor-blink {
+  animation: mcd-blink 0.8s step-end infinite;
+  color: #4f7dff;
+  font-weight: 300;
+  margin-left: 1px;
+}
+
+@keyframes mcd-blink {
+  50% { opacity: 0; }
+}
+
+/* ---- 顶部翻页 ---- */
+
+.mcd-agent-load-more-wrap {
+  text-align: center;
+  padding: 6px 0 2px;
+}
+
+.mcd-agent-load-more-btn {
+  border: 1px dashed #bcc6db;
+  background: #f2f6ff;
+  color: #4f6b9a;
+  border-radius: 10px;
+  padding: 6px 18px;
+  font-size: 13px;
   cursor: pointer;
   transition: all .2s ease;
-  font-weight: 600;
 }
 
-.mcd-agent-suggestion:hover {
-  background: #e5ebf5;
-  border-color: #c8d4ea;
+.mcd-agent-load-more-btn:hover {
+  border-color: #6a8ed6;
+  background: #eaf0ff;
+  color: #2b53a8;
 }
+
+.mcd-agent-history-end {
+  text-align: center;
+  font-size: 12px;
+  color: #a0abc2;
+  padding: 4px 0 2px;
+}
+
+.mcd-agent-loading-dots {
+  color: #7b8db5;
+  font-size: 13px;
+}
+
+/* ---- 底部输入栏 ---- */
 
 .mcd-agent-composer {
-  margin: 10px 12px 12px;
+  margin: 0 12px 12px;
   border: 1px solid #d0d9ea;
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 0 0 16px 16px;
   padding: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  border-top: none;
 }
 
 .mcd-agent-input {
   flex: 1;
-  min-width: 240px;
+  min-width: 180px;
 }
 
 .mcd-agent-input .ant-input,
 .mcd-agent-input.ant-input {
-  height: 40px;
+  height: 38px;
   border-radius: 12px;
   border-color: #d8dfec;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .mcd-agent-select .ant-select-selector {
-  height: 40px !important;
+  height: 38px !important;
   border-radius: 12px !important;
   border-color: #d8dfec !important;
   background: #fbfdff !important;
@@ -1060,16 +1222,72 @@ body {
 .mcd-agent-select .ant-select-selection-item {
   font-weight: 600;
   color: #28324b;
+  font-size: 13px;
 }
 
+/* ---- 发送按钮 ---- */
+
 .mcd-agent-send-btn {
-  width: 46px;
-  height: 40px;
-  border-radius: 13px;
+  width: 40px;
+  height: 38px;
+  border-radius: 12px;
   border: 1px solid #6ea0ff;
-  background: linear-gradient(135deg, #5ea0ff, #2f7cff) !important;
-  box-shadow: 0 12px 20px rgba(47, 124, 255, 0.32);
+  background: linear-gradient(135deg, #5ea0ff, #2f7cff);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(47, 124, 255, 0.28);
+  transition: transform .15s ease, box-shadow .15s ease;
+  flex-shrink: 0;
 }
+
+.mcd-agent-send-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(47, 124, 255, 0.35);
+}
+
+.mcd-agent-send-btn:active {
+  transform: translateY(0);
+}
+
+/* ---- 停止按钮（带脉冲动效） ---- */
+
+.mcd-agent-stop-btn {
+  width: 40px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid #ff6b6b;
+  background: linear-gradient(135deg, #ff6b6b, #ee4444);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(255, 60, 60, 0.28);
+  transition: transform .15s ease, box-shadow .15s ease;
+  animation: mcd-stop-pulse 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.mcd-agent-stop-btn:hover {
+  transform: scale(1.06);
+  box-shadow: 0 10px 22px rgba(255, 60, 60, 0.40);
+}
+
+.mcd-agent-stop-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+@keyframes mcd-stop-pulse {
+  0%, 100% { box-shadow: 0 6px 14px rgba(255, 60, 60, 0.28); }
+  50% { box-shadow: 0 6px 22px rgba(255, 60, 60, 0.50); }
+}
+
+/* ---- 折叠 / 展开 ---- */
 
 .mcd-agent-float.collapsed {
   pointer-events: none;
@@ -1079,22 +1297,23 @@ body {
 
 .mcd-agent-icon-btn,
 .mcd-agent-toggle {
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   border: 1px solid #c8d3e8;
   background: linear-gradient(180deg, #ffffff 0%, #edf3ff 100%);
   color: #1f2b47;
   cursor: pointer;
   z-index: 60;
-  box-shadow: 0 10px 18px rgba(42, 56, 96, 0.16);
+  box-shadow: 0 8px 14px rgba(42, 56, 96, 0.14);
   transition: transform .2s ease, box-shadow .2s ease;
+  flex-shrink: 0;
 }
 
 .mcd-agent-icon-btn:hover,
 .mcd-agent-toggle:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(50, 64, 102, 0.22);
+  box-shadow: 0 12px 22px rgba(50, 64, 102, 0.20);
 }
 
 .mcd-agent-icon-btn:disabled {
@@ -1105,39 +1324,22 @@ body {
 }
 
 .mcd-agent-icon-btn.ghost {
-  font-size: 18px;
-  flex: 0 0 auto;
-}
-
-.mcd-agent-result {
-  border: 1px solid #cfd8ea;
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 10px 12px;
-}
-
-.mcd-agent-result-meta {
-  font-size: 11px;
-  color: #6d7b99;
-  margin-bottom: 6px;
-}
-
-.mcd-agent-result-summary {
-  font-size: 14px;
-  color: #1f2b47;
-  line-height: 1.5;
+  font-size: 16px;
 }
 
 .mcd-agent-toggle {
   position: fixed;
   right: 20px;
   bottom: 18px;
-  border-radius: 11px;
   border-color: #cfd8ea;
   background: linear-gradient(180deg, #ffffff 0%, #f2f6fd 100%);
   color: #233252;
   z-index: 60;
   pointer-events: auto;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 1200px) {

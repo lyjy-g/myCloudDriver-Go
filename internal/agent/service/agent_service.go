@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	agenthistory "myclouddrive-go/internal/agent/history"
@@ -24,15 +25,53 @@ type AgentService struct {
 	llm      agentllm.Provider
 	planner  *agentplanner.Planner
 	history  *agenthistory.Service
+
+	// 流式查询取消管理
+	streamCancel map[string]context.CancelFunc
+	streamState  map[string]*agentmodel.StreamState
+	streamMu     sync.Mutex
 }
 
 func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service) *AgentService {
 	return &AgentService{
-		registry: registry,
-		llm:      llm,
-		planner:  agentplanner.NewPlanner(registry),
-		history:  history,
+		registry:     registry,
+		llm:          llm,
+		planner:      agentplanner.NewPlanner(registry),
+		history:      history,
+		streamCancel: make(map[string]context.CancelFunc),
+		streamState:  make(map[string]*agentmodel.StreamState),
 	}
+}
+
+// StopStream 取消正在流式执行的查询并持久化已产生的部分结果。
+func (s *AgentService) StopStream(ctx context.Context, traceID string) error {
+	s.streamMu.Lock()
+	cancel, ok := s.streamCancel[traceID]
+	state := s.streamState[traceID]
+	delete(s.streamCancel, traceID)
+	delete(s.streamState, traceID)
+	s.streamMu.Unlock()
+
+	if !ok {
+		return code.New(code.NotFound, "stream not found: "+traceID)
+	}
+
+	cancel() // 触发流式 goroutine 中的 context 取消
+
+	// 持久化部分结果
+	if state != nil && state.Dirty && s.history != nil {
+		entry := &agenthistory.Entry{
+			TraceID:   state.TraceID,
+			Query:     state.Query,
+			Summary:   state.Summary,
+			Intent:    state.Intent,
+			Mode:      state.Mode,
+			ItemCount: state.ItemCount,
+			CreatedAt: time.Now(),
+		}
+		_ = s.history.Record(context.Background(), state.UserID, state.WorkspaceID, entry)
+	}
+	return nil
 }
 
 // ListHistory 返回最近的 n 条对话历史。beforeTraceID 不为空时翻页。
@@ -173,6 +212,29 @@ func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequ
 		traceID = "agt_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	userID := strings.TrimSpace(principal.UserID)
+
+	// 创建可取消 context 并注册到 stream 管理
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	state := &agentmodel.StreamState{
+		TraceID:     traceID,
+		UserID:      userID,
+		WorkspaceID: workspaceID,
+		Query:       strings.TrimSpace(req.Query),
+		Mode:        mode,
+	}
+	s.streamMu.Lock()
+	s.streamCancel[traceID] = cancel
+	s.streamState[traceID] = state
+	s.streamMu.Unlock()
+	defer func() {
+		s.streamMu.Lock()
+		delete(s.streamCancel, traceID)
+		delete(s.streamState, traceID)
+		s.streamMu.Unlock()
+	}()
 
 	eventFn("start", map[string]any{"mode": req.Mode, "query": req.Query, "traceId": traceID, "provider": s.llm.Name(), "model": s.llm.Model()})
 
@@ -188,6 +250,8 @@ func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequ
 	if intent == "" {
 		intent = "llm_decision"
 	}
+	state.Intent = intent
+
 	toolNames := decision.Tools
 	if len(toolNames) == 0 {
 		toolNames = []string{"tool.file.list"}
@@ -196,17 +260,17 @@ func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequ
 	storageSettingID, _ := resolveScope(req.Scope, req.StorageSettingID)
 	callCtx := agenttool.CallContext{
 		TraceID:          traceID,
-		UserID:           strings.TrimSpace(principal.UserID),
+		UserID:           userID,
 		WorkspaceID:      workspaceID,
 		StorageSettingID: storageSettingID,
 		Query:            strings.TrimSpace(req.Query),
 	}
 
 	if mode == "execute" {
-		s.streamExecute(ctx, decision, callCtx, eventFn)
+		s.streamExecute(ctx, decision, callCtx, eventFn, state)
 		return
 	}
-	s.streamSearch(ctx, req.Query, decision, callCtx, eventFn)
+	s.streamSearch(ctx, req.Query, decision, callCtx, eventFn, state)
 }
 
 // resolveScope 解析查询范围。

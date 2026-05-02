@@ -40,7 +40,7 @@ func (s *AgentService) executeMode(ctx context.Context, req agentmodel.QueryRequ
 
 // streamExecute 流式 execute 模式：Plan → Confirm → 执行。
 func (s *AgentService) streamExecute(ctx context.Context, decision agentllm.Decision,
-	callCtx agenttool.CallContext, eventFn func(string, any)) {
+	callCtx agenttool.CallContext, eventFn func(string, any), state *agentmodel.StreamState) {
 
 	plan, planErr := s.planner.BuildPlan(callCtx.Query, decision.Intent, decision.Tools, callCtx)
 	if planErr != nil {
@@ -57,5 +57,5 @@ func (s *AgentService) streamExecute(ctx context.Context, decision agentllm.Deci
 	}
 	// 无风险的 execute 直接执行
 	decision2 := agentllm.Decision{Intent: decision.Intent, Tools: decision.Tools}
-	s.streamSearch(ctx, callCtx.Query, decision2, callCtx, eventFn)
+	s.streamSearch(ctx, callCtx.Query, decision2, callCtx, eventFn, state)
 }

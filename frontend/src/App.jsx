@@ -1,5 +1,5 @@
 import { App as AntApp, Button, Card, Input, Select, Space, Typography } from "antd";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ICON_RAIL_ITEMS,
   LOCAL_PATH_PRESETS,
@@ -17,6 +17,131 @@ import { UploadDrawerPanel } from "./components/upload/UploadDrawerPanel.jsx";
 import { useBaseUrl } from "./hooks/useBaseUrl.js";
 import { useCloudDriveController } from "./hooks/useCloudDriveController.jsx";
 import { useNotifier } from "./hooks/useNotifier.js";
+
+// ============================================================
+// 对话消息区域（可调整高度、load-more 顶部翻页、加载动效）
+// ============================================================
+function ChatArea({ messages, hasMore, loadingMore, onLoadMore, running }) {
+  const containerRef = useRef(null);
+  const [height, setHeight] = useState(320);
+  const [resizing, setResizing] = useState(false);
+  const [atTop, setAtTop] = useState(false);
+
+  // 检查是否在顶部
+  const checkScrollTop = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setAtTop(el.scrollTop <= 20);
+  }, []);
+
+  // 新消息或 streaming 时自动滚到底部
+  const scrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (el) {
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (running) scrollToBottom();
+  }, [messages, running, scrollToBottom]);
+
+  // 在 messages 增加且最后一条是 assistant streaming 时也滚到底部
+  useEffect(() => {
+    const msgs = messages;
+    if (msgs.length > 0) {
+      const last = msgs[msgs.length - 1];
+      if (last.role === "assistant" && last.isStreaming) scrollToBottom();
+    }
+  }, [messages, scrollToBottom]);
+
+  // 拖拽 resize
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setResizing(true);
+    const startY = e.clientY;
+    const startH = height;
+
+    const onMove = (ev) => {
+      const delta = startY - ev.clientY;
+      const newH = Math.min(Math.max(startH + delta, 140), window.innerHeight * 0.55);
+      setHeight(newH);
+    };
+    const onUp = () => {
+      setResizing(false);
+      window.removeEventListener("mousemove", onMove);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp, { once: true });
+  }, [height]);
+
+  if (messages.length === 0 && !running) {
+    return (
+      <div className="mcd-agent-chat-area" style={{ height }}>
+        <div className="mcd-agent-resize-handle" onMouseDown={handleMouseDown} />
+        <div className="mcd-agent-messages">
+          <div className="mcd-agent-empty">等待你的问题，我会在这里展示回答结果。</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mcd-agent-chat-area" style={{ height }}>
+      <div className="mcd-agent-resize-handle" onMouseDown={handleMouseDown} />
+      <div
+        className="mcd-agent-messages"
+        ref={containerRef}
+        onScroll={checkScrollTop}
+      >
+        {hasMore && messages.length > 0 && messages[0].traceId ? (
+          <div className="mcd-agent-load-more-wrap">
+            {loadingMore ? (
+              <span className="mcd-agent-loading-dots">加载中...</span>
+            ) : (
+              <button
+                type="button"
+                className="mcd-agent-load-more-btn"
+                onClick={onLoadMore}
+              >
+                ↑ 查看更早的对话
+              </button>
+            )}
+          </div>
+        ) : !hasMore && messages.length > 0 ? (
+          <div className="mcd-agent-history-end">—— 没有更早的记录了 ——</div>
+        ) : null}
+
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`mcd-agent-msg mcd-agent-msg-${msg.role}`}
+          >
+            <div className="mcd-agent-msg-label">
+              {msg.role === "user" ? "你" : "AI"}
+            </div>
+            <div className="mcd-agent-msg-content">
+              {msg.role === "assistant" && msg.isStreaming && !msg.content ? (
+                <span className="mcd-agent-thinking">
+                  <span className="mcd-agent-dot-pulse">
+                    <span style={{ animationDelay: "0s" }} />
+                    <span style={{ animationDelay: ".2s" }} />
+                    <span style={{ animationDelay: ".4s" }} />
+                  </span>
+                </span>
+              ) : (
+                msg.content || (msg.role === "assistant" ? "（空）" : "")
+              )}
+              {msg.role === "assistant" && msg.isStreaming && msg.content ? (
+                <span className="mcd-agent-cursor-blink">|</span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /**
  * 网盘主界面。
@@ -193,64 +318,37 @@ export default function App() {
               {!controller.agentInputCollapsed ? (
                 <div className="mcd-agent-panel">
                   {!controller.agentChatCollapsed ? (
-                    <div className="mcd-agent-panel-body">
-
-                      {/* 对话历史 */}
-                      {controller.agentHistory?.length > 0 ? (
-                        <div style={{ marginBottom: 8, fontSize: 13 }}>
-                          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, fontWeight: 600 }}>历史对话</div>
-                          {controller.agentHistory.map((item) => (
-                            <div key={item.traceId}
-                              style={{
-                                padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontSize: 13,
-                                background: "#f3f6ff", marginBottom: 2, display: "flex", justifyContent: "space-between", gap: 8
-                              }}
-                              onClick={() => controller.setAgentQuery(item.query)}
-                            >
-                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.query}</span>
-                              <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>{item.intent || item.summary?.slice(0, 30) || ""}</span>
-                            </div>
-                          ))}
-                          {controller.agentHistoryHasMore ? (
-                            <button
-                              type="button"
-                              style={{ fontSize: 12, color: "#6366f1", cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "center", padding: 4 }}
-                              onClick={() => {
-                                const items = controller.agentHistory;
-                                if (items.length > 0) controller.loadAgentHistory(items[items.length - 1].traceId);
-                              }}
-                            >加载更多...</button>
-                          ) : null}
-                        </div>
-                      ) : null}
-
-                      <div className="mcd-agent-suggestion-row">
-                        <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近上传了什么文件")}>最近上传了什么文件</button>
-                        <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近谁访问了我的分享")}>最近谁访问了我的分享</button>
-                        <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("当前配置有哪些目录")}>当前配置有哪些目录</button>
-                      </div>
-                      <div className="mcd-agent-result">
-                        <div className="mcd-agent-result-meta">
-                          traceId: {controller.agentResult?.traceId || "-"} | mode: {controller.agentResult?.routeMode || "-"} | model: {controller.agentResult?.model || "-"}
-                        </div>
-                        <div className="mcd-agent-result-summary">
-                          {controller.agentResult?.summary || "等待你的问题，我会在这里展示回答结果。"}
-                        </div>
-                      </div>
-                    </div>
+                    <ChatArea
+                      messages={controller.agentMessages}
+                      hasMore={controller.agentHistoryHasMore}
+                      loadingMore={controller.agentLoadingHistory}
+                      onLoadMore={() => {
+                        // 找到最早有 traceId 的消息来翻页
+                        const msgs = controller.agentMessages;
+                        let cursor = "";
+                        for (const m of msgs) {
+                          if (m.traceId && m.traceId.startsWith("agt_")) {
+                            cursor = m.traceId;
+                            break;
+                          }
+                        }
+                        if (cursor) controller.loadAgentHistory(cursor);
+                      }}
+                      running={controller.agentRunning}
+                    />
                   ) : null}
 
                   <div className="mcd-agent-composer">
                     <Select
                       className="mcd-agent-select"
-                      style={{ width: 138 }}
+                      style={{ width: 110 }}
                       value={controller.agentScope}
                       onChange={controller.setAgentScope}
                       options={controller.agentScopeOptions}
                     />
                     <Select
                       className="mcd-agent-select"
-                      style={{ width: 148 }}
+                      style={{ width: 110 }}
                       value={controller.agentMode}
                       onChange={controller.setAgentMode}
                       options={[
@@ -268,15 +366,24 @@ export default function App() {
                       onPressEnter={controller.handleAgentQuery}
                       disabled={controller.agentRunning}
                     />
-                    <Button
-                      type="primary"
-                      className="mcd-agent-send-btn"
-                      onClick={controller.handleAgentQuery}
-                      loading={controller.agentRunning}
-                      disabled={controller.agentRunning}
-                    >
-                      {!controller.agentRunning ? "➤" : ""}
-                    </Button>
+                    {controller.agentRunning ? (
+                      <button
+                        type="button"
+                        className="mcd-agent-stop-btn"
+                        onClick={controller.handleStopAgent}
+                        title="停止"
+                      >
+                        <span className="mcd-agent-stop-icon">■</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="mcd-agent-send-btn"
+                        onClick={controller.handleAgentQuery}
+                      >
+                        ➤
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="mcd-agent-icon-btn ghost"

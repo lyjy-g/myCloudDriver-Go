@@ -88,6 +88,23 @@ func (h *Handler) ConfirmAction(w http.ResponseWriter, r *http.Request, traceId 
 }
 
 // ============================================================
+// 停止流式查询
+// ============================================================
+
+func (h *Handler) StopStreamQuery(w http.ResponseWriter, r *http.Request, traceId string) {
+	if h == nil || h.svc == nil {
+		writeError(w, http.StatusInternalServerError, "agent service unavailable")
+		return
+	}
+	err := h.svc.StopStream(r.Context(), traceId)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	web.WriteJSON(w, http.StatusOK, map[string]any{"code": 200, "msg": "stopped", "data": map[string]any{"traceId": traceId, "partial": true}})
+}
+
+// ============================================================
 // 执行记录
 // ============================================================
 

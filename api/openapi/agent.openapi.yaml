@@ -150,6 +150,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /apis/agent/stop/{traceId}:
+    post:
+      summary: 停止正在执行的流式查询
+      description: |
+        取消正在进行的流式 Agent 查询并持久化已产生的部分结果。
+        前端在收到完整 SSE 响应前点击"停止"按钮时调用此接口。
+      operationId: stopStreamQuery
+      tags: [Agent 查询]
+      parameters:
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 已取消，部分结果已持久化
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopResponse'
+        '404':
+          description: 未找到对应的执行流
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # ============================================================
   # Agent 执行记录
   # ============================================================
@@ -830,6 +858,21 @@ components:
           type: integer
         message:
           type: string
+
+    StopResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: object
+          properties:
+            traceId:
+              type: string
+            partial:
+              type: boolean
 
     ErrorResponse:
       type: object

@@ -682,6 +682,16 @@ export function updateShare(baseUrl, shareId, payload) {
  * @param {object} opts - { before?: string, size?: number }
  * @returns {Promise<{items: Array, hasMore: boolean}>}
  */
+/**
+ * 停止正在执行的流式 Agent 查询。
+ * @param {string} baseUrl
+ * @param {string} traceId
+ * @returns {Promise<object>}
+ */
+export function stopAgentQuery(baseUrl, traceId) {
+  return requestJson("POST", `${baseUrl}/apis/agent/stop/${encodeURIComponent(traceId)}`);
+}
+
 export function fetchAgentHistory(baseUrl, opts = {}) {
   const params = new URLSearchParams();
   if (opts.before) params.set("before", opts.before);

@@ -237,41 +237,12 @@ export function FilesPanel({
   }
 
   if (activeMenu === "agent") {
-    const items = Array.isArray(agentResult?.items) ? agentResult.items : [];
     return (
       <div className="mcd-panel p-5">
-        <Text className="mcd-muted block mb-3">Agent 检索（只读）</Text>
-        <Space.Compact style={{ width: "100%", marginBottom: 12 }}>
-          <Input
-            placeholder="例如：最近上传了哪些文件、我的分享访问记录"
-            value={agentQuery}
-            onChange={(event) => onAgentQueryChange?.(event.target.value)}
-            onPressEnter={() => onAgentSubmit?.()}
-          />
-          <Button type="primary" onClick={() => onAgentSubmit?.()}>检索</Button>
-        </Space.Compact>
-        {!agentChatCollapsed ? (
-          <>
-            <div className="mcd-muted" style={{ marginBottom: 12 }}>
-              traceId: {agentResult?.traceId || "-"} | mode: {agentResult?.routeMode || "-"} | model: {agentResult?.model || "-"} | sources: {(agentResult?.sources || []).join(", ") || "-"}
-            </div>
-            <div className="mcd-muted" style={{ marginBottom: 12 }}>{agentResult?.summary || "暂无结果"}</div>
-            <Table
-              className="mcd-table"
-              rowKey={(row, idx) => row?.id || row?.fileId || row?.shareId || String(idx)}
-              columns={[
-                { title: "条目", dataIndex: "fileName", key: "fileName", render: (_, row) => row.fileName || row.shareName || row.shareId || "-" },
-                { title: "类型", key: "type", render: (_, row) => (row.isDir ? "目录" : row.shareId ? "分享" : "文件") },
-                { title: "补充信息", key: "meta", render: (_, row) => row.updatedAt || row.accessTime || row.status || "-" }
-              ]}
-              dataSource={items}
-              pagination={{ pageSize: 8 }}
-              locale={{ emptyText: "暂无检索结果" }}
-            />
-          </>
-        ) : (
-          <Text className="mcd-muted">对话已收起，可在下方操作栏重新展开。</Text>
-        )}
+        <Text className="mcd-muted block mb-3">Agent 智能助手</Text>
+        <p className="mcd-muted" style={{ marginTop: 8 }}>
+          AI 助手位于页面底部浮动栏，支持检索、执行、RAG 等多种模式。
+        </p>
       </div>
     );
   }

@@ -66,38 +66,38 @@ type ShareStatEntry struct {
 
 // ExecuteRequest 执行型请求，包含 plan 确认信息。，包含 plan 确认信息。
 type ExecuteRequest struct {
-	TraceID       string   `json:"traceId"`
-	ConfirmedPlan bool     `json:"confirmedPlan"`
-	PlanID        string   `json:"planId"`
-	ConfirmedSteps []int   `json:"confirmedSteps"`
-	OriginalQuery string   `json:"originalQuery"`
+	TraceID        string `json:"traceId"`
+	ConfirmedPlan  bool   `json:"confirmedPlan"`
+	PlanID         string `json:"planId"`
+	ConfirmedSteps []int  `json:"confirmedSteps"`
+	OriginalQuery  string `json:"originalQuery"`
 }
 
 // RiskLevel 风险等级。
 type RiskLevel string
 
 const (
-	RiskRead     RiskLevel = "READ"
-	RiskWrite    RiskLevel = "WRITE"
-	RiskDanger   RiskLevel = "DANGER"
-	RiskExport   RiskLevel = "EXPORT"
-	RiskCrossWS  RiskLevel = "CROSS_WS"
+	RiskRead    RiskLevel = "READ"
+	RiskWrite   RiskLevel = "WRITE"
+	RiskDanger  RiskLevel = "DANGER"
+	RiskExport  RiskLevel = "EXPORT"
+	RiskCrossWS RiskLevel = "CROSS_WS"
 )
 
 // ExecutionPlan 执行计划。
 type ExecutionPlan struct {
-	PlanID  string         `json:"planId"`
+	PlanID  string          `json:"planId"`
 	Steps   []ExecutionStep `json:"steps"`
-	Summary string         `json:"summary"`
-	Risk    RiskLevel      `json:"risk"`
+	Summary string          `json:"summary"`
+	Risk    RiskLevel       `json:"risk"`
 }
 
 // ExecutionStep 单步执行计划。
 type ExecutionStep struct {
-	Index       int      `json:"index"`
-	Description string   `json:"description"`
-	ToolName    string   `json:"toolName"`
-	FileIDs     []string `json:"fileIds"`
+	Index       int       `json:"index"`
+	Description string    `json:"description"`
+	ToolName    string    `json:"toolName"`
+	FileIDs     []string  `json:"fileIds"`
 	Risk        RiskLevel `json:"risk"`
 }
 
@@ -117,13 +117,26 @@ type Run struct {
 
 // Step 记录执行中的单步。
 type Step struct {
-	ID          string    `json:"id"`
-	RunID       string    `json:"runId"`
-	Index       int       `json:"index"`
-	ToolName    string    `json:"toolName"`
-	Status      string    `json:"status"`
-	Input       string    `json:"input"`
-	Output      string    `json:"output"`
-	LatencyMs   int64     `json:"latencyMs"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
+	RunID     string    `json:"runId"`
+	Index     int       `json:"index"`
+	ToolName  string    `json:"toolName"`
+	Status    string    `json:"status"`
+	Input     string    `json:"input"`
+	Output    string    `json:"output"`
+	LatencyMs int64     `json:"latencyMs"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// StreamState 流式查询的累计状态，用于停止时持久化部分结果。
+type StreamState struct {
+	TraceID     string
+	UserID      string
+	WorkspaceID string
+	Query       string
+	Mode        string
+	Intent      string
+	Summary     string
+	ItemCount   int
+	Dirty       bool // 是否有已产生的数据值得持久化
 }

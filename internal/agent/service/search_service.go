@@ -47,7 +47,7 @@ func (s *AgentService) searchMode(ctx context.Context, req agentmodel.QueryReque
 
 // streamSearch 流式 search 模式：逐步推送 LLM 决策、工具执行、摘要。
 func (s *AgentService) streamSearch(ctx context.Context, query string, decision agentllm.Decision,
-	callCtx agenttool.CallContext, eventFn func(string, any)) {
+	callCtx agenttool.CallContext, eventFn func(string, any), state *agentmodel.StreamState) {
 
 	items := make([]any, 0)
 	sources := make([]string, 0)
@@ -65,6 +65,8 @@ func (s *AgentService) streamSearch(ctx context.Context, query string, decision 
 		} else {
 			sources = append(sources, result.Source)
 			items = append(items, result.Items...)
+			state.ItemCount += len(result.Items)
+			state.Dirty = true
 			eventFn("tool.done", map[string]any{"tool": toolName, "source": result.Source, "count": len(result.Items), "latencyMs": latency, "items": result.Items})
 		}
 	}
@@ -74,11 +76,13 @@ func (s *AgentService) streamSearch(ctx context.Context, query string, decision 
 	summaryBuf := ""
 	sumErr := s.llm.SummarizeStream(ctx, query, decision, items, func(token string) {
 		summaryBuf += token
+		state.Summary = summaryBuf
 		eventFn("summary.token", map[string]any{"token": token, "summary": summaryBuf})
 	})
 	if sumErr != nil {
 		eventFn("summarize.error", map[string]any{"error": sumErr.Error()})
 	} else {
+		state.Summary = summaryBuf
 		eventFn("summarize.done", map[string]any{"summary": summaryBuf})
 	}
 }

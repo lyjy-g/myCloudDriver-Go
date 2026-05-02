@@ -20,7 +20,7 @@ import {
   fetchRecycleBin,
   queryAgent,
   fetchAgentHistory,
-  streamAgentQuery,
+  stopAgentQuery,
   getAuthToken,
   login,
   logout,
@@ -110,14 +110,17 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [files, setFiles] = useState([]);
   const [shares, setShares] = useState([]);
   const [agentQuery, setAgentQuery] = useState("");
-  const [agentResult, setAgentResult] = useState(null);
+  const [agentMessages, setAgentMessages] = useState([]);
   const [agentScope, setAgentScope] = useState("auto");
   const [agentMode, setAgentMode] = useState("search");
   const [agentChatCollapsed, setAgentChatCollapsed] = useState(false);
   const [agentInputCollapsed, setAgentInputCollapsed] = useState(false);
   const [agentRunning, setAgentRunning] = useState(false);
-  const [agentHistory, setAgentHistory] = useState([]);
   const [agentHistoryHasMore, setAgentHistoryHasMore] = useState(false);
+  const [agentLoadingHistory, setAgentLoadingHistory] = useState(false);
+  const agentAbortRef = useRef(null);
+  const agentCurrentTraceIdRef = useRef("");
+  const agentChatRef = useRef(null);
   const [currentParentId, setCurrentParentId] = useState(ROOT_PARENT_ID);
   const [directoryTrail, setDirectoryTrail] = useState([{ id: ROOT_PARENT_ID, name: "根目录" }]);
   const [platforms, setPlatforms] = useState([]);
@@ -962,17 +965,106 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
 
   const loadAgentHistory = useCallback(async (before = "") => {
     try {
+      setAgentLoadingHistory(true);
       const result = await fetchAgentHistory(normalizedBaseUrl, { before, size: 10 });
-      if (!before) {
-        setAgentHistory(result.items || []);
-      } else {
-        setAgentHistory((prev) => [...prev, ...(result.items || [])]);
+      const items = result.items || [];
+      const newMessages = [];
+      for (const item of items) {
+        newMessages.push({
+          id: item.traceId + "-user",
+          role: "user",
+          content: item.query,
+          traceId: item.traceId,
+          createdAt: item.createdAt
+        });
+        newMessages.push({
+          id: item.traceId + "-assistant",
+          role: "assistant",
+          content: item.summary || item.intent || "",
+          traceId: item.traceId,
+          itemCount: item.itemCount,
+          createdAt: item.createdAt
+        });
       }
+      setAgentMessages((prev) => {
+        // 首次加载或没有已有消息时直接替换
+        if (!before || prev.length === 0) {
+          return newMessages;
+        }
+        // 追加到最前面（更早的记录）
+        // 去重：跳过已存在的 traceId
+        const existingIds = new Set();
+        for (const m of prev) {
+          if (m.traceId) existingIds.add(m.traceId);
+        }
+        const deduped = newMessages.filter((m) => !existingIds.has(m.traceId));
+        return [...deduped, ...prev];
+      });
       setAgentHistoryHasMore(result.hasMore !== false);
     } catch (_) {
-      // 静默失败，历史加载不影响主功能
+      // 静默失败
+    } finally {
+      setAgentLoadingHistory(false);
     }
   }, [normalizedBaseUrl]);
+
+  // 添加一条用户消息和一条空的助手消息（流式输出中）
+  const addConversationPair = useCallback((query) => {
+    const tempId = "pending-" + Date.now();
+    const userMsg = {
+      id: tempId + "-user",
+      role: "user",
+      content: query,
+      traceId: "",
+      createdAt: new Date().toISOString()
+    };
+    const assistantMsg = {
+      id: tempId + "-assistant",
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+      traceId: "",
+      createdAt: new Date().toISOString()
+    };
+    setAgentMessages((prev) => [...prev, userMsg, assistantMsg]);
+    return { userMsg, assistantMsg };
+  }, []);
+
+  // 更新最后一条助手消息
+  const updateLastAssistant = useCallback((updater) => {
+    setAgentMessages((prev) => {
+      const idx = prev.length - 1;
+      if (idx < 0 || prev[idx].role !== "assistant") return prev;
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], ...updater(updated[idx]) };
+      return updated;
+    });
+  }, []);
+
+  const handleStopAgent = useCallback(async () => {
+    const traceId = agentCurrentTraceIdRef.current;
+    // 1. 取消前端 SSE 请求
+    if (agentAbortRef.current) {
+      try {
+        agentAbortRef.current.abort();
+      } catch (_) {}
+      agentAbortRef.current = null;
+    }
+    // 2. 通知后端停止并持久化
+    if (traceId) {
+      try {
+        await stopAgentQuery(normalizedBaseUrl, traceId);
+      } catch (_) {}
+    }
+    // 3. 更新消息状态
+    updateLastAssistant((msg) => ({
+      ...msg,
+      isStreaming: false,
+      content: msg.content || "（已停止）"
+    }));
+    setAgentRunning(false);
+    setLoading(false);
+  }, [normalizedBaseUrl, updateLastAssistant]);
 
   const handleAgentQuery = useCallback(async () => {
     if (agentRunning) {
@@ -986,6 +1078,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     setError("");
     setLoading(true);
     setAgentRunning(true);
+    setAgentQuery("");
 
     const selectedScope = String(agentScope || "").trim();
     let scope = "auto";
@@ -1007,53 +1100,35 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       storageSettingId
     };
 
-    // 所有模式都用 SSE 流式输出，search 模式也一样
-    setAgentResult(null);
-    streamAgentQuery(normalizedBaseUrl, payload, (event, data) => {
-      if (event === "error") {
-        setError(data.message || "Agent 检索失败");
-        setAgentRunning(false);
-        setLoading(false);
-        return;
-      }
-      if (event === "start") {
-        setAgentResult((prev) => ({ ...prev, traceId: data.traceId || "streaming...", provider: data.provider, model: data.model, summary: "正在处理..." }));
-      }
-      if (event === "llm.decide.done") {
-        setAgentResult((prev) => ({ ...prev, intent: data.intent, routeMode: "llm" }));
-      }
-      if (event === "tool.start") {
-        setAgentResult((prev) => ({ ...prev, summary: "正在调用工具: " + (data.tool || "") }));
-      }
-      if (event === "tool.done") {
-        setAgentResult((prev) => {
-          const items = [...(prev?.items || []), ...(data.items || [])];
-          const sources = [...(prev?.sources || []), data.source].filter(Boolean);
-          return { ...prev, items, sources };
-        });
-      }
-      if (event === "summary.token") {
-        setAgentResult((prev) => ({ ...prev, summary: data.summary }));
-      }
-      if (event === "summarize.done") {
-        setAgentResult((prev) => ({ ...prev, summary: data.summary }));
-      }
-      if (event === "plan") {
-        setAgentResult((prev) => ({ ...prev, summary: data.summary, executionPlan: data }));
-      }
-      if (event === "confirm.required") {
-        setAgentResult((prev) => ({ ...prev, waitingConfirm: true }));
-        setAgentRunning(false);
-        setLoading(false);
-      }
-      if (event === "done") {
-        setAgentRunning(false);
-        setLoading(false);
-        notifySuccess("Agent 检索完成");
-        loadAgentHistory();
-      }
-    });
-  }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, notifySuccess, loadAgentHistory]);
+    // 添加用户和助手消息对
+    addConversationPair(q);
+
+    try {
+      const result = await queryAgent(normalizedBaseUrl, payload);
+      const data = result?.data || result || {};
+      const traceId = data.traceId || "";
+      agentCurrentTraceIdRef.current = traceId;
+      setAgentResult(data || null);
+      updateLastAssistant((msg) => ({
+        ...msg,
+        traceId,
+        isStreaming: false,
+        content: data.summary || "检索完成",
+        itemCount: Array.isArray(data.items) ? data.items.length : (msg.itemCount || 0),
+        items: data.items || []
+      }));
+    } catch (err) {
+      updateLastAssistant((msg) => ({
+        ...msg,
+        isStreaming: false,
+        content: err instanceof Error ? err.message : "检索失败"
+      }));
+    } finally {
+      setAgentRunning(false);
+      setLoading(false);
+      agentAbortRef.current = null;
+    }
+  }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, addConversationPair, updateLastAssistant]);
 
   useEffect(() => {
     if (activeMenu === "knowledge") {
@@ -1256,10 +1331,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       loadShares();
       return;
     }
-    if (activeMenu === "agent" && agentResult == null) {
-      setAgentResult(null);
+    if (activeMenu === "agent" && agentMessages.length === 0) {
+      loadAgentHistory();
     }
-  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares, agentResult]);
+  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares, agentMessages.length, loadAgentHistory]);
 
   useEffect(() => {
     const currentSettingId = activeStorage?.settingId || "";
@@ -1286,10 +1361,9 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       const isAuthed = await checkAuth();
       if (isAuthed) {
         await loadStorageMeta();
-        loadAgentHistory();
       }
     })();
-  }, [checkAuth, loadStorageMeta, loadAgentHistory]);
+  }, [checkAuth, loadStorageMeta]);
 
   useEffect(() => {
     if (!error) {
@@ -1304,13 +1378,16 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     files,
     shares,
     agentQuery,
-    agentResult,
+    agentMessages,
     agentScope,
     agentScopeOptions,
     agentMode,
     agentChatCollapsed,
     agentInputCollapsed,
     agentRunning,
+    agentLoadingHistory,
+    agentHistoryHasMore,
+    agentChatRef,
     currentParentId,
     directoryTrail,
     platforms,
@@ -1361,6 +1438,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     handleRemoveWorkspaceUser,
     handleDeleteStorageSetting,
     handleAgentQuery,
+    handleStopAgent,
     handleBaseFileActions: {
       renameFolder: handleRenameFolder,
       deleteFolder: handleDeleteFolder,
@@ -1369,8 +1447,6 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       deleteFile: handleDeleteFile,
       restore: handleRestore
     },
-    agentHistory,
-    agentHistoryHasMore,
     loadAgentHistory,
     handleCreateShare,
     handleAccessShare,
