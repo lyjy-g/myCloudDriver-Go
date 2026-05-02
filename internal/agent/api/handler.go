@@ -69,12 +69,10 @@ func (h *Handler) AgentStreamQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cancel()
 
-	sse.SendTo(ch, sse.Event{Event: "start", Data: map[string]any{"mode": req.Mode, "query": req.Query}})
 	eventFn := func(event string, data any) {
 		sse.SendTo(ch, sse.Event{Event: event, Data: data})
 	}
 	h.svc.StreamQuery(r.Context(), req, eventFn)
-	sse.SendTo(ch, sse.Event{Event: "done", Data: map[string]any{"status": "ok"}})
 }
 
 // ============================================================

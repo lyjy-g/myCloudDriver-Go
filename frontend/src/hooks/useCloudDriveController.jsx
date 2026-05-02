@@ -1017,7 +1017,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         return;
       }
       if (event === "start") {
-        setAgentResult((prev) => ({ ...prev, traceId: "streaming...", summary: "正在处理..." }));
+        setAgentResult((prev) => ({ ...prev, traceId: data.traceId || "streaming...", provider: data.provider, model: data.model, summary: "正在处理..." }));
       }
       if (event === "llm.decide.done") {
         setAgentResult((prev) => ({ ...prev, intent: data.intent, routeMode: "llm" }));
@@ -1286,9 +1286,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       const isAuthed = await checkAuth();
       if (isAuthed) {
         await loadStorageMeta();
+        loadAgentHistory();
       }
     })();
-  }, [checkAuth, loadStorageMeta]);
+  }, [checkAuth, loadStorageMeta, loadAgentHistory]);
 
   useEffect(() => {
     if (!error) {

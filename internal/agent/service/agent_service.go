@@ -159,8 +159,6 @@ func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequ
 		eventFn("error", map[string]any{"message": "query is required"})
 		return
 	}
-	eventFn("start", map[string]any{"mode": req.Mode, "query": req.Query})
-
 	mode := strings.TrimSpace(req.Mode)
 	if mode == "" {
 		mode = "search"
@@ -175,6 +173,8 @@ func (s *AgentService) StreamQuery(ctx context.Context, req agentmodel.QueryRequ
 		traceID = "agt_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+
+	eventFn("start", map[string]any{"mode": req.Mode, "query": req.Query, "traceId": traceID, "provider": s.llm.Name(), "model": s.llm.Model()})
 
 	eventFn("llm.decide.start", map[string]any{"query": req.Query})
 	decision, err := s.llm.DecideTools(ctx, req.Query)

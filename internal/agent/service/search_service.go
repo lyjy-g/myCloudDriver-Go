@@ -65,7 +65,7 @@ func (s *AgentService) streamSearch(ctx context.Context, query string, decision 
 		} else {
 			sources = append(sources, result.Source)
 			items = append(items, result.Items...)
-			eventFn("tool.done", map[string]any{"tool": toolName, "source": result.Source, "count": len(result.Items), "latencyMs": latency})
+			eventFn("tool.done", map[string]any{"tool": toolName, "source": result.Source, "count": len(result.Items), "latencyMs": latency, "items": result.Items})
 		}
 	}
 	_ = sources
