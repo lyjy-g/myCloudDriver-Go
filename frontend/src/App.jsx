@@ -194,7 +194,6 @@ export default function App() {
                 <div className="mcd-agent-panel">
                   {!controller.agentChatCollapsed ? (
                     <div className="mcd-agent-panel-body">
-                      <div className="mcd-agent-tip">我可以基于当前作用域做检索、执行、RAG、Workflow 编排。</div>
                       <div className="mcd-agent-suggestion-row">
                         <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近上传了什么文件")}>最近上传了什么文件</button>
                         <button type="button" className="mcd-agent-suggestion" onClick={() => controller.setAgentQuery("最近谁访问了我的分享")}>最近谁访问了我的分享</button>
