@@ -21,7 +21,21 @@ func NewPlanner(registry *agenttool.Registry) *Planner {
 // BuildPlan 根据 LLM 决策生成执行计划。
 func (p *Planner) BuildPlan(query, intent string, tools []string, callCtx agenttool.CallContext) (agentmodel.ExecutionPlan, error) {
 	if len(tools) == 0 {
-		return agentmodel.ExecutionPlan{}, fmt.Errorf("empty tool list")
+		planID := fmt.Sprintf("plan_%d", time.Now().UnixNano())
+		steps := []agentmodel.ExecutionStep{
+			{
+				Index:       1,
+				Description: "未匹配到可执行工具，建议改写指令或补充文件/目录标识",
+				ToolName:    "",
+				Risk:        agentmodel.RiskRead,
+			},
+		}
+		return agentmodel.ExecutionPlan{
+			PlanID:  planID,
+			Steps:   steps,
+			Summary: "当前问题未匹配到可执行工具，已降级为只读建议，不会执行写操作。",
+			Risk:    agentmodel.RiskRead,
+		}, nil
 	}
 	risk := agentmodel.RiskRead
 	steps := make([]agentmodel.ExecutionStep, 0, len(tools))
@@ -62,17 +76,23 @@ func buildSummary(intent string, steps []agentmodel.ExecutionStep, query string)
 
 func describeStep(toolName, query string) string {
 	m := map[string]string{
-		"tool.file.list":       "查询当前空间的文件列表",
-		"tool.file.search":     fmt.Sprintf("搜索文件：%s", query),
-		"tool.file.stats":      "统计文件的类型和大小分布",
-		"tool.file.trash.list": "列出回收站中的文件",
-		"tool.file.rank":       "按重要性排序文件",
-		"tool.share.list":      "查询我的分享链接列表",
-		"tool.share.search":    fmt.Sprintf("搜索分享：%s", query),
-		"tool.share.records":   "查询分享的访问记录",
-		"tool.share.stats":     "统计分享的查看和下载数据",
-		"tool.share.revoke":    "撤销指定的分享链接",
-		"tool.share.create":    "创建新的分享链接",
+		"tool.file.list":          "查询当前空间的文件列表",
+		"tool.file.search":        fmt.Sprintf("搜索文件：%s", query),
+		"tool.file.stats":         "统计文件的类型和大小分布",
+		"tool.file.trash.list":    "列出回收站中的文件",
+		"tool.file.rank":          "按重要性排序文件",
+		"tool.file.rename":        "重命名指定文件",
+		"tool.file.create_dir":    "在根目录创建新目录",
+		"tool.file.move":          "移动文件到目标目录",
+		"tool.file.delete":        "删除文件或目录到回收站",
+		"tool.file.restore":       "从回收站恢复最近文件",
+		"tool.file.rebuild_index": "重建文件索引",
+		"tool.share.list":         "查询我的分享链接列表",
+		"tool.share.search":       fmt.Sprintf("搜索分享：%s", query),
+		"tool.share.records":      "查询分享的访问记录",
+		"tool.share.stats":        "统计分享的查看和下载数据",
+		"tool.share.revoke":       "撤销指定的分享链接",
+		"tool.share.create":       "创建新的分享链接",
 	}
 	if d, ok := m[toolName]; ok {
 		return d
@@ -81,17 +101,23 @@ func describeStep(toolName, query string) string {
 }
 
 var toolRiskMap = map[string]agentmodel.RiskLevel{
-	"tool.file.list":       agentmodel.RiskRead,
-	"tool.file.search":     agentmodel.RiskRead,
-	"tool.file.stats":      agentmodel.RiskRead,
-	"tool.file.trash.list": agentmodel.RiskRead,
-	"tool.file.rank":       agentmodel.RiskRead,
-	"tool.share.list":      agentmodel.RiskRead,
-	"tool.share.search":    agentmodel.RiskRead,
-	"tool.share.records":   agentmodel.RiskRead,
-	"tool.share.stats":     agentmodel.RiskRead,
-	"tool.share.revoke":    agentmodel.RiskDanger,
-	"tool.share.create":    agentmodel.RiskWrite,
+	"tool.file.list":          agentmodel.RiskRead,
+	"tool.file.search":        agentmodel.RiskRead,
+	"tool.file.stats":         agentmodel.RiskRead,
+	"tool.file.trash.list":    agentmodel.RiskRead,
+	"tool.file.rank":          agentmodel.RiskRead,
+	"tool.file.rename":        agentmodel.RiskWrite,
+	"tool.file.create_dir":    agentmodel.RiskWrite,
+	"tool.file.move":          agentmodel.RiskWrite,
+	"tool.file.delete":        agentmodel.RiskDanger,
+	"tool.file.restore":       agentmodel.RiskWrite,
+	"tool.file.rebuild_index": agentmodel.RiskWrite,
+	"tool.share.list":         agentmodel.RiskRead,
+	"tool.share.search":       agentmodel.RiskRead,
+	"tool.share.records":      agentmodel.RiskRead,
+	"tool.share.stats":        agentmodel.RiskRead,
+	"tool.share.revoke":       agentmodel.RiskDanger,
+	"tool.share.create":       agentmodel.RiskWrite,
 }
 
 func classifyToolRisk(name string) agentmodel.RiskLevel {

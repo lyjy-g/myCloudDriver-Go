@@ -57,6 +57,12 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 		agenttool.NewFileStatsTool(fileService),
 		agenttool.NewFileTrashListTool(fileService),
 		agenttool.NewFileRankTool(fileService),
+		agenttool.NewFileRenameTool(fileService),
+		agenttool.NewFileCreateDirTool(fileService),
+		agenttool.NewFileMoveTool(fileService),
+		agenttool.NewFileDeleteTool(fileService),
+		agenttool.NewFileRestoreTool(fileService),
+		agenttool.NewFileRebuildIndexTool(),
 		agenttool.NewShareListTool(shareService),
 		agenttool.NewShareSearchTool(shareService),
 		agenttool.NewShareRecordsTool(shareService),
@@ -75,7 +81,8 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 		time.Duration(deps.Config.LLM.TimeoutMs)*time.Millisecond,
 	)
 	historySvc := agenthistory.NewService(deps.Redis)
-	svc := agentsvc.New(registry, llmProvider, historySvc)
+	runSvc := agentsvc.NewRunService(deps.DB)
+	svc := agentsvc.New(registry, llmProvider, historySvc, runSvc)
 	api.RegisterRoutes(mux, svc)
 	return nil
 }

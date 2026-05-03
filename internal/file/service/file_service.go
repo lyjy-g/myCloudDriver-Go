@@ -666,6 +666,27 @@ func fileSuffix(name string) string {
 
 // Rename 重命名。
 func (s *FileService) Rename(fileID, newName string) (*filemodel.FileItem, error) {
+	return s.RenameWithContext(context.Background(), fileID, newName)
+}
+
+// RenameWithContext 重命名（DB 优先）。
+func (s *FileService) RenameWithContext(ctx context.Context, fileID, newName string) (*filemodel.FileItem, error) {
+	if s.db != nil {
+		p, err := security.RequireLogin(ctx)
+		if err == nil {
+			newName = strings.TrimSpace(newName)
+			if newName == "" {
+				return nil, errors.New("name required")
+			}
+			now := time.Now()
+			if err = s.db.WithContext(ctx).Model(&filedb.FileInfo{}).
+				Where("id = ? AND user_id = ? AND workspace_id = ? AND is_deleted = 0", fileID, p.UserID, p.WorkspaceID).
+				Updates(map[string]any{"display_name": newName, "original_name": newName, "update_time": now}).Error; err != nil {
+				return nil, err
+			}
+			return s.getFromDB(ctx, fileID)
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -685,6 +706,21 @@ func (s *FileService) Rename(fileID, newName string) (*filemodel.FileItem, error
 
 // Move 移动文件。
 func (s *FileService) Move(fileIDs []string, targetParentID string) error {
+	return s.MoveWithContext(context.Background(), fileIDs, targetParentID)
+}
+
+// MoveWithContext 移动文件（DB 优先）。
+func (s *FileService) MoveWithContext(ctx context.Context, fileIDs []string, targetParentID string) error {
+	if s.db != nil {
+		p, err := security.RequireLogin(ctx)
+		if err == nil {
+			parent := normalizeParentID(targetParentID)
+			now := time.Now()
+			return s.db.WithContext(ctx).Model(&filedb.FileInfo{}).
+				Where("id IN ? AND user_id = ? AND workspace_id = ? AND is_deleted = 0", fileIDs, p.UserID, p.WorkspaceID).
+				Updates(map[string]any{"parent_id": parent, "update_time": now}).Error
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

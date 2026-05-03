@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	agentllm "myclouddrive-go/internal/agent/llm"
@@ -15,6 +16,9 @@ import (
 // executeMode 同步 execute 模式：LLM 决策 → Plan → Confirm/执行。
 func (s *AgentService) executeMode(ctx context.Context, req agentmodel.QueryRequest,
 	traceID, intent string, toolNames []string, scope string, callCtx agenttool.CallContext) (*agentmodel.QueryResponse, error) {
+	if len(toolNames) == 0 {
+		toolNames = inferExecuteTools(req.Query)
+	}
 
 	plan, err := s.planner.BuildPlan(req.Query, intent, toolNames, callCtx)
 	if err != nil {
@@ -32,9 +36,11 @@ func (s *AgentService) executeMode(ctx context.Context, req agentmodel.QueryRequ
 		Partial:   true,
 		CreatedAt: time.Now(),
 	}
+	_, _ = s.runSvc.createStep(ctx, traceID, "plan", plan.Summary, "success")
 	if !agentplanner.NeedsConfirmation(plan) {
 		resp = s.executeTools(ctx, traceID, toolNames, callCtx, resp)
 		resp.Partial = false
+		_ = s.runSvc.updateActionStatus(ctx, traceID, "success", "auto")
 		return resp, nil
 	}
 	// 高风险写操作先缓存待确认计划，避免未确认即执行。
@@ -52,12 +58,40 @@ func (s *AgentService) executeMode(ctx context.Context, req agentmodel.QueryRequ
 		Mode:    agentmodel.ModeExecute,
 	}
 	s.pendingMu.Unlock()
+	_ = s.runSvc.updateActionStatus(ctx, traceID, "waiting_confirm", "pending")
 	return resp, nil
+}
+
+func inferExecuteTools(query string) []string {
+	q := strings.TrimSpace(query)
+	switch {
+	case strings.Contains(q, "重命名"):
+		return []string{"tool.file.rename"}
+	case strings.Contains(q, "创建目录") || strings.Contains(q, "新建目录"):
+		return []string{"tool.file.create_dir"}
+	case strings.Contains(q, "移动到"):
+		return []string{"tool.file.move"}
+	case strings.Contains(q, "删除"):
+		return []string{"tool.file.delete"}
+	case strings.Contains(q, "恢复回收站"):
+		return []string{"tool.file.restore"}
+	case strings.Contains(q, "创建分享"):
+		return []string{"tool.share.create"}
+	case strings.Contains(q, "撤销"):
+		return []string{"tool.share.revoke"}
+	case strings.Contains(q, "重建") && strings.Contains(q, "索引"):
+		return []string{"tool.file.rebuild_index"}
+	default:
+		return []string{}
+	}
 }
 
 // streamExecute 流式 execute 模式：Plan → Confirm → 执行。
 func (s *AgentService) streamExecute(ctx context.Context, decision agentllm.Decision,
 	callCtx agenttool.CallContext, eventFn func(string, any), state *agentmodel.StreamState) {
+	if len(decision.Tools) == 0 {
+		decision.Tools = inferExecuteTools(callCtx.Query)
+	}
 
 	plan, planErr := s.planner.BuildPlan(callCtx.Query, decision.Intent, decision.Tools, callCtx)
 	if planErr != nil {
@@ -102,6 +136,7 @@ func (s *AgentService) ConfirmExecute(ctx context.Context, traceID string) (*age
 	if !ok || pending == nil {
 		return nil, code.New(code.NotFound, "pending execution plan not found: "+traceID)
 	}
+	_ = s.runSvc.updateActionStatus(ctx, traceID, "running", "yes")
 
 	resp := &agentmodel.QueryResponse{
 		TraceID:     traceID,
@@ -119,6 +154,7 @@ func (s *AgentService) ConfirmExecute(ctx context.Context, traceID string) (*age
 	resp = s.executeTools(ctx, traceID, pending.Decision.Tools, pending.CallCtx, resp)
 	if len(resp.ToolResults) == 0 {
 		resp.Summary = "未执行任何工具，请检查计划与工具配置"
+		_ = s.runSvc.updateActionStatus(ctx, traceID, "failed", "yes")
 		return resp, nil
 	}
 	successCount := 0
@@ -129,5 +165,6 @@ func (s *AgentService) ConfirmExecute(ctx context.Context, traceID string) (*age
 	}
 	resp.Partial = successCount != len(resp.ToolResults)
 	resp.Summary = fmt.Sprintf("执行完成：成功 %d/%d", successCount, len(resp.ToolResults))
+	_ = s.runSvc.updateActionStatus(ctx, traceID, queryStatusToActionStatus(resp.Partial, nil), "yes")
 	return resp, nil
 }

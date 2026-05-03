@@ -47,13 +47,16 @@ type pendingExecution struct {
 	Mode     string
 }
 
-func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service) *AgentService {
+func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service, runSvc *runService) *AgentService {
+	if runSvc == nil {
+		runSvc = newRunService(nil)
+	}
 	return &AgentService{
 		registry:     registry,
 		llm:          llm,
 		planner:      agentplanner.NewPlanner(registry),
 		history:      history,
-		runSvc:       newRunService(),
+		runSvc:       runSvc,
 		streamCancel: make(map[string]context.CancelFunc),
 		streamState:  make(map[string]*agentmodel.StreamState),
 		pendingPlans: make(map[string]*pendingExecution),
@@ -193,6 +196,9 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 		StorageSettingID: storageSettingID,
 		Query:            strings.TrimSpace(req.Query),
 	}
+	_ = s.runSvc.createAction(ctx, traceID, callCtx.UserID, callCtx.WorkspaceID, callCtx.Query, routeModeToRunType(mode), "running", actionRiskFromMode(mode))
+	_, _ = s.runSvc.createStep(ctx, traceID, "observe", "query.start", "success")
+	_, _ = s.runSvc.createStep(ctx, traceID, "observe", fmt.Sprintf("llm.decide intent=%s tools=%v", intent, toolNames), "success")
 
 	// 按 mode 分发
 	var resp *agentmodel.QueryResponse
@@ -204,6 +210,15 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	}
 	if err == nil && resp != nil {
 		s.recordHistory(principal.UserID, workspaceID, req, resp)
+	}
+	if err != nil {
+		_, _ = s.runSvc.createStep(ctx, traceID, "final", err.Error(), "failed")
+		_ = s.runSvc.updateActionStatus(ctx, traceID, "failed", "")
+		return resp, err
+	}
+	if resp != nil {
+		_, _ = s.runSvc.createStep(ctx, traceID, "final", resp.Summary, "success")
+		_ = s.runSvc.updateActionStatus(ctx, traceID, queryStatusToActionStatus(resp.Partial, nil), "")
 	}
 	return resp, err
 }

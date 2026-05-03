@@ -40,6 +40,7 @@ func (p *DeepSeekProvider) Model() string { return p.model }
 func (p *DeepSeekProvider) DecideTools(ctx context.Context, query string) (Decision, error) {
 	prompt := "你是网盘智能管家，只能从工具白名单中选择工具。白名单：" +
 		"tool.file.list(文件列表), tool.file.search(文件检索带过滤), tool.file.stats(文件统计), tool.file.trash.list(回收站), tool.file.rank(重要文件排序), " +
+		"tool.file.rename(重命名), tool.file.create_dir(创建目录), tool.file.move(移动), tool.file.delete(删除), tool.file.restore(恢复), tool.file.rebuild_index(重建索引), " +
 		"tool.share.list(分享列表), tool.share.search(分享搜索), tool.share.records(访问记录), tool.share.stats(分享统计), tool.share.revoke(撤销分享), " +
 		"tool.share.create(创建分享), tool.transfer.status(传输任务状态), tool.rag.search(知识库检索), tool.workflow(工作流编排)。" +
 		"输出严格 JSON: {\"intent\":\"...\",\"tools\":[\"tool.file.list\"]}。" +
@@ -233,20 +234,26 @@ func sanitizeJSONBlock(raw string) string {
 
 func normalizeTools(tools []string) []string {
 	allow := map[string]struct{}{
-		"tool.file.list":       {},
-		"tool.file.search":     {},
-		"tool.file.stats":      {},
-		"tool.file.trash.list": {},
-		"tool.file.rank":       {},
-		"tool.share.list":      {},
-		"tool.share.search":    {},
-		"tool.share.records":   {},
-		"tool.share.stats":     {},
-		"tool.share.revoke":    {},
-		"tool.share.create":    {},
-		"tool.transfer.status": {},
-		"tool.rag.search":      {},
-		"tool.workflow":        {},
+		"tool.file.list":          {},
+		"tool.file.search":        {},
+		"tool.file.stats":         {},
+		"tool.file.trash.list":    {},
+		"tool.file.rank":          {},
+		"tool.file.rename":        {},
+		"tool.file.create_dir":    {},
+		"tool.file.move":          {},
+		"tool.file.delete":        {},
+		"tool.file.restore":       {},
+		"tool.file.rebuild_index": {},
+		"tool.share.list":         {},
+		"tool.share.search":       {},
+		"tool.share.records":      {},
+		"tool.share.stats":        {},
+		"tool.share.revoke":       {},
+		"tool.share.create":       {},
+		"tool.transfer.status":    {},
+		"tool.rag.search":         {},
+		"tool.workflow":           {},
 	}
 	seen := make(map[string]struct{}, len(tools))
 	out := make([]string, 0, len(tools))

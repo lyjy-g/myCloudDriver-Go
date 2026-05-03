@@ -127,7 +127,15 @@ func (t *ShareRevokeTool) Call(ctx context.Context, callCtx CallContext) (ToolRe
 		shareIDs = []string{shareID}
 	}
 	if len(shareIDs) == 0 {
-		return ToolResult{}, fmt.Errorf("no shareId found in query; use tool.share.list first to find shareId")
+		shares, err := t.svc.ListMyShares(ctx)
+		if err != nil {
+			return ToolResult{}, err
+		}
+		if len(shares) == 0 {
+			return ToolResult{}, fmt.Errorf("no share available to revoke")
+		}
+		// 默认撤销最近创建的一条，匹配“撤销最近创建的一条分享”这类自然语言。
+		shareIDs = []string{shares[0].ShareID}
 	}
 	if err := t.svc.CancelShares(ctx, shareIDs); err != nil {
 		return ToolResult{}, err

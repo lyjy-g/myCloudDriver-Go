@@ -92,7 +92,14 @@ func (s *AgentService) executeTools(ctx context.Context, traceID string, toolNam
 	callCtx agenttool.CallContext, resp *agentmodel.QueryResponse) *agentmodel.QueryResponse {
 
 	for _, toolName := range toolNames {
+		_ = s.runSvc.upsertTool(ctx, toolName, classifyToolRiskForRecord(toolName))
 		if err := s.registry.MustAllowed(toolName); err != nil {
+			stepID, _ := s.runSvc.createStep(ctx, traceID, "tool_call", "tool not allowed: "+toolName, "failed")
+			_ = s.runSvc.createToolCall(ctx, traceID, stepID, toolName, map[string]any{
+				"query":            callCtx.Query,
+				"workspaceId":      callCtx.WorkspaceID,
+				"storageSettingId": callCtx.StorageSettingID,
+			}, nil, "failed", err.Error(), 0)
 			resp.Partial = true
 			resp.ToolResults = append(resp.ToolResults, agentmodel.ToolResult{
 				Tool: toolName, Status: "error", Message: err.Error(),
@@ -101,6 +108,7 @@ func (s *AgentService) executeTools(ctx context.Context, traceID string, toolNam
 		}
 		started := time.Now()
 		log.Printf("agent_step trace=%s step=tool.call.start tool=%s", traceID, toolName)
+		stepID, _ := s.runSvc.createStep(ctx, traceID, "tool_call", "tool.call.start "+toolName, "running")
 		result, callErr := s.registry.Call(ctx, toolName, callCtx, 2*time.Second)
 		latency := time.Since(started).Milliseconds()
 		tr := agentmodel.ToolResult{Tool: toolName, LatencyMs: latency}
@@ -108,10 +116,22 @@ func (s *AgentService) executeTools(ctx context.Context, traceID string, toolNam
 			resp.Partial = true
 			tr.Status = "error"
 			tr.Message = callErr.Error()
+			_, _ = s.runSvc.createStep(ctx, traceID, "tool_call", "tool.call.error "+toolName+": "+callErr.Error(), "failed")
+			_ = s.runSvc.createToolCall(ctx, traceID, stepID, toolName, map[string]any{
+				"query":            callCtx.Query,
+				"workspaceId":      callCtx.WorkspaceID,
+				"storageSettingId": callCtx.StorageSettingID,
+			}, nil, "failed", callErr.Error(), latency)
 		} else {
 			tr.Status = "ok"
 			resp.Sources = append(resp.Sources, result.Source)
 			resp.Items = append(resp.Items, result.Items...)
+			_, _ = s.runSvc.createStep(ctx, traceID, "tool_call", fmt.Sprintf("tool.call.ok %s count=%d", toolName, len(result.Items)), "success")
+			_ = s.runSvc.createToolCall(ctx, traceID, stepID, toolName, map[string]any{
+				"query":            callCtx.Query,
+				"workspaceId":      callCtx.WorkspaceID,
+				"storageSettingId": callCtx.StorageSettingID,
+			}, result.Items, "success", "", latency)
 		}
 		log.Printf("agent_step trace=%s step=tool.call.end tool=%s status=%s latency_ms=%d", traceID, toolName, tr.Status, latency)
 		resp.ToolResults = append(resp.ToolResults, tr)
