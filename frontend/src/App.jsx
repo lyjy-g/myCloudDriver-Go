@@ -229,6 +229,10 @@ export default function App() {
           <Sidebar
             activeMenu={controller.activeMenu}
             onMenuClick={controller.setActiveMenu}
+            knowledgeBases={controller.knowledgeBases}
+            activeKnowledgeId={controller.activeKnowledgeId}
+            onOpenKnowledgeHome={controller.handleOpenKnowledgeHome}
+            onOpenKnowledgeBase={controller.handleOpenKnowledgeBase}
             workspaces={controller.workspaces}
             activeWorkspace={controller.activeWorkspace}
             activeStorage={controller.activeStorage}
@@ -258,10 +262,14 @@ export default function App() {
               activeMenu={controller.activeMenu}
               files={controller.files}
               shares={controller.shares}
+              knowledgeBases={controller.knowledgeBases}
+              knowledgeFiles={controller.knowledgeFiles}
+              activeKnowledge={controller.activeKnowledge}
               columns={controller.columns}
               shareColumns={controller.shareColumns}
               directoryTrail={controller.directoryTrail}
               onJumpDirectory={controller.jumpToDirectory}
+              onOpenDirectory={controller.openDirectory}
               activeWorkspace={controller.activeWorkspace}
               activeStorage={controller.activeStorage}
               currentUser={controller.currentUser}
@@ -279,6 +287,11 @@ export default function App() {
               onEnableStorageSetting={controller.handleEnableStorageSetting}
               onDisableStorageSetting={controller.handleDisableStorageSetting}
               onDeleteStorageSetting={controller.handleDeleteStorageSetting}
+              onCreateKnowledgeBase={controller.handleCreateKnowledgeBase}
+              onDeleteKnowledgeBase={controller.handleDeleteKnowledgeBase}
+              onAddKnowledgeFile={controller.handleAddKnowledgeFile}
+              onAddKnowledgeItems={controller.handleAddKnowledgeItems}
+              onSwitchKnowledgeImportStorage={controller.handleSwitchKnowledgeImportStorage}
               agentQuery={controller.agentQuery}
               agentResult={controller.agentResult}
               onAgentQueryChange={controller.setAgentQuery}

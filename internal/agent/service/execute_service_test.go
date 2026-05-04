@@ -41,7 +41,7 @@ func (f *fakeLLM) SummarizeStream(ctx context.Context, query string, decision ag
 
 func TestExecuteModePlanConfirmExecute(t *testing.T) {
 	registry := agenttool.NewRegistry(&fakeTool{name: "tool.share.create"})
-	svc := New(registry, &fakeLLM{}, nil, nil)
+	svc := New(registry, &fakeLLM{}, nil, nil, nil)
 	ctx := context.Background()
 	callCtx := agenttool.CallContext{
 		TraceID:          "agt_test_execute",

@@ -21,6 +21,10 @@ import React from "react";
 export function Sidebar({
   activeMenu,
   onMenuClick,
+  knowledgeBases,
+  activeKnowledgeId,
+  onOpenKnowledgeHome,
+  onOpenKnowledgeBase,
   workspaces,
   activeWorkspace,
   activeStorage,
@@ -107,24 +111,27 @@ export function Sidebar({
         </div>
         <button
           type="button"
-          className={`mcd-sidebar-nav-item ${activeMenu === "agent" ? "active" : ""}`}
+          className={`mcd-sidebar-nav-item ${activeMenu === "knowledge-home" ? "active" : ""}`}
           onClick={() => {
-            onMenuClick("agent");
-          }}
-        >
-          <DatabaseOutlined />
-          <span>Agent 检索</span>
-        </button>
-        <button
-          type="button"
-          className={`mcd-sidebar-nav-item ${activeMenu === "knowledge" ? "active" : ""}`}
-          onClick={() => {
-            onMenuClick("knowledge");
+            onOpenKnowledgeHome?.();
           }}
         >
           <DatabaseOutlined />
           <span>知识库首页</span>
         </button>
+        {(knowledgeBases || []).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`mcd-sidebar-nav-item ${activeMenu === "knowledge-detail" && String(activeKnowledgeId) === String(item.id) ? "active" : ""}`}
+            onClick={() => {
+              onOpenKnowledgeBase?.(item.id);
+            }}
+          >
+            <DatabaseOutlined />
+            <span>{item.name || `知识库-${item.id}`}</span>
+          </button>
+        ))}
       </section>
 
       <section className="mcd-sidebar-block">

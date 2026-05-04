@@ -82,7 +82,7 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 	)
 	historySvc := agenthistory.NewService(deps.Redis)
 	runSvc := agentsvc.NewRunService(deps.DB)
-	svc := agentsvc.New(registry, llmProvider, historySvc, runSvc)
+	svc := agentsvc.New(registry, llmProvider, historySvc, runSvc, fileService)
 	api.RegisterRoutes(mux, svc)
 	return nil
 }

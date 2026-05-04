@@ -13,6 +13,7 @@ import (
 	agentmodel "myclouddrive-go/internal/agent/model"
 	agentplanner "myclouddrive-go/internal/agent/planner"
 	agenttool "myclouddrive-go/internal/agent/tool"
+	filesvc "myclouddrive-go/internal/file/service"
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
 
@@ -26,6 +27,7 @@ type AgentService struct {
 	planner  *agentplanner.Planner
 	history  *agenthistory.Service
 	runSvc   *runService
+	fileSvc  *filesvc.FileService
 
 	// 流式查询取消管理
 	streamCancel map[string]context.CancelFunc
@@ -47,7 +49,7 @@ type pendingExecution struct {
 	Mode     string
 }
 
-func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service, runSvc *runService) *AgentService {
+func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service, runSvc *runService, fileSvc *filesvc.FileService) *AgentService {
 	if runSvc == nil {
 		runSvc = newRunService(nil)
 	}
@@ -57,6 +59,7 @@ func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthist
 		planner:      agentplanner.NewPlanner(registry),
 		history:      history,
 		runSvc:       runSvc,
+		fileSvc:      fileSvc,
 		streamCancel: make(map[string]context.CancelFunc),
 		streamState:  make(map[string]*agentmodel.StreamState),
 		pendingPlans: make(map[string]*pendingExecution),

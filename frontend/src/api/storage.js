@@ -190,6 +190,36 @@ export function confirmAgentAction(baseUrl, traceId, payload = {}) {
   });
 }
 
+export function fetchKnowledgeBases(baseUrl) {
+  return requestJson("GET", `${baseUrl}/apis/agent/knowledge`);
+}
+
+export function createKnowledgeBase(baseUrl, payload) {
+  return requestJson("POST", `${baseUrl}/apis/agent/knowledge`, {
+    body: {
+      name: payload?.name || "",
+      description: payload?.description || ""
+    }
+  });
+}
+
+export function deleteKnowledgeBase(baseUrl, knowledgeId) {
+  return requestJson("DELETE", `${baseUrl}/apis/agent/knowledge/${encodeURIComponent(knowledgeId)}`);
+}
+
+export function fetchKnowledgeFiles(baseUrl, knowledgeId) {
+  return requestJson("GET", `${baseUrl}/apis/agent/knowledge/${encodeURIComponent(knowledgeId)}/file`);
+}
+
+export function addKnowledgeFile(baseUrl, knowledgeId, payload) {
+  return requestJson("POST", `${baseUrl}/apis/agent/knowledge/${encodeURIComponent(knowledgeId)}/file`, {
+    body: {
+      fileId: payload?.fileId || "",
+      storageSettingId: payload?.storageSettingId || ""
+    }
+  });
+}
+
 /**
  * 流式 Agent 查询（SSE）。
  * @param {string} baseUrl

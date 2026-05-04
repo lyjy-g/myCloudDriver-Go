@@ -18,6 +18,11 @@ import {
   fetchShareDetail,
   fetchWorkspaces,
   fetchRecycleBin,
+  fetchKnowledgeBases,
+  createKnowledgeBase,
+  deleteKnowledgeBase,
+  fetchKnowledgeFiles,
+  addKnowledgeFile,
   confirmAgentAction,
   queryAgent,
   fetchAgentHistory,
@@ -110,6 +115,9 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [activeMenu, setActiveMenu] = useState("files");
   const [files, setFiles] = useState([]);
   const [shares, setShares] = useState([]);
+  const [knowledgeBases, setKnowledgeBases] = useState([]);
+  const [knowledgeFiles, setKnowledgeFiles] = useState([]);
+  const [activeKnowledgeId, setActiveKnowledgeId] = useState("");
   const [agentQuery, setAgentQuery] = useState("");
   const [agentResult, setAgentResult] = useState(null);
   const [agentMessages, setAgentMessages] = useState([]);
@@ -293,6 +301,180 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setLoading(false);
     }
   }, [normalizedBaseUrl]);
+
+  const loadKnowledgeBases = useCallback(async () => {
+    try {
+      const response = await fetchKnowledgeBases(normalizedBaseUrl);
+      const data = response?.data || response || [];
+      const list = Array.isArray(data) ? data : [];
+      setKnowledgeBases(list);
+      if (list.length === 0) {
+        setActiveKnowledgeId("");
+        return;
+      }
+      setActiveKnowledgeId((prev) => {
+        if (prev && list.some((item) => String(item.id) === String(prev))) {
+          return prev;
+        }
+        return String(list[0].id);
+      });
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "加载知识库失败");
+    }
+  }, [normalizedBaseUrl, notifyError]);
+
+  const handleOpenKnowledgeHome = useCallback(async () => {
+    setActiveMenu("knowledge-home");
+    await loadKnowledgeBases();
+  }, [loadKnowledgeBases]);
+
+  const handleOpenKnowledgeBase = useCallback(async (knowledgeId) => {
+    setActiveMenu("knowledge-detail");
+    await loadKnowledgeBases();
+    setActiveKnowledgeId(String(knowledgeId || ""));
+  }, [loadKnowledgeBases]);
+
+  const loadKnowledgeFiles = useCallback(async (knowledgeId) => {
+    const kb = String(knowledgeId || "").trim();
+    if (!kb) {
+      setKnowledgeFiles([]);
+      return;
+    }
+    try {
+      const response = await fetchKnowledgeFiles(normalizedBaseUrl, kb);
+      const data = response?.data || response || [];
+      setKnowledgeFiles(Array.isArray(data) ? data : []);
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "加载知识库文件失败");
+    }
+  }, [normalizedBaseUrl, notifyError]);
+
+  const handleAddKnowledgeFile = useCallback(async (knowledgeId, fileId, storageSettingId, isDirectory = false, silent = false) => {
+    const kb = String(knowledgeId || "").trim();
+    const fid = String(fileId || "").trim();
+    if (!kb || !fid) {
+      notifyWarning("请选择知识库并填写文件ID");
+      return false;
+    }
+    try {
+      const settingId = String(storageSettingId || activeStorage?.settingId || "").trim();
+      const importOne = async (candidateFileId) => {
+        await addKnowledgeFile(normalizedBaseUrl, kb, {
+          fileId: candidateFileId,
+          storageSettingId: settingId
+        });
+      };
+      if (!isDirectory) {
+        await importOne(fid);
+      } else {
+        const queue = [fid];
+        const toImport = [];
+        while (queue.length > 0) {
+          const parentId = queue.shift();
+          const listResp = await fetchEntriesByParent(normalizedBaseUrl, parentId);
+          const items = (listResp?.data?.items || listResp?.data || listResp || []).map(normalizeFileRecord).filter(Boolean);
+          items.forEach((it) => {
+            if (it.directory) {
+              queue.push(it.fileId);
+            } else {
+              toImport.push(it.fileId);
+            }
+          });
+        }
+        for (const childFileId of toImport) {
+          await importOne(childFileId);
+        }
+      }
+      if (!silent) {
+        notifySuccess("导入成功，已触发 parse/chunk/embed/index");
+      }
+      await loadKnowledgeFiles(kb);
+      return true;
+    } catch (err) {
+      if (!silent) {
+        notifyError(err instanceof Error ? err.message : "导入知识库失败");
+      }
+      return false;
+    }
+  }, [normalizedBaseUrl, activeStorage, notifyWarning, notifySuccess, notifyError, loadKnowledgeFiles]);
+
+  const handleAddKnowledgeItems = useCallback(async (knowledgeId, items, storageSettingId) => {
+    const kb = String(knowledgeId || "").trim();
+    if (!kb) {
+      notifyWarning("请选择知识库");
+      return false;
+    }
+    const list = Array.isArray(items) ? items : [];
+    if (list.length === 0) {
+      notifyWarning("请先选择要导入的文件或目录");
+      return false;
+    }
+    let successCount = 0;
+    for (const item of list) {
+      const ok = await handleAddKnowledgeFile(
+        kb,
+        item?.fileId,
+        storageSettingId,
+        Boolean(item?.directory),
+        true
+      );
+      if (ok) {
+        successCount += 1;
+      }
+    }
+    if (successCount === list.length) {
+      notifySuccess(`批量导入成功：${successCount}/${list.length}`);
+      return true;
+    }
+    notifyWarning(`部分导入失败：成功 ${successCount}/${list.length}`);
+    return successCount > 0;
+  }, [handleAddKnowledgeFile, notifySuccess, notifyWarning]);
+
+  const handleCreateKnowledgeBase = useCallback(async (name, description = "") => {
+    const kbName = String(name || "").trim();
+    if (!kbName) {
+      notifyWarning("请输入知识库名称");
+      return false;
+    }
+    try {
+      await createKnowledgeBase(normalizedBaseUrl, { name: kbName, description });
+      notifySuccess("知识库已创建");
+      await loadKnowledgeBases();
+      return true;
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "创建知识库失败");
+      return false;
+    }
+  }, [normalizedBaseUrl, notifySuccess, notifyWarning, notifyError, loadKnowledgeBases]);
+
+  const handleDeleteKnowledgeBase = useCallback(async (knowledgeId) => {
+    if (!knowledgeId) {
+      return;
+    }
+    try {
+      await deleteKnowledgeBase(normalizedBaseUrl, knowledgeId);
+      notifySuccess("知识库已删除");
+      await loadKnowledgeBases();
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "删除知识库失败");
+    }
+  }, [normalizedBaseUrl, notifySuccess, notifyError, loadKnowledgeBases]);
+
+  const activeKnowledge = useMemo(
+    () => (knowledgeBases || []).find((item) => String(item.id) === String(activeKnowledgeId)) || null,
+    [knowledgeBases, activeKnowledgeId]
+  );
+
+  useEffect(() => {
+    if (activeMenu !== "knowledge-detail") {
+      return;
+    }
+    if (!activeKnowledgeId) {
+      setKnowledgeFiles([]);
+      return;
+    }
+    loadKnowledgeFiles(activeKnowledgeId);
+  }, [activeMenu, activeKnowledgeId, loadKnowledgeFiles]);
 
   useEffect(() => {
     try {
@@ -911,6 +1093,17 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
   }, [normalizedBaseUrl, loadStorageMeta, activeMenu, loadFilesByParent, loadRecycleBin, notifySuccess]);
 
+  const handleSwitchKnowledgeImportStorage = useCallback(async (settingId) => {
+    const sid = String(settingId || "").trim();
+    if (!sid) {
+      return;
+    }
+    await handleActivateStorageSetting(sid);
+    setCurrentParentId(ROOT_PARENT_ID);
+    setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+    await loadFilesByParent(ROOT_PARENT_ID);
+  }, [handleActivateStorageSetting, loadFilesByParent]);
+
   const handleEnableStorageSetting = useCallback((settingId) => {
     if (!settingId) {
       return;
@@ -1245,7 +1438,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   }, [agentMode]);
 
   useEffect(() => {
-    if (activeMenu === "knowledge") {
+    if (activeMenu === "knowledge-home" || activeMenu === "knowledge-detail") {
       setAgentScope("workspace");
       return;
     }
@@ -1445,10 +1638,14 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       loadShares();
       return;
     }
+    if (activeMenu === "knowledge-home" || activeMenu === "knowledge-detail") {
+      loadKnowledgeBases();
+      return;
+    }
     if (activeMenu === "agent" && agentMessages.length === 0) {
       loadAgentHistory();
     }
-  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares, agentMessages.length, loadAgentHistory]);
+  }, [authenticated, activeMenu, loadFiles, loadRecycleBin, loadShares, loadKnowledgeBases, agentMessages.length, loadAgentHistory]);
 
   useEffect(() => {
     const currentSettingId = activeStorage?.settingId || "";
@@ -1468,16 +1665,29 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     if (activeMenu === "trash") {
       loadRecycleBin();
     }
+    if (activeMenu === "knowledge-detail") {
+      loadFilesByParent(ROOT_PARENT_ID);
+    }
   }, [activeStorage, activeMenu, loadFilesByParent, loadRecycleBin]);
+
+  useEffect(() => {
+    if (activeMenu !== "knowledge-detail") {
+      return;
+    }
+    setCurrentParentId(ROOT_PARENT_ID);
+    setDirectoryTrail([{ id: ROOT_PARENT_ID, name: "根目录" }]);
+    loadFilesByParent(ROOT_PARENT_ID);
+  }, [activeMenu, loadFilesByParent]);
 
   useEffect(() => {
     (async () => {
       const isAuthed = await checkAuth();
       if (isAuthed) {
         await loadStorageMeta();
+        await loadKnowledgeBases();
       }
     })();
-  }, [checkAuth, loadStorageMeta]);
+  }, [checkAuth, loadStorageMeta, loadKnowledgeBases]);
 
   useEffect(() => {
     if (!error) {
@@ -1491,6 +1701,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     activeMenu,
     files,
     shares,
+    knowledgeBases,
+    knowledgeFiles,
+    activeKnowledgeId,
+    activeKnowledge,
     agentQuery,
     agentResult,
     agentMessages,
@@ -1537,7 +1751,13 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     loadFiles,
     loadRecycleBin,
     loadShares,
+    loadKnowledgeBases,
+    loadKnowledgeFiles,
+    handleOpenKnowledgeHome,
+    handleOpenKnowledgeBase,
+    handleSwitchKnowledgeImportStorage,
     jumpToDirectory,
+    openDirectory,
     handleCreateFolder,
     handleUpload,
     updateStorageFormField,
@@ -1568,6 +1788,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     loadAgentHistory,
     handleCreateShare,
     handleAccessShare,
-    handleEditShare
+    handleEditShare,
+    handleCreateKnowledgeBase,
+    handleDeleteKnowledgeBase,
+    handleAddKnowledgeFile,
+    handleAddKnowledgeItems
   };
 }
