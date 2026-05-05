@@ -8,51 +8,68 @@ import (
 	"sync"
 )
 
-// Retriever 混合检索器。
+type namespaceIndex struct {
+	chunks     []Chunk
+	embeddings map[string]Embedding
+}
+
+// Retriever 混合检索器（按 namespace 隔离索引）。
 type Retriever struct {
 	mu         sync.RWMutex
-	chunks     []Chunk
-	embeddings map[string]Embedding // chunkID → embedding
+	namespaces map[string]*namespaceIndex
 	embedder   Embedder
 }
 
 func NewRetriever(embedder Embedder) *Retriever {
 	return &Retriever{
-		chunks:     make([]Chunk, 0),
-		embeddings: make(map[string]Embedding),
+		namespaces: make(map[string]*namespaceIndex),
 		embedder:   embedder,
 	}
 }
 
-// Index 索引 chunks（写入内存索引）。
-func (r *Retriever) Index(chunks []Chunk, embeddings []Embedding) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for i, chunk := range chunks {
-		r.chunks = append(r.chunks, chunk)
-		if i < len(embeddings) {
-			r.embeddings[chunk.ID] = embeddings[i]
-		}
+func normalizeNamespace(ns string) string {
+	v := strings.TrimSpace(ns)
+	if v == "" {
+		return "__default__"
 	}
+	return v
 }
 
-// Search 执行混合检索：keyword + vector 双路召回，结果合并去重。
+// UpsertNamespace 覆盖写入一个 namespace 的全部 chunks 索引。
+func (r *Retriever) UpsertNamespace(namespace string, chunks []Chunk, embeddings []Embedding) {
+	ns := normalizeNamespace(namespace)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	idx := &namespaceIndex{
+		chunks:     make([]Chunk, 0, len(chunks)),
+		embeddings: make(map[string]Embedding, len(chunks)),
+	}
+	for i, chunk := range chunks {
+		idx.chunks = append(idx.chunks, chunk)
+		if i < len(embeddings) {
+			idx.embeddings[chunk.ID] = embeddings[i]
+		}
+	}
+	r.namespaces[ns] = idx
+}
+
+// Search 执行混合检索：keyword + vector，RRF 融合。
 func (r *Retriever) Search(ctx context.Context, query HybridQuery) ([]SearchResult, error) {
 	topK := query.TopK
 	if topK <= 0 {
 		topK = 10
 	}
-	vectorWeight := query.VectorWeight
-	if vectorWeight <= 0 {
-		vectorWeight = 0.5
+	ns := normalizeNamespace(query.Namespace)
+	r.mu.RLock()
+	idx := r.namespaces[ns]
+	r.mu.RUnlock()
+	if idx == nil || len(idx.chunks) == 0 {
+		return []SearchResult{}, nil
 	}
-	// 双路召回
-	kwResults := r.keywordSearch(query.Query, topK*2)
-	vecResults := r.vectorSearch(ctx, query.Query, topK*2)
 
-	// 合并去重
-	merged := mergeResults(kwResults, vecResults, vectorWeight, query.KeywordBoost)
-	// 重排
+	kw := keywordSearch(idx.chunks, query.Query, topK*3)
+	vec := r.vectorSearch(ctx, idx, query.Query, topK*3)
+	merged := rrfMerge(kw, vec, query.KeywordBoost)
 	sort.SliceStable(merged, func(i, j int) bool { return merged[i].Score > merged[j].Score })
 	if len(merged) > topK {
 		merged = merged[:topK]
@@ -60,29 +77,31 @@ func (r *Retriever) Search(ctx context.Context, query HybridQuery) ([]SearchResu
 	return merged, nil
 }
 
-func (r *Retriever) keywordSearch(query string, k int) []SearchResult {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	terms := strings.Fields(strings.ToLower(query))
+func keywordSearch(chunks []Chunk, query string, k int) []SearchResult {
+	terms := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	if len(terms) == 0 {
+		return nil
+	}
 	results := make([]SearchResult, 0)
-	for _, chunk := range r.chunks {
+	for _, chunk := range chunks {
 		text := strings.ToLower(chunk.Text)
-		score := 0.0
+		hit := 0
 		for _, term := range terms {
 			if strings.Contains(text, term) {
-				score += 1.0
+				hit++
 			}
 		}
-		if score > 0 {
-			results = append(results, SearchResult{
-				ChunkID:    chunk.ID,
-				DocumentID: chunk.DocumentID,
-				Text:       chunk.Text,
-				Score:      score / float64(len(terms)),
-				Source:     "keyword",
-				Metadata:   chunk.Metadata,
-			})
+		if hit == 0 {
+			continue
 		}
+		results = append(results, SearchResult{
+			ChunkID:    chunk.ID,
+			DocumentID: chunk.DocumentID,
+			Text:       chunk.Text,
+			Score:      float64(hit) / float64(len(terms)),
+			Source:     "keyword",
+			Metadata:   chunk.Metadata,
+		})
 	}
 	sort.SliceStable(results, func(i, j int) bool { return results[i].Score > results[j].Score })
 	if len(results) > k {
@@ -91,128 +110,94 @@ func (r *Retriever) keywordSearch(query string, k int) []SearchResult {
 	return results
 }
 
-func (r *Retriever) vectorSearch(ctx context.Context, query string, k int) []SearchResult {
-	if r.embedder == nil {
+func (r *Retriever) vectorSearch(ctx context.Context, idx *namespaceIndex, query string, k int) []SearchResult {
+	if r.embedder == nil || idx == nil {
 		return nil
 	}
-	queryVec, err := r.embedder.Embed(ctx, query)
+	vec, err := r.embedder.Embed(ctx, query)
 	if err != nil {
 		return nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	type scored struct {
-		result SearchResult
-		score  float64
-	}
-	items := make([]scored, 0)
-	for _, chunk := range r.chunks {
-		emb, ok := r.embeddings[chunk.ID]
+	results := make([]SearchResult, 0)
+	for _, chunk := range idx.chunks {
+		emb, ok := idx.embeddings[chunk.ID]
 		if !ok {
 			continue
 		}
-		sim := cosineSimilarity(queryVec, emb)
-		if sim > 0.3 {
-			items = append(items, scored{
-				result: SearchResult{
-					ChunkID:    chunk.ID,
-					DocumentID: chunk.DocumentID,
-					Text:       chunk.Text,
-					Score:      sim,
-					Source:     "vector",
-					Metadata:   chunk.Metadata,
-				},
-				score: sim,
-			})
+		sim := cosineSimilarity(vec, emb)
+		if sim <= 0 {
+			continue
 		}
+		results = append(results, SearchResult{
+			ChunkID:    chunk.ID,
+			DocumentID: chunk.DocumentID,
+			Text:       chunk.Text,
+			Score:      sim,
+			Source:     "vector",
+			Metadata:   chunk.Metadata,
+		})
 	}
-	sort.SliceStable(items, func(i, j int) bool { return items[i].score > items[j].score })
-	results := make([]SearchResult, 0, len(items))
-	for i, item := range items {
-		if i >= k {
-			break
-		}
-		results = append(results, item.result)
+	sort.SliceStable(results, func(i, j int) bool { return results[i].Score > results[j].Score })
+	if len(results) > k {
+		results = results[:k]
 	}
 	return results
 }
 
-func mergeResults(kw, vec []SearchResult, vectorWeight, keywordBoost float64) []SearchResult {
-	seen := make(map[string]float64)
-	for _, r := range kw {
-		boost := r.Score
-		if keywordBoost > 0 {
-			boost *= keywordBoost
-		}
-		seen[r.ChunkID] = boost * (1 - vectorWeight)
+// rrfMerge 用 Reciprocal Rank Fusion 融合 keyword/vector 排名。
+func rrfMerge(keyword, vector []SearchResult, keywordBoost float64) []SearchResult {
+	const k = 60.0
+	if keywordBoost <= 0 {
+		keywordBoost = 1.0
 	}
-	for _, r := range vec {
-		existing := seen[r.ChunkID]
-		if existing > 0 {
-			// 双路命中加分
-			seen[r.ChunkID] = existing + r.Score*vectorWeight*1.5
-		} else {
-			seen[r.ChunkID] = r.Score * vectorWeight
-		}
+	type state struct {
+		r     SearchResult
+		score float64
 	}
-	results := make([]SearchResult, 0)
-	for id, score := range seen {
-		// 需要找到对应的 chunk 元信息，这里从两路中取
-		chunkID := id
-		var text string
-		var docID string
-		var source string
-		var meta map[string]string
-		for _, r := range kw {
-			if r.ChunkID == chunkID {
-				text = r.Text
-				docID = r.DocumentID
-				source = r.Source
-				meta = r.Metadata
-				break
-			}
-		}
-		if text == "" {
-			for _, r := range vec {
-				if r.ChunkID == chunkID {
-					text = r.Text
-					docID = r.DocumentID
-					source = r.Source
-					meta = r.Metadata
-					break
-				}
-			}
-		}
-		if text == "" {
+	merged := make(map[string]*state)
+	for rank, r := range keyword {
+		s := keywordBoost * (1.0 / (k + float64(rank+1)))
+		cur, ok := merged[r.ChunkID]
+		if !ok {
+			cp := r
+			merged[r.ChunkID] = &state{r: cp, score: s}
 			continue
 		}
-		if source != "keyword" {
-			source = "hybrid"
-		}
-		results = append(results, SearchResult{
-			ChunkID:    chunkID,
-			DocumentID: docID,
-			Text:       text,
-			Score:      score,
-			Source:     source,
-			Metadata:   meta,
-		})
+		cur.score += s
 	}
-	return results
+	for rank, r := range vector {
+		s := 1.0 / (k + float64(rank+1))
+		cur, ok := merged[r.ChunkID]
+		if !ok {
+			cp := r
+			merged[r.ChunkID] = &state{r: cp, score: s}
+			continue
+		}
+		cur.score += s
+		cur.r.Source = "hybrid"
+	}
+	out := make([]SearchResult, 0, len(merged))
+	for _, v := range merged {
+		v.r.Score = v.score
+		out = append(out, v.r)
+	}
+	return out
 }
 
 func cosineSimilarity(a, b Embedding) float64 {
-	if len(a) != len(b) || len(a) == 0 {
+	if len(a) == 0 || len(a) != len(b) {
 		return 0
 	}
-	var dot, normA, normB float64
+	var dot, an, bn float64
 	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
+		af := float64(a[i])
+		bf := float64(b[i])
+		dot += af * bf
+		an += af * af
+		bn += bf * bf
 	}
-	if normA == 0 || normB == 0 {
+	if an == 0 || bn == 0 {
 		return 0
 	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
+	return dot / (math.Sqrt(an) * math.Sqrt(bn))
 }

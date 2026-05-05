@@ -5,43 +5,33 @@ import (
 	"fmt"
 )
 
-// Indexer 负责将文档写入索引。
+// Indexer 负责写入 namespace 级索引。
 type Indexer struct {
-	chunker   *Chunker
 	embedder  Embedder
 	retriever *Retriever
 }
 
-func NewIndexer(chunker *Chunker, embedder Embedder, retriever *Retriever) *Indexer {
-	return &Indexer{chunker: chunker, embedder: embedder, retriever: retriever}
+func NewIndexer(embedder Embedder, retriever *Retriever) *Indexer {
+	return &Indexer{embedder: embedder, retriever: retriever}
 }
 
-// IndexDocuments 批量索引文档。
-func (idx *Indexer) IndexDocuments(ctx context.Context, docs []Document) error {
-	if len(docs) == 0 {
-		return fmt.Errorf("no documents to index")
+// IndexNamespace 覆盖索引一个 namespace 的全部 chunks。
+func (idx *Indexer) IndexNamespace(ctx context.Context, namespace string, chunks []Chunk) error {
+	if idx == nil || idx.embedder == nil || idx.retriever == nil {
+		return fmt.Errorf("rag indexer unavailable")
 	}
-	allChunks := make([]Chunk, 0)
-	allTexts := make([]string, 0)
-	for _, doc := range docs {
-		chunks := idx.chunker.Split(doc)
-		for _, chunk := range chunks {
-			allChunks = append(allChunks, chunk)
-			allTexts = append(allTexts, chunk.Text)
-		}
+	if len(chunks) == 0 {
+		idx.retriever.UpsertNamespace(namespace, []Chunk{}, []Embedding{})
+		return nil
 	}
-	if len(allChunks) == 0 {
-		return fmt.Errorf("no chunks produced from %d documents", len(docs))
+	texts := make([]string, 0, len(chunks))
+	for _, c := range chunks {
+		texts = append(texts, c.Text)
 	}
-	embeddings, err := idx.embedder.BatchEmbed(ctx, allTexts)
+	vectors, err := idx.embedder.BatchEmbed(ctx, texts)
 	if err != nil {
 		return fmt.Errorf("embed chunks failed: %w", err)
 	}
-	idx.retriever.Index(allChunks, embeddings)
+	idx.retriever.UpsertNamespace(namespace, chunks, vectors)
 	return nil
-}
-
-// IndexDocument 索引单个文档。
-func (idx *Indexer) IndexDocument(ctx context.Context, doc Document) error {
-	return idx.IndexDocuments(ctx, []Document{doc})
 }

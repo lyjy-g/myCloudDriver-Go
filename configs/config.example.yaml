@@ -16,3 +16,10 @@ llm:
   api_key: "<YOUR_DEEPSEEK_API_KEY>"
   model: "deepseek-chat"
   timeout_ms: 8000
+embedding:
+  provider: "dashscope"
+  base_url: "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
+  api_key: "<YOUR_EMBEDDING_API_KEY>"
+  model: "text-embedding-v4"
+  timeout_ms: 8000
+  dims: 1024

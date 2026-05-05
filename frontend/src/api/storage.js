@@ -174,6 +174,7 @@ export function queryAgent(baseUrl, payload) {
       query: payload?.query || "",
       scope: payload?.scope || "auto",
       mode: payload?.mode || "search",
+      kbId: payload?.kbId || "",
       workspaceId: payload?.workspaceId || "",
       storageSettingId: payload?.storageSettingId || "",
       traceId: payload?.traceId || ""
@@ -233,6 +234,7 @@ export function streamAgentQuery(baseUrl, payload, onEvent) {
     query: payload?.query || "",
     scope: payload?.scope || "auto",
     mode: payload?.mode || "search",
+    kbId: payload?.kbId || "",
     workspaceId: payload?.workspaceId || "",
     storageSettingId: payload?.storageSettingId || "",
     traceId: payload?.traceId || ""

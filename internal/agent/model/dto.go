@@ -5,6 +5,7 @@ import "time"
 // QueryRequest 是检索型 Agent 查询请求。
 type QueryRequest struct {
 	Query            string `json:"query"`
+	KbID             string `json:"kbId,omitempty"`
 	Scope            string `json:"scope,omitempty"`
 	Mode             string `json:"mode,omitempty"`
 	WorkspaceID      string `json:"workspaceId,omitempty"`

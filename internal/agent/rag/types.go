@@ -39,6 +39,7 @@ type SearchResult struct {
 
 // HybridQuery 混合查询参数。
 type HybridQuery struct {
+	Namespace    string
 	Query        string
 	TopK         int
 	VectorWeight float64

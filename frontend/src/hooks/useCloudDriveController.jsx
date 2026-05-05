@@ -1347,6 +1347,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       query: q,
       scope,
       mode: agentMode,
+      kbId: agentMode === "rag" ? String(activeKnowledgeId || "") : "",
       workspaceId: activeWorkspace?.workspaceId || "",
       storageSettingId
     };
@@ -1431,7 +1432,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setLoading(false);
       agentAbortRef.current = null;
     }
-  }, [agentRunning, agentQuery, agentScope, agentMode, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, addConversationPair, updateLastAssistant]);
+  }, [agentRunning, agentQuery, agentScope, agentMode, activeKnowledgeId, normalizedBaseUrl, activeWorkspace, activeStorage, notifyWarning, addConversationPair, updateLastAssistant]);
 
   useEffect(() => {
     setAgentPresetQuestion("");

@@ -157,8 +157,8 @@ func (s *AgentService) AddKnowledgeFile(ctx context.Context, workspaceID string,
 		return nil, err
 	}
 
-	// Stage 3 & 4: embed/index（当前实现落 metadata/vector_id，后续可替换真实向量库）
-	if err = s.markChunkEmbeddedAndIndexed(ctx, knowledgeID, fid); err != nil {
+	// Stage 3 & 4: embed/index
+	if err = s.embedAndIndexKnowledge(ctx, ws, knowledgeID, fid); err != nil {
 		_ = s.updateKnowledgeFileStatus(ctx, record.ID, "success", "success", "failed", "failed")
 		return nil, err
 	}
@@ -199,7 +199,14 @@ func (s *AgentService) replaceKnowledgeChunks(ctx context.Context, knowledgeID i
 	return nil
 }
 
-func (s *AgentService) markChunkEmbeddedAndIndexed(ctx context.Context, knowledgeID int64, fileID string) error {
+func (s *AgentService) embedAndIndexKnowledge(ctx context.Context, workspaceID string, knowledgeID int64, fileID string) error {
+	if s.ragIndexer == nil {
+		return code.New(code.InternalError, "rag indexer unavailable")
+	}
+	if err := s.rebuildNamespaceIndex(ctx, ragNamespace(workspaceID, fmt.Sprintf("%d", knowledgeID)), fmt.Sprintf("%d", knowledgeID)); err != nil {
+		return err
+	}
+
 	var chunks []agentdb.KnowledgeDocumentChunk
 	if err := s.runSvc.db.WithContext(ctx).
 		Where("knowledge_base_id = ? AND file_id = ?", knowledgeID, fileID).
@@ -208,10 +215,16 @@ func (s *AgentService) markChunkEmbeddedAndIndexed(ctx context.Context, knowledg
 	}
 	for _, row := range chunks {
 		vectorID := fmt.Sprintf("vec_%d_%d", row.KnowledgeBaseID, row.ID)
+		meta := map[string]any{}
+		if strings.TrimSpace(row.MetadataJSON) != "" {
+			_ = json.Unmarshal([]byte(row.MetadataJSON), &meta)
+		}
+		meta["indexedAt"] = time.Now().Format(time.RFC3339)
+		metaJSON, _ := json.Marshal(meta)
 		if err := s.runSvc.db.WithContext(ctx).
 			Model(&agentdb.KnowledgeDocumentChunk{}).
 			Where("id = ?", row.ID).
-			Updates(map[string]any{"vector_id": vectorID}).Error; err != nil {
+			Updates(map[string]any{"vector_id": vectorID, "metadata_json": string(metaJSON)}).Error; err != nil {
 			return code.New(code.InternalError, "mark vector failed: "+err.Error())
 		}
 	}

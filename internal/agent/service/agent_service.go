@@ -12,6 +12,7 @@ import (
 	agentllm "myclouddrive-go/internal/agent/llm"
 	agentmodel "myclouddrive-go/internal/agent/model"
 	agentplanner "myclouddrive-go/internal/agent/planner"
+	agentrag "myclouddrive-go/internal/agent/rag"
 	agenttool "myclouddrive-go/internal/agent/tool"
 	filesvc "myclouddrive-go/internal/file/service"
 	"myclouddrive-go/internal/framework/code"
@@ -22,12 +23,14 @@ import (
 
 // AgentService 是 Agent 编排总入口，负责任务分发。
 type AgentService struct {
-	registry *agenttool.Registry
-	llm      agentllm.Provider
-	planner  *agentplanner.Planner
-	history  *agenthistory.Service
-	runSvc   *runService
-	fileSvc  *filesvc.FileService
+	registry     *agenttool.Registry
+	llm          agentllm.Provider
+	planner      *agentplanner.Planner
+	history      *agenthistory.Service
+	runSvc       *runService
+	fileSvc      *filesvc.FileService
+	ragIndexer   *agentrag.Indexer
+	ragRetriever *agentrag.Retriever
 
 	// 流式查询取消管理
 	streamCancel map[string]context.CancelFunc
@@ -49,7 +52,7 @@ type pendingExecution struct {
 	Mode     string
 }
 
-func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service, runSvc *runService, fileSvc *filesvc.FileService) *AgentService {
+func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthistory.Service, runSvc *runService, fileSvc *filesvc.FileService, ragIndexer *agentrag.Indexer, ragRetriever *agentrag.Retriever) *AgentService {
 	if runSvc == nil {
 		runSvc = newRunService(nil)
 	}
@@ -60,6 +63,8 @@ func New(registry *agenttool.Registry, llm agentllm.Provider, history *agenthist
 		history:      history,
 		runSvc:       runSvc,
 		fileSvc:      fileSvc,
+		ragIndexer:   ragIndexer,
+		ragRetriever: ragRetriever,
 		streamCancel: make(map[string]context.CancelFunc),
 		streamState:  make(map[string]*agentmodel.StreamState),
 		pendingPlans: make(map[string]*pendingExecution),
@@ -149,8 +154,8 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 		return nil, code.New(code.BadRequest, "invalid mode, allowed: search/execute/rag/workflow")
 	}
 
-	//占位符
-	if mode != "search" && mode != "execute" {
+	// 占位：workflow 仍未实现
+	if mode == "workflow" {
 		return nil, code.New(code.BadRequest, "mode not implemented yet: "+mode)
 	}
 	if s.registry == nil {
@@ -208,6 +213,8 @@ func (s *AgentService) Query(ctx context.Context, req agentmodel.QueryRequest) (
 	switch mode {
 	case "execute":
 		resp, err = s.executeMode(ctx, req, traceID, intent, toolNames, scope, callCtx)
+	case "rag":
+		resp, err = s.ragMode(ctx, req, traceID, intent, callCtx)
 	default:
 		resp, err = s.searchMode(ctx, req, traceID, intent, toolNames, scope, callCtx)
 	}

@@ -10,6 +10,7 @@ import (
 	agenthistory "myclouddrive-go/internal/agent/history"
 	agentllm "myclouddrive-go/internal/agent/llm"
 	agentdb "myclouddrive-go/internal/agent/model/dbmodel"
+	agentrag "myclouddrive-go/internal/agent/rag"
 	agentsvc "myclouddrive-go/internal/agent/service"
 	agenttool "myclouddrive-go/internal/agent/tool"
 	"myclouddrive-go/internal/app"
@@ -74,6 +75,9 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 	if strings.EqualFold(strings.TrimSpace(deps.Config.LLM.Provider), "deepseek") && strings.TrimSpace(deps.Config.LLM.APIKey) == "" {
 		return fmt.Errorf("llm.api_key is empty ")
 	}
+	if strings.TrimSpace(deps.Config.Embedding.APIKey) == "" {
+		return fmt.Errorf("embedding.api_key is empty")
+	}
 	llmProvider := agentllm.NewDeepSeekProvider(
 		deps.Config.LLM.BaseURL,
 		deps.Config.LLM.APIKey,
@@ -82,7 +86,17 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 	)
 	historySvc := agenthistory.NewService(deps.Redis)
 	runSvc := agentsvc.NewRunService(deps.DB)
-	svc := agentsvc.New(registry, llmProvider, historySvc, runSvc, fileService)
+	embedder := agentrag.NewHTTPEmbedder(
+		deps.Config.Embedding.Provider,
+		deps.Config.Embedding.BaseURL,
+		deps.Config.Embedding.APIKey,
+		deps.Config.Embedding.Model,
+		deps.Config.Embedding.Dims,
+		time.Duration(deps.Config.Embedding.TimeoutMs)*time.Millisecond,
+	)
+	retriever := agentrag.NewRetriever(embedder)
+	indexer := agentrag.NewIndexer(embedder, retriever)
+	svc := agentsvc.New(registry, llmProvider, historySvc, runSvc, fileService, indexer, retriever)
 	api.RegisterRoutes(mux, svc)
 	return nil
 }
