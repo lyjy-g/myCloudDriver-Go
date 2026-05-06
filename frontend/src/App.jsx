@@ -135,6 +135,23 @@ function ChatArea({ messages, hasMore, loadingMore, onLoadMore, running }) {
               {msg.role === "assistant" && msg.isStreaming && msg.content ? (
                 <span className="mcd-agent-cursor-blink">|</span>
               ) : null}
+              {msg.role === "assistant" && Array.isArray(msg.items) && msg.items.length > 0 ? (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ cursor: "pointer", opacity: 0.85 }}>查看命中依据（{msg.items.length}）</summary>
+                  <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                    {msg.items.slice(0, 5).map((it, idx) => (
+                      <div key={`${msg.id}-it-${idx}`} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 8 }}>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>
+                          source: {it?.source || "-"} | score: {typeof it?.score === "number" ? it.score.toFixed(4) : "-"}
+                        </div>
+                        <div style={{ fontSize: 13, marginTop: 4 }}>
+                          {String(it?.text || it?.fileName || it?.documentId || "").slice(0, 180)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
             </div>
           </div>
         ))}
@@ -291,6 +308,7 @@ export default function App() {
               onDeleteKnowledgeBase={controller.handleDeleteKnowledgeBase}
               onAddKnowledgeFile={controller.handleAddKnowledgeFile}
               onAddKnowledgeItems={controller.handleAddKnowledgeItems}
+              onRemoveKnowledgeFile={controller.handleRemoveKnowledgeFile}
               onSwitchKnowledgeImportStorage={controller.handleSwitchKnowledgeImportStorage}
               agentQuery={controller.agentQuery}
               agentResult={controller.agentResult}

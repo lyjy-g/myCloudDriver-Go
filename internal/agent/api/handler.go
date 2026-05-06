@@ -280,6 +280,24 @@ func (h *Handler) AddKnowledgeFile(w http.ResponseWriter, r *http.Request, kbId 
 }
 
 func (h *Handler) RemoveKnowledgeFile(w http.ResponseWriter, r *http.Request, kbId string, fileId string) {
+	if h == nil || h.svc == nil {
+		writeError(w, http.StatusInternalServerError, "agent service unavailable")
+		return
+	}
+	principal, err := security.RequireLogin(r.Context())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	knowledgeID, err := strconv.ParseInt(strings.TrimSpace(kbId), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid knowledge id")
+		return
+	}
+	if err = h.svc.RemoveKnowledgeFile(r.Context(), principal.WorkspaceID, knowledgeID, fileId); err != nil {
+		writeServiceError(w, err)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

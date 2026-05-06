@@ -40,6 +40,7 @@ func (m *Module) Models() []any {
 		&agentdb.AgentPromptTemplate{},
 		&agentdb.Knowledge{},
 		&agentdb.KnowledgeFile{},
+		&agentdb.KnowledgeImportTask{},
 		&agentdb.KnowledgeDocumentChunk{},
 		&agentdb.WorkflowDefinition{},
 		&agentdb.WorkflowRun{},

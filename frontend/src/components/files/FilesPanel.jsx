@@ -67,6 +67,7 @@ export function FilesPanel({
   onDeleteKnowledgeBase,
   onAddKnowledgeFile,
   onAddKnowledgeItems,
+  onRemoveKnowledgeFile,
   onSwitchKnowledgeImportStorage,
   agentQuery,
   agentResult,
@@ -378,10 +379,20 @@ export function FilesPanel({
               columns={[
                 { title: "文件ID", dataIndex: "fileId", key: "fileId" },
                 { title: "文件名", dataIndex: "fileName", key: "fileName" },
-                { title: "解析", dataIndex: "parseStatus", key: "parseStatus", width: 90 },
-                { title: "切片", dataIndex: "chunkStatus", key: "chunkStatus", width: 90 },
-                { title: "向量化", dataIndex: "embedStatus", key: "embedStatus", width: 90 },
-                { title: "索引", dataIndex: "indexStatus", key: "indexStatus", width: 90 },
+                { title: "解析", dataIndex: "parseStatus", key: "parseStatus", width: 90, render: (v) => <Tag color={v === "done" ? "green" : v === "failed" ? "red" : v === "processing" ? "blue" : "default"}>{v || "pending"}</Tag> },
+                { title: "切片", dataIndex: "chunkStatus", key: "chunkStatus", width: 90, render: (v) => <Tag color={v === "done" ? "green" : v === "failed" ? "red" : v === "processing" ? "blue" : "default"}>{v || "pending"}</Tag> },
+                { title: "向量化", dataIndex: "embedStatus", key: "embedStatus", width: 90, render: (v) => <Tag color={v === "done" ? "green" : v === "failed" ? "red" : v === "processing" ? "blue" : "default"}>{v || "pending"}</Tag> },
+                { title: "索引", dataIndex: "indexStatus", key: "indexStatus", width: 90, render: (v) => <Tag color={v === "done" ? "green" : v === "failed" ? "red" : v === "processing" ? "blue" : "default"}>{v || "pending"}</Tag> },
+                {
+                  title: "操作",
+                  key: "actions",
+                  width: 100,
+                  render: (_, row) => (
+                    <Button danger size="small" onClick={() => onRemoveKnowledgeFile?.(activeKnowledge?.id, row?.fileId)}>
+                      移除
+                    </Button>
+                  )
+                },
                 { title: "创建时间", dataIndex: "createdAt", key: "createdAt", width: 220 }
               ]}
             />

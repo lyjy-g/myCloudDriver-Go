@@ -1,0 +1,30 @@
+[2026-05-06 00:56:38] download: https://huggingface.co/datasets/C-MTEB/T2Retrieval/resolve/main/data/train-00000-of-00001.parquet -> cmteb/T2Retrieval.json (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:40] download: https://huggingface.co/datasets/C-MTEB/DuRetrieval/resolve/main/data/train-00000-of-00001.parquet -> cmteb/DuRetrieval.json (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:41] download: https://huggingface.co/datasets/C-MTEB/MMarcoRetrieval/resolve/main/data/train-00000-of-00001.parquet -> cmteb/MMarcoRetrieval.json (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:42] download: https://huggingface.co/datasets/C-MTEB/CMedQAv1/resolve/main/data/train-00000-of-00001.parquet -> cmteb/CMedQAv1.json (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    29    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 401
+[2026-05-06 00:56:43] download: https://huggingface.co/datasets/C-MTEB/CMedQAv2/resolve/main/data/train-00000-of-00001.parquet -> cmteb/CMedQAv2.json (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    29    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (22) The requested URL returned error: 401
+[2026-05-06 00:56:44] download: https://huggingface.co/datasets/C-MTEB/EcomRetrieval/resolve/main/data/train-00000-of-00001.parquet -> cmteb/EcomRetrieval.json (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404

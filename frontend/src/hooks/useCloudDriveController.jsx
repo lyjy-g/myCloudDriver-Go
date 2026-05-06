@@ -23,6 +23,7 @@ import {
   deleteKnowledgeBase,
   fetchKnowledgeFiles,
   addKnowledgeFile,
+  removeKnowledgeFile,
   confirmAgentAction,
   queryAgent,
   fetchAgentHistory,
@@ -460,6 +461,23 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
   }, [normalizedBaseUrl, notifySuccess, notifyError, loadKnowledgeBases]);
 
+  const handleRemoveKnowledgeFile = useCallback(async (knowledgeId, fileId) => {
+    const kb = String(knowledgeId || "").trim();
+    const fid = String(fileId || "").trim();
+    if (!kb || !fid) {
+      return false;
+    }
+    try {
+      await removeKnowledgeFile(normalizedBaseUrl, kb, fid);
+      await loadKnowledgeFiles(kb);
+      notifySuccess("已从知识库移除");
+      return true;
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "移除失败");
+      return false;
+    }
+  }, [normalizedBaseUrl, loadKnowledgeFiles, notifySuccess, notifyError]);
+
   const activeKnowledge = useMemo(
     () => (knowledgeBases || []).find((item) => String(item.id) === String(activeKnowledgeId)) || null,
     [knowledgeBases, activeKnowledgeId]
@@ -474,6 +492,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       return;
     }
     loadKnowledgeFiles(activeKnowledgeId);
+    const timer = window.setInterval(() => {
+      loadKnowledgeFiles(activeKnowledgeId);
+    }, 2500);
+    return () => window.clearInterval(timer);
   }, [activeMenu, activeKnowledgeId, loadKnowledgeFiles]);
 
   useEffect(() => {
@@ -1792,6 +1814,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     handleEditShare,
     handleCreateKnowledgeBase,
     handleDeleteKnowledgeBase,
+    handleRemoveKnowledgeFile,
     handleAddKnowledgeFile,
     handleAddKnowledgeItems
   };

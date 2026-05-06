@@ -450,6 +450,30 @@ CREATE TABLE `knowledge_file` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='知识库文件';
 
 -- ----------------------------
+-- Table structure for knowledge_import_task
+-- ----------------------------
+DROP TABLE IF EXISTS `knowledge_import_task`;
+CREATE TABLE `knowledge_import_task` (
+    `id` VARCHAR(64) NOT NULL COMMENT '任务ID',
+    `workspace_id` VARCHAR(128) NOT NULL COMMENT '工作空间ID',
+    `knowledge_base_id` BIGINT NOT NULL COMMENT '知识库ID',
+    `knowledge_file_id` BIGINT NOT NULL COMMENT '知识库文件记录ID',
+    `file_id` VARCHAR(128) NOT NULL COMMENT '文件ID',
+    `storage_setting_id` VARCHAR(128) NOT NULL COMMENT '存储配置ID',
+    `status` VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT 'pending/running/success/failed',
+    `stage` VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT 'pending/parsing/chunking/embedding/indexing/done',
+    `progress` INT NOT NULL DEFAULT 0 COMMENT '0-100',
+    `error_category` VARCHAR(32) DEFAULT NULL COMMENT '错误分类',
+    `error_message` TEXT DEFAULT NULL COMMENT '错误信息',
+    `retry_count` INT NOT NULL DEFAULT 0 COMMENT '重试次数',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    INDEX `idx_kb_file` (`workspace_id`, `knowledge_base_id`, `file_id`),
+    INDEX `idx_status_stage` (`status`, `stage`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='知识库导入任务';
+
+-- ----------------------------
 -- Table structure for knowledge_document_chunk
 -- ----------------------------
 DROP TABLE IF EXISTS `knowledge_document_chunk`;
@@ -521,4 +545,3 @@ CREATE TABLE `workflow_node_run` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX `idx_run` (`workflow_run_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='工作流节点运行';
-

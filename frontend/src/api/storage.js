@@ -221,6 +221,10 @@ export function addKnowledgeFile(baseUrl, knowledgeId, payload) {
   });
 }
 
+export function removeKnowledgeFile(baseUrl, knowledgeId, fileId) {
+  return requestJson("DELETE", `${baseUrl}/apis/agent/knowledge/${encodeURIComponent(knowledgeId)}/file/${encodeURIComponent(fileId)}`);
+}
+
 /**
  * 流式 Agent 查询（SSE）。
  * @param {string} baseUrl

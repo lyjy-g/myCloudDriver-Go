@@ -1,0 +1,25 @@
+[2026-05-06 00:56:45] download: https://huggingface.co/datasets/THUIR/T2Ranking/resolve/main/collection.tsv -> t2ranking/collection.tsv (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:48] download: https://huggingface.co/datasets/THUIR/T2Ranking/resolve/main/queries.train.tsv -> t2ranking/queries.train.tsv (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:49] download: https://huggingface.co/datasets/THUIR/T2Ranking/resolve/main/qrels.train.tsv -> t2ranking/qrels.train.tsv (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:50] download: https://huggingface.co/datasets/THUIR/T2Ranking/resolve/main/queries.dev.tsv -> t2ranking/queries.dev.tsv (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0
+curl: (22) The requested URL returned error: 404
+[2026-05-06 00:56:53] download: https://huggingface.co/datasets/THUIR/T2Ranking/resolve/main/qrels.dev.tsv -> t2ranking/qrels.dev.tsv (range start=0 end=2147483647)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (22) The requested URL returned error: 404
