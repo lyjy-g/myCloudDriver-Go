@@ -1,69 +1,100 @@
 # myclouddrive-go
 
-Go 版本 MyCloudDrive 后端骨架。
+MyCloudDrive 的 Go 实现，包含云盘核心能力与 Agent/RAG 能力。
 
-## Storage 接口迁移（OpenAPI 3 + Spec First）
+## 核心能力
 
-已落地 storage 域的契约优先方案：
+- 文件域：目录管理、文件列表、回收站、下载
+- 传输域：分片上传（check/chunk/merge）、断点续传、秒传能力
+- 存储域：多存储配置（Local/S3/MinIO）与按工作空间隔离
+- 分享域：创建分享、提取码校验、公开访问、下载、访问记录
+- Agent 域：检索/受控执行/RAG 查询、知识库管理与文件导入链路
 
-1. 契约文件：`api/openapi/storage.openapi.yaml`
-2. 生成配置：`api/openapi/oapi-codegen.storage.yaml`
-3. 生成代码：`internal/storage/api/storage.gen.go`
-4. handler 实现：`internal/storage/api/handler.go`
-5. 业务占位：`internal/storage/service/placeholder_service.go`
-6. CI 校验：`.github/workflows/openapi-sync.yml`
+## 当前模块
+
+`cmd/api/main.go` 已注册以下模块：
+
+1. `plugin`
+2. `storage`
+3. `user`
+4. `file`
+5. `share`
+6. `agent`
+
+## 快速启动
+
+### 1) 启动依赖（MySQL/Redis/MinIO）
+
+```bash
+cd deploy
+docker compose up -d
+```
+
+数据库初始化脚本：`deploy/mysql/init.sql`
+
+### 2) 准备配置
+
+```bash
+cp configs/config.example.yaml configs/config.yaml
+```
+
+按需修改：
+
+- `database.dsn`
+- `redis.addr`
+- `llm`（DeepSeek 等）
+- `embedding`（向量模型配置）
+
+> 安全说明：`configs/config.yaml` 已在 `.gitignore` 中，勿提交真实 API Key。
+
+### 3) 启动后端
+
+```bash
+go run ./cmd/api
+```
+
+默认监听：`http://localhost:8080`
+
+### 4) 启动前端（可选）
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+默认前端：`http://localhost:5173`
+
+## OpenAPI 与代码生成
+
+OpenAPI 契约位于 `api/openapi/`，当前包含：
+
+- `storage.openapi.yaml`
+- `file.openapi.yaml`
+- `share.openapi.yaml`
+- `agent.openapi.yaml`
 
 常用命令：
 
 ```bash
 make openapi-generate
 make openapi-check
+make test
 make run-gin
-go test ./...
 ```
 
-说明：
+约定：
 
-- 接口变更先改 OpenAPI，再生成代码，再实现业务。
-- 生成代码应提交到仓库，方便前后端和测试基于同一契约协作。
-- `gin + gorm + go-redis` 工程化示例说明见 `docs/gin-gorm-redis-example.md`。
+- 接口变更流程：先改 OpenAPI，再生成代码，再实现 handler/service。
+- 生成代码应提交入库，保证前后端和测试基于同一契约协作。
 
-## 模块化扩展
+## 关键目录
 
-`cmd/api` 现已采用模块注册启动：`app.NewServer(...modules)`。
-
-当前已注册模块：
-
-1. `storage`（示例完整模块）
-2. `user`（占位）
-3. `file`（占位）
-4. `share`（占位）
-
-后续新增服务时，按 `internal/<service>/{module,api,service,repository,model}` 结构创建并在 `cmd/api/main.go` 注册即可。
-
-## 生成代码约定
-
-按目录自治生成逻辑：
-
-1. OpenAPI 生成：`internal/<service>/api/generate.go`
-2. GORM model 生成：`internal/<service>/model/generate.go`
-3. 每个目录只维护自己的生成命令，不跨目录写生成逻辑
-
-当前 `storage` 已按该约定落地：
-
-1. `internal/storage/api/generate.go`
-2. `internal/storage/api/storage.gen.go`
-3. `internal/storage/model/generate.go`
-
-## 目录说明
-
-- `cmd/api`: API 进程入口。
-- `internal/app`: 应用装配与依赖注入。
-- `internal/framework`: 基础设施与横切能力。
-- `internal/domain`: 领域模型。
-- `internal/service`: 业务服务层。
-- `internal/repository`: 数据访问抽象。
-- `internal/transport/http`: HTTP 路由与处理器。
-- `pkg/types`: 可复用稳定类型。
-- `configs`: 配置文件样例。
-- `migrations`: 数据库迁移脚本。
+- `cmd/api`：服务入口
+- `internal/app`：模块装配与启动
+- `internal/framework`：配置、DB、Redis、HTTP 基础设施
+- `internal/{storage,user,file,share,agent,plugin}`：业务模块
+- `api/openapi`：接口契约
+- `deploy`：本地依赖与数据库初始化
+- `configs`：配置模板
+- `frontend`：前端项目
