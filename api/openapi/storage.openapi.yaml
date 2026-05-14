@@ -140,6 +140,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/SettingResponse'
 
+  /apis/storage/settings/{settingId}/select:
+    post:
+      summary: 当前用户选择使用的存储配置
+      description: 仅影响当前用户在当前 workspace 下的默认存储路由，不修改 workspace 默认配置。
+      operationId: selectCurrentStorageSetting
+      tags: [Storage]
+      parameters:
+        - name: settingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingResponse'
+
   /apis/storage/settings/{settingId}/{action}:
     post:
       summary: 启用或禁用存储配置（兼容 action）

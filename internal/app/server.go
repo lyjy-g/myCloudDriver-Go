@@ -72,7 +72,8 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 	jwtSvc := security.NewJWTService(jwtSecret)
 
 	var handler http.Handler = mux
-	// 先认证，再做 workspace 作用域与角色注入。
+	// 中间件的执行顺序是从下到上，先来的会被后面的包裹住
+	handler = security.CurrentStorageSettingMiddleware(db, rdb)(handler)
 	handler = security.WorkspaceScopeMiddleware(db)(handler)
 	handler = security.AuthMiddleware(jwtSvc, rdb)(handler)
 	handler = web.CORSMiddleware(web.DefaultCORSOptions())(handler)

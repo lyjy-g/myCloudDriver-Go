@@ -313,6 +313,57 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 	}, nil
 }
 
+// SetDefaultStorageSetting 设置当前用户在当前 workspace 下选中的存储配置。
+// - 不改 workspace 默认配置；
+// - 只影响当前用户本次及后续会话的默认路由；
+// - 未选择时仍回退到 workspace 默认配置。
+func (s *StorageService) SetDefaultStorageSetting(ctx context.Context, settingID string) (*storageModel.Setting, error) {
+	//是否登录
+	principal, err := security.RequireLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	//需要提供原来配置id
+	settingID = strings.TrimSpace(settingID)
+	if settingID == "" {
+		return nil, code.New(code.BadRequest, "setting id is required")
+	}
+	if s.rdb == nil {
+		return nil, fmt.Errorf("redis unavailable")
+	}
+
+	//获取配置id，只要一个
+	workspaceID := strings.TrimSpace(principal.WorkspaceID)
+	var row dbmodel.StorageSetting
+	if err = s.db.WithContext(ctx).
+		Where("id = ? AND workspace_id = ? AND deleted = ?", settingID, workspaceID, false).
+		First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, code.New(code.NotFound, "setting not found")
+		}
+		return nil, fmt.Errorf("query setting for select: %w", err)
+	}
+
+	//组装当前用户当前空间的配置id的key
+	key := security.CurrentStorageSettingCacheKey(principal.UserID, workspaceID)
+	//上面key的值
+	if err = s.rdb.Set(ctx, key, row.ID, 7*24*time.Hour).Err(); err != nil {
+		return nil, fmt.Errorf("persist current storage setting: %w", err)
+	}
+
+	//
+	cfg := row.ConfigData
+	ts := row.UpdatedAt
+	return &storageModel.Setting{
+		ID:                 row.ID,
+		StorageSettingName: row.StorageSettingName,
+		Identifier:         row.PlatformIdentifier,
+		Active:             row.Enabled,
+		ConfigJSON:         &cfg,
+		UpdatedAt:          &ts,
+	}, nil
+}
+
 // Put 将对象写入当前激活存储。
 //
 // 可忽略：
