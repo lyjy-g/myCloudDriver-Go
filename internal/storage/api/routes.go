@@ -9,7 +9,5 @@ import (
 // RegisterRoutes 将 OpenAPI 生成路由注册到标准库 ServeMux。
 func RegisterRoutes(mux *http.ServeMux, svc *service.StorageService) {
 	h := NewHandler(svc)
-	// OpenAPI 生成路由（/api/v1/storage/*）。
 	gen.HandlerFromMux(h, mux)
-
 }

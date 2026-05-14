@@ -178,6 +178,14 @@ func (r *RunManager) PresignPut(ctx context.Context, key string, expire time.Dur
 }
 
 func (r *RunManager) resolveActiveStore(ctx context.Context) (plugin.StorePower, error) {
+	if p, ok := security.GetCtxInfo(ctx); ok {
+		if settingID := strings.TrimSpace(p.CurrentStorageSettingID); settingID != "" {
+			row, err := r.getSettingByID(ctx, settingID)
+			if err == nil {
+				return r.resolveStoreBySetting(ctx, row)
+			}
+		}
+	}
 	row, err := r.getWorkspaceActiveSetting(ctx)
 	if err != nil {
 		return nil, err

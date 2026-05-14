@@ -139,6 +139,19 @@ func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.R
 	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
 }
 
+func (h *StorageHandler) SelectCurrentStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
+	if !requireStoragePermission(w, r, security.PermissionStorageSettingRead) {
+		return
+	}
+	item, err := h.svc.SetDefaultStorageSetting(r.Context(), settingID)
+	if err != nil {
+		writeStorageError(w, err)
+		return
+	}
+	data := toAPISetting(*item)
+	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+}
+
 // ActivateOrDisableStorageSettingByAction 兼容 action 风格开关接口：1 启用，0 禁用。
 func (h *StorageHandler) ActivateOrDisableStorageSettingByAction(w http.ResponseWriter, r *http.Request, settingID string, action string) {
 	if !requireStoragePermission(w, r, security.PermissionStorageSettingWrite) {

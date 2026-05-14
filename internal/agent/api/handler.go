@@ -267,7 +267,7 @@ func (h *Handler) AddKnowledgeFile(w http.ResponseWriter, r *http.Request, kbId 
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	storageSettingID := strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id"))
+	storageSettingID := currentStorageSettingID(r)
 	if req.StorageSettingId != nil && strings.TrimSpace(*req.StorageSettingId) != "" {
 		storageSettingID = strings.TrimSpace(*req.StorageSettingId)
 	}
@@ -384,7 +384,7 @@ func fillRequestFromHeader(req *agentmodel.QueryRequest, r *http.Request) {
 		req.WorkspaceID = strings.TrimSpace(r.Header.Get("X-Workspace-Id"))
 	}
 	if strings.TrimSpace(req.StorageSettingID) == "" {
-		req.StorageSettingID = strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id"))
+		req.StorageSettingID = currentStorageSettingID(r)
 	}
 	if strings.TrimSpace(req.Scope) == "" {
 		req.Scope = "auto"
@@ -413,3 +413,13 @@ func writeServiceError(w http.ResponseWriter, err error) {
 
 // 确保导入不被移除
 var _ = json.Marshal
+
+func currentStorageSettingID(r *http.Request) string {
+	if settingID := strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id")); settingID != "" {
+		return settingID
+	}
+	if principal, ok := security.GetCtxInfo(r.Context()); ok {
+		return strings.TrimSpace(principal.CurrentStorageSettingID)
+	}
+	return ""
+}

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	gen "myclouddrive-go/internal/file/api/gen"
 	filemodel "myclouddrive-go/internal/file/model"
 	"myclouddrive-go/internal/file/service"
 	"myclouddrive-go/internal/framework/code"
@@ -27,15 +26,6 @@ type Handler struct {
 
 func NewHandler(svc *service.FileService) *Handler {
 	return &Handler{svc: svc}
-}
-
-func (h *Handler) PingFile(w http.ResponseWriter, r *http.Request) {
-	msg, err := h.svc.Ping(r.Context())
-	if err != nil {
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
-		return
-	}
-	web.WriteJSON(w, http.StatusOK, gen.PingResponse{Code: "OK", Message: msg})
 }
 
 // GetHomes 查询首页信息。
@@ -722,7 +712,15 @@ func int64Field(m map[string]any, keys ...string) int64 {
 }
 
 func currentStorageSettingID(r *http.Request) string {
-	return strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id"))
+	//从header获取存储id
+	if settingID := strings.TrimSpace(r.Header.Get("X-Storage-Setting-Id")); settingID != "" {
+		return settingID
+	}
+	//从ctx获取存储id
+	if principal, ok := security.GetCtxInfo(r.Context()); ok {
+		return strings.TrimSpace(principal.CurrentStorageSettingID)
+	}
+	return ""
 }
 
 func tokenPayload(scene, fileID, inner string) map[string]any {

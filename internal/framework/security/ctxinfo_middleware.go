@@ -1,20 +1,23 @@
 package security
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"strings"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-// WorkspaceScopeMiddleware 允许前端在请求头显式传 workspace，并在后端做成员校验后覆盖上下文。
+// CtxInfoMiddleware 允许前端在请求头显式传 workspace，并在后端做成员校验后覆盖上下文。
 //
 // 设计要点：
 // 1. 只在“已登录用户”场景生效，未登录请求直接透传；
 // 2. workspace 必须是用户成员关系，防止通过伪造 header 越权；
-// 3. 校验失败时沿用 JWT 内原 workspace，保证兼容性与可用性。
-func WorkspaceScopeMiddleware(db *gorm.DB) func(http.Handler) http.Handler {
+// 3. 校验失败时沿用 JWT 内原 workspace，保证兼容性与可用性；
+// 4. workspace 确认后，顺手把当前请求应使用的存储配置一并注入上下文。
+func CtxInfoMiddleware(db *gorm.DB, rdb redis.Cmdable) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := GetCtxInfo(r.Context())
@@ -46,6 +49,8 @@ func WorkspaceScopeMiddleware(db *gorm.DB) func(http.Handler) http.Handler {
 			}
 			principal.WorkspaceID = foundWorkspaceID
 			principal.WorkspaceRole = foundRole
+			//设置存储id
+			principal.CurrentStorageSettingID = resolveCurrentStorageSettingID(r.Context(), db, rdb, principal.UserID, foundWorkspaceID, r.Header.Get("X-Storage-Setting-Id"))
 			next.ServeHTTP(w, r.WithContext(PutCtxInfo(r.Context(), principal)))
 		})
 	}
@@ -104,4 +109,42 @@ func resolveWorkspaceRole(r *http.Request, db *gorm.DB, userID, workspaceID stri
 		return "", false, nil
 	}
 	return role, true, nil
+}
+
+func resolveCurrentStorageSettingID(ctx context.Context, db *gorm.DB, rdb redis.Cmdable, userID, workspaceID, requestedSettingID string) string {
+	//判断是否存在这个存储id
+	if settingID := validateStorageSettingID(ctx, db, workspaceID, requestedSettingID); settingID != "" {
+		return settingID
+	}
+	if rdb == nil {
+		return ""
+	}
+	//获取存在redis里面的存储id
+	key := CurrentStorageSettingCacheKey(userID, workspaceID)
+	cached, err := rdb.Get(ctx, key).Result()
+	if err != nil {
+		return ""
+	}
+	//判断存储id是否有效
+	if settingID := validateStorageSettingID(ctx, db, workspaceID, cached); settingID != "" {
+		return settingID
+	}
+	_ = rdb.Del(ctx, key).Err()
+	return ""
+}
+
+func validateStorageSettingID(ctx context.Context, db *gorm.DB, workspaceID, settingID string) string {
+	settingID = strings.TrimSpace(settingID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	if settingID == "" || workspaceID == "" || db == nil {
+		return ""
+	}
+
+	var count int64
+	if err := db.WithContext(ctx).Table("storage_settings").
+		Where("id = ? AND workspace_id = ? AND deleted = ?", settingID, workspaceID, false).
+		Count(&count).Error; err != nil || count == 0 {
+		return ""
+	}
+	return settingID
 }
