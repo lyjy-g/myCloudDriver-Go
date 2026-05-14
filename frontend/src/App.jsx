@@ -221,7 +221,7 @@ export default function App() {
                 onPressEnter={handleLoginSubmit}
               />
               <Button type="primary" className="mcd-primary-btn" onClick={handleLoginSubmit} loading={controller.loading}>
-                登录并进入控制台
+                登录并进入工作台
               </Button>
             </Space>
           </Card>

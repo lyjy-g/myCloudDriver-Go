@@ -1413,3 +1413,286 @@ body {
   border: 1px solid #eaf0fb !important;
   box-shadow: 0 18px 40px rgba(20, 40, 75, 0.12) !important;
 }
+
+/* 2026 product refresh: lightweight, friendly, consistent */
+:root {
+  --mcd-bg: oklch(0.975 0.008 250);
+  --mcd-surface: oklch(0.992 0.004 252);
+  --mcd-surface-alt: oklch(0.964 0.01 250);
+  --mcd-border: oklch(0.9 0.014 248);
+  --mcd-border-strong: oklch(0.83 0.03 249);
+  --mcd-text: oklch(0.29 0.025 254);
+  --mcd-text-muted: oklch(0.54 0.02 252);
+  --mcd-accent: oklch(0.6 0.14 247);
+  --mcd-accent-soft: oklch(0.93 0.04 248);
+}
+
+body {
+  background: radial-gradient(1200px 700px at -10% -20%, oklch(0.95 0.03 240) 0%, transparent 55%),
+    radial-gradient(800px 500px at 120% -10%, oklch(0.95 0.028 50) 0%, transparent 60%),
+    var(--mcd-bg);
+  color: var(--mcd-text);
+}
+
+.mcd-shell {
+  background: transparent;
+}
+
+.mcd-login-shell {
+  background: radial-gradient(500px 300px at 8% 10%, oklch(0.95 0.04 80) 0%, transparent 65%),
+    radial-gradient(420px 280px at 95% 5%, oklch(0.94 0.04 240) 0%, transparent 68%),
+    linear-gradient(160deg, oklch(0.985 0.006 240), oklch(0.968 0.012 55));
+}
+
+.mcd-login-card {
+  border-radius: 18px !important;
+  border: 1px solid var(--mcd-border) !important;
+  box-shadow: 0 16px 38px rgba(34, 57, 95, 0.11) !important;
+}
+
+.mcd-topbar {
+  background: color-mix(in oklab, var(--mcd-surface) 88%, oklch(0.95 0.02 238));
+  border-bottom: 1px solid var(--mcd-border);
+  backdrop-filter: blur(8px);
+}
+
+.mcd-topbar-inner {
+  padding: 12px 20px;
+  gap: 14px;
+}
+
+.mcd-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mcd-topbar-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mcd-topbar-brand-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mcd-text);
+}
+
+.mcd-topbar-brand-sub {
+  font-size: 12px;
+  color: var(--mcd-text-muted);
+}
+
+.mcd-topbar-promos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 6px;
+}
+
+.mcd-topbar-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mcd-topbar-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mcd-border);
+  background: var(--mcd-surface);
+  color: var(--mcd-text);
+  font-size: 12px;
+}
+
+.mcd-topbar-meta-item-sub {
+  color: var(--mcd-text-muted);
+}
+
+.mcd-avatar {
+  background: var(--mcd-accent-soft);
+  color: var(--mcd-accent);
+}
+
+.mcd-pill {
+  background: oklch(0.956 0.02 248);
+  border: 1px solid var(--mcd-border);
+  color: var(--mcd-text-muted);
+}
+
+.mcd-pill-warm {
+  background: oklch(0.95 0.03 68);
+  border-color: oklch(0.9 0.04 70);
+  color: oklch(0.5 0.08 68);
+}
+
+.mcd-pill-outline {
+  background: var(--mcd-surface);
+  border-color: var(--mcd-border-strong);
+  color: var(--mcd-accent);
+}
+
+.mcd-body {
+  min-height: calc(100vh - 64px);
+}
+
+.mcd-iconbar,
+.mcd-sidebar {
+  background: var(--mcd-surface-alt);
+  border-right: 1px solid var(--mcd-border);
+}
+
+.mcd-main {
+  padding: 16px 18px 32px;
+}
+
+.mcd-panel {
+  border: 1px solid var(--mcd-border);
+  box-shadow: 0 8px 24px rgba(23, 43, 78, 0.06);
+  border-radius: 16px;
+  background: var(--mcd-surface);
+}
+
+.mcd-toolbar {
+  margin-bottom: 12px;
+  border: 1px solid var(--mcd-border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: color-mix(in oklab, var(--mcd-surface) 82%, var(--mcd-surface-alt));
+}
+
+.mcd-toolbar-right {
+  margin-left: auto;
+}
+
+.mcd-toolbar-hint {
+  font-size: 12px;
+  color: var(--mcd-text-muted);
+}
+
+.mcd-space-home-hero {
+  border: 1px solid var(--mcd-border);
+  background: radial-gradient(circle at 8% 8%, oklch(0.94 0.03 248), transparent 28%),
+    radial-gradient(circle at 88% 12%, oklch(0.95 0.03 75), transparent 26%),
+    var(--mcd-surface);
+  box-shadow: 0 12px 26px rgba(27, 48, 86, 0.08);
+}
+
+.mcd-space-home-kicker {
+  color: var(--mcd-text-muted);
+}
+
+.mcd-space-home-title {
+  color: var(--mcd-text);
+}
+
+.mcd-space-home-subtitle {
+  margin: 0;
+  color: var(--mcd-text-muted);
+  max-width: 72ch;
+}
+
+.mcd-sidebar-redesign {
+  width: 272px;
+  padding: 12px 10px;
+  background: color-mix(in oklab, var(--mcd-surface-alt) 86%, oklch(0.95 0.015 250));
+}
+
+.mcd-sidebar-block {
+  border-radius: 14px;
+  border-color: var(--mcd-border);
+  background: var(--mcd-surface);
+}
+
+.mcd-sidebar-nav-item,
+.mcd-sidebar-workspace-item {
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.mcd-sidebar-nav-item:hover,
+.mcd-sidebar-workspace-item:hover {
+  transform: translateY(-1px);
+}
+
+.mcd-sidebar-nav-item.active,
+.mcd-sidebar-storage-link.active,
+.mcd-sidebar-workspace-item.active {
+  background: var(--mcd-accent-soft);
+  border-color: color-mix(in oklab, var(--mcd-accent) 40%, var(--mcd-border));
+  box-shadow: none;
+  color: oklch(0.44 0.11 248);
+}
+
+.mcd-knowledge-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.mcd-knowledge-guide span {
+  font-size: 12px;
+  color: var(--mcd-text-muted);
+  border: 1px solid var(--mcd-border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: color-mix(in oklab, var(--mcd-surface) 70%, var(--mcd-accent-soft));
+}
+
+.mcd-settings-quick-item {
+  border-color: var(--mcd-border);
+  background: color-mix(in oklab, var(--mcd-surface) 80%, var(--mcd-surface-alt));
+}
+
+.mcd-settings-quick-item.active {
+  border-color: color-mix(in oklab, var(--mcd-accent) 40%, var(--mcd-border));
+  background: color-mix(in oklab, var(--mcd-accent-soft) 64%, var(--mcd-surface));
+}
+
+.mcd-primary-btn {
+  background: linear-gradient(135deg, oklch(0.64 0.14 248), oklch(0.57 0.15 258));
+}
+
+.mcd-primary-btn:hover,
+.mcd-primary-btn:focus {
+  background: linear-gradient(135deg, oklch(0.68 0.13 248), oklch(0.61 0.14 258));
+}
+
+@media (max-width: 1200px) {
+  .mcd-topbar-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mcd-topbar-meta {
+    margin-left: 0;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+}
+
+@media (max-width: 980px) {
+  .mcd-iconbar {
+    display: none;
+  }
+
+  .mcd-sidebar-redesign {
+    width: 230px;
+  }
+
+  .mcd-main {
+    padding: 12px;
+  }
+}

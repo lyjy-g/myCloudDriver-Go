@@ -121,12 +121,16 @@ export function FilesPanel({
       <div className="mcd-space-home">
         <div className="mcd-panel mcd-space-home-hero">
           <div className="mcd-space-home-headline">
-            <div className="mcd-space-home-kicker">Workspace Hub</div>
+            <div className="mcd-space-home-kicker">Workspace Overview</div>
             <h2 className="mcd-space-home-title">{activeWorkspace?.workspaceName || "我的空间"}</h2>
+            <p className="mcd-space-home-subtitle">
+              从这里完成存储配置、文件访问和知识库导入，所有操作都绑定当前空间。
+            </p>
           </div>
           <div className="mcd-space-home-tags">
-            <Tag color="blue">类型：{activeWorkspace?.workspaceType || "-"}</Tag>
-            <Tag color="cyan">角色：{activeWorkspace?.role || "-"}</Tag>
+            <Tag color="blue">空间类型：{activeWorkspace?.workspaceType || "-"}</Tag>
+            <Tag color="cyan">我的角色：{activeWorkspace?.role || "-"}</Tag>
+            <Tag color="geekblue">可用配置：{(storageSettings || []).length}</Tag>
           </div>
           <div className="mcd-space-home-actions">
             <Button type="primary" onClick={onOpenFiles}>进入全部文件</Button>
@@ -134,7 +138,7 @@ export function FilesPanel({
             <Button onClick={onOpenStorageSettings}>编辑空间配置</Button>
             <Button onClick={onRefreshWorkspace}>刷新空间信息</Button>
           </div>
-          <Text className="mcd-muted">当前用户：{currentUser?.displayName || currentUser?.username || "-"}</Text>
+          <Text className="mcd-muted">当前操作者：{currentUser?.displayName || currentUser?.username || "-"}</Text>
         </div>
 
         <WorkspaceSettingSelector
@@ -251,7 +255,7 @@ export function FilesPanel({
     return (
       <div className="mcd-panel p-5">
         <div className="mb-4" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <Text className="mcd-muted">知识库首页：管理知识库（增删改查）</Text>
+          <Text className="mcd-muted">知识库管理：先创建知识库，再进入详情导入文件或目录。</Text>
           <Button type="primary" onClick={() => setKbCreateOpen(true)}>新建知识库</Button>
         </div>
         <Table

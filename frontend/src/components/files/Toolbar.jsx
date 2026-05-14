@@ -18,16 +18,7 @@ export function Toolbar({
                              onRefreshTrash,
                          }) {
     return (
-        <div className="mcd-toolbar" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '8px 16px',
-            background: '#fff',
-            borderBottom: '1px solid #f0f0f0'
-        }}>
-
-            {/* 左侧：操作按钮区 */}
+        <div className="mcd-toolbar">
             <div className="mcd-toolbar-left">
                 <Space size={8}>
                     <Space.Compact>
@@ -59,9 +50,10 @@ export function Toolbar({
                 </Space>
             </div>
 
-            {/* 右侧：页面级操作 */}
-            <div className="mcd-toolbar-right" style={{ minWidth: 0, flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-
+            <div className="mcd-toolbar-right">
+                <span className="mcd-toolbar-hint">
+                  {activeMenu === "trash" ? "回收站中的项目可恢复，操作前请确认目标目录。" : activeMenu === "shares" ? "在分享列表中可查看访问与下载记录。" : "支持上传、建文件夹与目录浏览。"}
+                </span>
             </div>
         </div>
     );

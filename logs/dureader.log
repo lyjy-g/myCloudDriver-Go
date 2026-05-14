@@ -1,75 +1,0 @@
-[2026-05-06 00:56:18] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/train-0000-of-00005.parquet -> dureader/train-0000.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:19] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/train-0001-of-00005.parquet -> dureader/train-0001.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:21] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/train-0002-of-00005.parquet -> dureader/train-0002.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:22] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/train-0003-of-00005.parquet -> dureader/train-0003.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:23] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/train-0004-of-00005.parquet -> dureader/train-0004.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:24] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/validation-0000-of-00005.parquet -> dureader/validation-0000.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:25] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/validation-0001-of-00005.parquet -> dureader/validation-0001.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:27] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/validation-0002-of-00005.parquet -> dureader/validation-0002.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:28] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/validation-0003-of-00005.parquet -> dureader/validation-0003.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:30] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/validation-0004-of-00005.parquet -> dureader/validation-0004.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:31] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/test-0000-of-00005.parquet -> dureader/test-0000.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:32] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/test-0001-of-00005.parquet -> dureader/test-0001.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:33] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/test-0002-of-00005.parquet -> dureader/test-0002.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:36] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/test-0003-of-00005.parquet -> dureader/test-0003.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404
-[2026-05-06 00:56:37] download: https://huggingface.co/datasets/PaddlePaddle/dureader_robust/resolve/main/data/test-0004-of-00005.parquet -> dureader/test-0004.parquet (range start=0 end=2147483647)
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    15    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
-curl: (22) The requested URL returned error: 404

@@ -41,23 +41,49 @@ export function Topbar({ topPromos, activeWorkspace, activeStorage, currentUser,
   return (
     <header className="mcd-topbar">
       <div className="mcd-topbar-inner">
-        <div className="flex items-center gap-3">
+        <div className="mcd-topbar-brand">
           <div className="mcd-avatar">M</div>
-          {topPromos.map((promo) => (
-            <div
-              key={promo.key}
-              className={
-                promo.tone === "warm"
-                  ? "mcd-pill mcd-pill-warm"
-                  : promo.tone === "outline"
-                  ? "mcd-pill mcd-pill-outline"
-                  : "mcd-pill"
-              }
-            >
-              {promo.label}
-            </div>
-          ))}
-
+          <div className="mcd-topbar-brand-text">
+            <div className="mcd-topbar-brand-title">MyCloudDrive</div>
+            <div className="mcd-topbar-brand-sub">云盘与知识库协同工作台</div>
+          </div>
+          <div className="mcd-topbar-promos">
+            {topPromos.map((promo) => (
+              <div
+                key={promo.key}
+                className={
+                  promo.tone === "warm"
+                    ? "mcd-pill mcd-pill-warm"
+                    : promo.tone === "outline"
+                    ? "mcd-pill mcd-pill-outline"
+                    : "mcd-pill"
+                }
+              >
+                {promo.label}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mcd-topbar-meta">
+          <div className="mcd-topbar-meta-item">
+            <EnvironmentOutlined />
+            <span>{workspaceLabel}</span>
+          </div>
+          <div className="mcd-topbar-meta-item">
+            <IdcardOutlined />
+            <span>{storageLabel}</span>
+          </div>
+          <div className="mcd-topbar-meta-item mcd-topbar-meta-item-sub">
+            <SwapOutlined />
+            <span>{storagePath}</span>
+          </div>
+          <div className="mcd-topbar-meta-item">
+            <UserOutlined />
+            <span>{userLabel}</span>
+          </div>
+          <Button onClick={() => onOpenStorageSettings?.("workspace", storageSettingId)}>
+            工作区设置
+          </Button>
         </div>
       </div>
     </header>

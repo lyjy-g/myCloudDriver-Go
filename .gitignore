@@ -4,6 +4,9 @@
 # Runtime data directory
 .data/
 
+docx/
+docs/
+
 # local runtime secrets
 configs/config.yaml
 
