@@ -1,44 +1,19 @@
 package security
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
-
-// TokenInfo 表示 JWT 的业务载荷（Claims）。
-//
-// 1. sub（UserID）是“谁在访问”的主身份，必须存在。
-// 2. ws（WorkspaceID）是“在哪个租户空间访问”，用于多租户隔离。
-// 3. iat/exp 是“何时签发/何时过期”，用于时效控制。
-type TokenInfo struct {
-	UserID      string `json:"sub"`
-	WorkspaceID string `json:"ws,omitempty"`
-	Username    string `json:"un,omitempty"`
-	StartAt     int64  `json:"iat"`
-	ExpireAt    int64  `json:"exp"`
-}
-
-// JWTService 提供最小可用的 HS256 JWT 签发与验签能力。
-//
-// - 这里使用对称签名（HMAC-SHA256），服务端单点签发/校验，简单高效。
-// - 若系统升级为多服务、多环境强隔离，可演进到 KMS 管理密钥或非对称签名。
-type JWTService struct {
-	secret []byte
-}
-
-// NewJWTService 创建 JWT 服务。
-func NewJWTService(secret string) *JWTService {
-	if strings.TrimSpace(secret) == "" {
-		secret = "myclouddrive-go-dev-secret"
-	}
-	return &JWTService{secret: []byte(secret)}
-}
 
 // GetToken 签发 token。
 //
@@ -118,4 +93,47 @@ func (s *JWTService) sign(text string) string {
 	h := hmac.New(sha256.New, s.secret)
 	_, _ = h.Write([]byte(text))
 	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+}
+
+// isBlacklisted 判断 token 是否已进入黑名单。
+//
+// 面试可讲：
+// - 这是 JWT 无状态认证常见补偿机制，解决“服务端主动失效 token”问题。
+// 可忽略：
+// - 这里将 Redis miss 统一视作未拉黑，属于简化策略。
+func isBlacklisted(ctx context.Context, rdb redis.Cmdable, token string) bool {
+	if rdb == nil {
+		return false
+	}
+	key := "auth:blacklist:" + tokenHash(token)
+	_, err := rdb.Get(ctx, key).Result()
+	return err == nil
+}
+
+// BlacklistToken 将 token 拉黑到过期时间，支持登出立即失效。
+//
+// 面试可讲：
+// 1. 黑名单 TTL 对齐 token 过期时间，避免永久脏数据；
+// 2. exp 已过期时给一个短 TTL（5 分钟）兜底，防止时间边界抖动。
+func BlacklistToken(ctx context.Context, rdb redis.Cmdable, token string, expUnix int64) error {
+	if rdb == nil || strings.TrimSpace(token) == "" {
+		return nil
+	}
+	ttl := time.Until(time.Unix(expUnix, 0))
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	key := "auth:blacklist:" + tokenHash(token)
+	return rdb.Set(ctx, key, "1", ttl).Err()
+}
+
+// tokenHash 对原始 token 做哈希后再作为缓存 key。
+//
+// 面试可讲：
+// - 避免在缓存层直接暴露原始 token（降低泄漏敏感度）。
+// 可忽略：
+// - SHA-256 本身不是鉴权关键点，这里只用于 key 脱敏。
+func tokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

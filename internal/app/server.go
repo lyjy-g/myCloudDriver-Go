@@ -74,7 +74,7 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 	var handler http.Handler = mux
 	// 中间件的执行顺序是从下到上，先认证，再解析 workspace / role / current storage setting。
 	handler = security.CtxInfoMiddleware(db, rdb)(handler)
-	handler = security.AuthMiddleware(jwtSvc, rdb)(handler)
+	handler = security.JWTMiddleware(jwtSvc, rdb)(handler)
 	handler = web.CORSMiddleware(web.DefaultCORSOptions())(handler)
 	handler = logx.LoggingMiddleware(handler)
 	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil
