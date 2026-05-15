@@ -143,7 +143,7 @@ func (h *StorageHandler) SelectCurrentStorageSetting(w http.ResponseWriter, r *h
 	if !requireStoragePermission(w, r, security.PermissionStorageSettingRead) {
 		return
 	}
-	item, err := h.svc.SetDefaultStorageSetting(r.Context(), settingID)
+	item, err := h.svc.SelectCurrentStorageSetting(r.Context(), settingID)
 	if err != nil {
 		writeStorageError(w, err)
 		return

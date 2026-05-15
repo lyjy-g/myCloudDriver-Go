@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -275,7 +274,6 @@ func (s *StorageService) ActivateStorageSetting(ctx context.Context, settingID s
 
 // DisableStorageSetting 禁用指定存储配置。
 //
-// 面试可讲：
 // - 禁用后立即失效实例缓存，避免旧配置继续承接流量；
 // - 同步清理 Redis 缓存，保证控制台状态一致。
 func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID string) (*storageModel.Setting, error) {
@@ -313,11 +311,11 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 	}, nil
 }
 
-// SetDefaultStorageSetting 设置当前用户在当前 workspace 下选中的存储配置。
+// SelectCurrentStorageSetting 设置当前用户在当前 workspace 下选中的存储配置。
 // - 不改 workspace 默认配置；
 // - 只影响当前用户本次及后续会话的默认路由；
 // - 未选择时仍回退到 workspace 默认配置。
-func (s *StorageService) SetDefaultStorageSetting(ctx context.Context, settingID string) (*storageModel.Setting, error) {
+func (s *StorageService) SelectCurrentStorageSetting(ctx context.Context, settingID string) (*storageModel.Setting, error) {
 	//是否登录
 	principal, err := security.RequireLogin(ctx)
 	if err != nil {
@@ -362,70 +360,6 @@ func (s *StorageService) SetDefaultStorageSetting(ctx context.Context, settingID
 		ConfigJSON:         &cfg,
 		UpdatedAt:          &ts,
 	}, nil
-}
-
-// Put 将对象写入当前激活存储。
-//
-// 可忽略：
-// - 该函数主要做入参映射，不承担复杂业务决策。
-func (s *StorageService) Put(ctx context.Context, in dto.ObjectPutInput) (dto.ObjectInfo, error) {
-	info, err := s.runManager.Put(ctx, in.Key, in.Reader, pluginsvc.PutOptions{
-		ContentType:   in.ContentType,
-		ContentLength: in.ContentLength,
-		Metadata:      in.Metadata,
-	})
-	if err != nil {
-		return dto.ObjectInfo{}, err
-	}
-	return toObjectInfo(info), nil
-}
-
-// Get 从当前激活存储读取对象。
-func (s *StorageService) Get(ctx context.Context, key string) (io.ReadCloser, dto.ObjectInfo, error) {
-	rc, info, err := s.runManager.Get(ctx, key)
-	if err != nil {
-		return nil, dto.ObjectInfo{}, err
-	}
-	return rc, toObjectInfo(info), nil
-}
-
-// GetBySetting 使用指定存储配置读取对象。
-//
-// 面试可讲：
-// - 分享/审计等跨页面场景必须“按资源归属配置读”，不能依赖当前激活配置。
-func (s *StorageService) GetBySetting(ctx context.Context, settingID string, key string) (io.ReadCloser, dto.ObjectInfo, error) {
-	rc, info, err := s.runManager.GetBySetting(ctx, settingID, key)
-	if err != nil {
-		return nil, dto.ObjectInfo{}, err
-	}
-	return rc, toObjectInfo(info), nil
-}
-
-// Delete 删除当前激活存储对象。
-func (s *StorageService) Delete(ctx context.Context, key string) error {
-	return s.runManager.Delete(ctx, key)
-}
-
-// Stat 查询当前激活存储对象元数据。
-func (s *StorageService) Stat(ctx context.Context, key string) (dto.ObjectInfo, error) {
-	info, err := s.runManager.Stat(ctx, key)
-	if err != nil {
-		return dto.ObjectInfo{}, err
-	}
-	return toObjectInfo(info), nil
-}
-
-// PresignDownloadURL 生成下载预签名 URL。
-//
-// 面试可讲：
-// - file 模块只依赖该门面，不感知 local/s3 的签名实现差异。
-func (s *StorageService) PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error) {
-	return s.runManager.PresignGet(ctx, key, expire)
-}
-
-// PresignUploadURL 生成上传预签名 URL。
-func (s *StorageService) PresignUploadURL(ctx context.Context, key string, expire time.Duration) (string, error) {
-	return s.runManager.PresignPut(ctx, key, expire)
 }
 
 // toObjectInfo 将插件层对象信息映射为 storage DTO。

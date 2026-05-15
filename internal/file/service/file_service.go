@@ -3,24 +3,14 @@ package service
 import (
 	"context"
 	"errors"
-	"io"
 	"sync"
 	"time"
 
 	"gorm.io/gorm"
 
 	filemodel "myclouddrive-go/internal/file/model"
-	storagemodel "myclouddrive-go/internal/storage/model"
 	storagesvc "myclouddrive-go/internal/storage/service"
 )
-
-// StorageAbstract 定义文件模块依赖的最小存储能力集合。
-type StorageAbstract interface {
-	Put(ctx context.Context, in storagemodel.ObjectPutInput) (storagemodel.ObjectInfo, error)
-	PresignDownloadURL(ctx context.Context, key string, expire time.Duration) (string, error)
-	Get(ctx context.Context, key string) (io.ReadCloser, storagemodel.ObjectInfo, error)
-	Delete(ctx context.Context, key string) error
-}
 
 // FileService 是 file 模块的唯一实现。
 type FileService struct {
@@ -28,7 +18,7 @@ type FileService struct {
 	mu      sync.RWMutex
 	counter int64
 	items   map[string]*filemodel.FileItem
-	storage StorageAbstract
+	storage IStoragePower
 
 	idemMu      sync.Mutex
 	idemRecords map[string]idempotencyRecord

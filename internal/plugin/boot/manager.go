@@ -40,6 +40,7 @@ func NewManager(registry *Registry) *Manager {
 // Resolve 根据配置解析并返回可复用的 Store 实例。
 func (m *Manager) Resolve(ctx context.Context, cfg plugin.ResolvedStorageConfig) (plugin.StorePower, error) {
 	m.mu.RLock()
+	//如果cache里有了，就直接返回
 	if cs, ok := m.cache[cfg.SettingID]; ok &&
 		cs.storeInfo != nil &&
 		cs.storeInfo.PlatformIdentifier() == cfg.PlatformIdentifier {
