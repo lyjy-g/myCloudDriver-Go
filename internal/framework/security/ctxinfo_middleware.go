@@ -10,7 +10,6 @@ import (
 
 // CtxInfoMiddleware 允许前端在请求头显式传 workspace，并在后端做成员校验后覆盖上下文。
 //
-// 设计要点：
 // 1. 只在“已登录用户”场景生效，未登录请求直接透传；
 // 2. workspace 必须是用户成员关系，防止通过伪造 header 越权；
 // 3. 校验失败时沿用 JWT 内原 workspace，保证兼容性与可用性；
