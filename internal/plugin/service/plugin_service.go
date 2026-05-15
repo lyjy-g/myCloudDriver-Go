@@ -177,6 +177,12 @@ func (r *RunManager) PresignPut(ctx context.Context, key string, expire time.Dur
 	return signed.PresignPut(ctx, plugin.Key(key), expire)
 }
 
+// resolveActiveStore 两级配置选择:
+//
+//	第一级: context 中若有来自 jwt 的 CurrentStorageSettingID（切换配置时设置的），优先用它查 DB。
+//	第二级: 没有则用当前工作空间最新启用的配置（getWorkspaceActiveSetting）。
+//
+// 两级最终都调用 resolveStoreBySetting → manager.Resolve（走缓存 / 懒加载构建）。
 func (r *RunManager) resolveActiveStore(ctx context.Context) (plugin.StorePower, error) {
 	if p, ok := security.GetCtxInfo(ctx); ok {
 		if settingID := strings.TrimSpace(p.CurrentStorageSettingID); settingID != "" {
@@ -193,7 +199,8 @@ func (r *RunManager) resolveActiveStore(ctx context.Context) (plugin.StorePower,
 	return r.resolveStoreBySetting(ctx, row)
 }
 
-// withActiveStore 统一处理“获取当前激活 store + 执行业务动作”流程，减少重复代码。
+// withActiveStore 函数参数模式: 先 resolveActiveStore 拿到 store，再传入 fn 执行业务逻辑。
+// Put/Get/Delete/Stat 都用它，避免在每个方法里重复"resolve → err → call"的模板代码。
 func (r *RunManager) withActiveStore(ctx context.Context, fn func(store plugin.StorePower) error) error {
 	store, err := r.resolveActiveStore(ctx)
 	if err != nil {
@@ -202,6 +209,8 @@ func (r *RunManager) withActiveStore(ctx context.Context, fn func(store plugin.S
 	return fn(store)
 }
 
+// getWorkspaceActiveSetting DB查询: 当前 workspace 最新启用的那条配置。
+// 缓存不在这一层 — 真正懒加载在 boot.Manager.Resolve 里。
 func (r *RunManager) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.StorageSetting, error) {
 	workspaceID := r.workspaceID(ctx)
 	q := modelgen.Use(r.db)
@@ -224,6 +233,8 @@ func (r *RunManager) getWorkspaceActiveSetting(ctx context.Context) (dbmodel.Sto
 	return *row, nil
 }
 
+// getSettingByID DB查询: 按 settingID 查配置（同时校验 workspace 归属）。
+// 用于 context 中指定了 CurrentStorageSettingID 的切换场景。
 func (r *RunManager) getSettingByID(ctx context.Context, settingID string) (dbmodel.StorageSetting, error) {
 	workspaceID := r.workspaceID(ctx)
 	q := modelgen.Use(r.db)
@@ -244,6 +255,9 @@ func (r *RunManager) getSettingByID(ctx context.Context, settingID string) (dbmo
 	return *row, nil
 }
 
+// resolveStoreBySetting 把 DB 配置行封装成 ResolvedStorageConfig，交给 manager.Resolve。
+// manager.Resolve 内有三级兜底: 缓存 → singleflight → 真正构建(Validate + Build)。
+// 这是"懒加载"的入口: 调用时并不立即建 store，而是让 Manager 决定是否命中缓存。
 func (r *RunManager) resolveStoreBySetting(ctx context.Context, row dbmodel.StorageSetting) (plugin.StorePower, error) {
 	normalizedIdentifier := strings.ToLower(strings.TrimSpace(row.PlatformIdentifier))
 	if normalizedIdentifier == "" {
