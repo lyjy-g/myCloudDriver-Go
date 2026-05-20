@@ -312,9 +312,11 @@ func (s *StorageService) DisableStorageSetting(ctx context.Context, settingID st
 }
 
 // SelectCurrentStorageSetting 设置当前用户在当前 workspace 下选中的存储配置。
-// - 不改 workspace 默认配置；
-// - 只影响当前用户本次及后续会话的默认路由；
-// - 未选择时仍回退到 workspace 默认配置。
+//   - 不改 workspace 默认配置；
+//   - 只影响当前用户本次及后续会话的默认路由；
+//   - 未选择时仍回退到 workspace 默认配置。
+//   - 这里只切换“后续请求应解析哪个 settingID”，不在这里预热或构建底层存储实例。
+//     真正的实例加载发生在后续业务请求进入 RunManager 后，由懒加载链路按需触发。
 func (s *StorageService) SelectCurrentStorageSetting(ctx context.Context, settingID string) (*storageModel.Setting, error) {
 	//是否登录
 	principal, err := security.RequireLogin(ctx)

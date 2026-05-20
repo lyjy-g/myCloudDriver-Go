@@ -179,10 +179,11 @@ func (r *RunManager) PresignPut(ctx context.Context, key string, expire time.Dur
 
 // resolveActiveStore 两级配置选择:
 //
-//	第一级: context 中若有来自 jwt 的 CurrentStorageSettingID（切换配置时设置的），优先用它查 DB。
-//	第二级: 没有则用当前工作空间最新启用的配置（getWorkspaceActiveSetting）。
+//	第一级: context 中若有当前请求解析出的 CurrentStorageSettingID，优先按它查配置。
+//	第二级: 没有显式选择时，再回退到 workspace 默认启用配置。
 //
-// 两级最终都调用 resolveStoreBySetting → manager.Resolve（走缓存 / 懒加载构建）。
+// 注意这里切换的只是“配置 ID 路由”，不是切换接口里就提前构建实例。
+// 真正的实例加载仍在 resolveStoreBySetting → manager.Resolve 里按需完成。
 func (r *RunManager) resolveActiveStore(ctx context.Context) (plugin.StorePower, error) {
 	if p, ok := security.GetCtxInfo(ctx); ok {
 		if settingID := strings.TrimSpace(p.CurrentStorageSettingID); settingID != "" {
@@ -199,8 +200,8 @@ func (r *RunManager) resolveActiveStore(ctx context.Context) (plugin.StorePower,
 	return r.resolveStoreBySetting(ctx, row)
 }
 
-// withActiveStore 函数参数模式: 先 resolveActiveStore 拿到 store，再传入 fn 执行业务逻辑。
-// Put/Get/Delete/Stat 都用它，避免在每个方法里重复"resolve → err → call"的模板代码。
+// withActiveStore 函数参数模式: 先 resolveActiveStore 拿到 store，再把“具体业务动作”作为 fn 传进来执行。
+// 这样 Put/Get/Delete/Stat 只关心自己的存储动作，不需要重复写“取当前配置 → 懒加载实例 → 调方法”的模板代码。
 func (r *RunManager) withActiveStore(ctx context.Context, fn func(store plugin.StorePower) error) error {
 	store, err := r.resolveActiveStore(ctx)
 	if err != nil {
@@ -256,8 +257,17 @@ func (r *RunManager) getSettingByID(ctx context.Context, settingID string) (dbmo
 }
 
 // resolveStoreBySetting 把 DB 配置行封装成 ResolvedStorageConfig，交给 manager.Resolve。
-// manager.Resolve 内有三级兜底: 缓存 → singleflight → 真正构建(Validate + Build)。
-// 这是"懒加载"的入口: 调用时并不立即建 store，而是让 Manager 决定是否命中缓存。
+// 这里除了 settingID / platform / configData 外，还会带上 version 指纹。
+// Manager 内部直接使用 settingID + version 作为缓存 key，
+// 所以同一个 settingID 的配置内容如果被更新，即使没显式 Invalidate，
+// 也会因为 version 变化命中不到旧缓存，从而重新构建实例。
+//
+// manager.Resolve 内部流程:
+// 1. 先查内存缓存
+// 2. 未命中时用 singleflight 合并并发构建
+// 3. 真正执行 Validate + Build
+//
+// 这就是“懒加载”的真正入口: 只有业务真的用到这个配置时才会触发实例解析。
 func (r *RunManager) resolveStoreBySetting(ctx context.Context, row dbmodel.StorageSetting) (plugin.StorePower, error) {
 	normalizedIdentifier := strings.ToLower(strings.TrimSpace(row.PlatformIdentifier))
 	if normalizedIdentifier == "" {
