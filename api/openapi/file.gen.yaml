@@ -1,8 +1,0 @@
-package: fileapi
-generate:
-  models: true
-  std-http-server: true
-  client: true
-output-options:
-  skip-prune: true
-output: internal/file/api/gen/file.gen.go

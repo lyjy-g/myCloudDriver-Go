@@ -1,8 +1,0 @@
-package: agentapi
-generate:
-  models: true
-  std-http-server: true
-  client: true
-output-options:
-  skip-prune: true
-output: internal/agent/api/gen/agent.gen.go

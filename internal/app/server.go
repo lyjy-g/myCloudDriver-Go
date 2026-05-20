@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
@@ -19,10 +19,12 @@ import (
 
 // Module 定义服务模块扩展点。
 // 后续新增 user/file/share 等服务时，只需要实现该接口并在 main 中注册。
+// 这里改成 gin.IRouter，表示模块只关心“往哪个路由树挂接口”，
+// 不再感知底层是标准库 mux 还是其他 HTTP 实现。
 type Module interface {
 	Name() string
 	Models() []any
-	RegisterRoutes(mux *http.ServeMux, deps *Dependencies) error
+	RegisterRoutes(router gin.IRouter, deps *Dependencies) error
 }
 
 // Dependencies 是模块可使用的基础设施依赖集合。
@@ -34,10 +36,17 @@ type Dependencies struct {
 
 // Server 表示应用服务实例。
 type Server struct {
-	httpServer *http.Server
+	engine *gin.Engine
+	addr   string
 }
 
-// NewServer 构建带模块能力的标准库 HTTP 服务。
+// NewServer 构建基于 Gin 的 HTTP 服务。
+//
+// 这里做的事情比较固定：
+// 1. 初始化配置、DB、Redis；
+// 2. 创建根路由；
+// 3. 把每个业务模块的接口挂到同一棵 Gin 路由树上；
+// 4. 最后统一挂请求级中间件。
 func NewServer(configPath string, modules ...Module) (*Server, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -54,15 +63,16 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 		return nil, fmt.Errorf("warn: redis unavailable, fallback without cache: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	// 这里显式使用 gin.New，而不是 gin.Default。
+	// 原因是日志、CORS、认证、上下文组装都由我们自己控制，避免和默认中间件重复。
+	router := gin.New()
+	router.GET("/healthz", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
 	})
 
 	deps := &Dependencies{Config: cfg, DB: db, Redis: rdb}
 	for _, module := range modules {
-		if err = module.RegisterRoutes(mux, deps); err != nil {
+		if err = module.RegisterRoutes(router, deps); err != nil {
 			return nil, fmt.Errorf("register module %s: %w", module.Name(), err)
 		}
 		log.Printf("module registered: %s", module.Name())
@@ -70,18 +80,23 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 
 	jwtSecret := os.Getenv("MYCLOUDDRIVE_JWT_SECRET")
 	jwtSvc := security.NewJWTService(jwtSecret)
-
-	var handler http.Handler = mux
-	// 中间件的执行顺序是从下到上，先认证，再解析 workspace / role / current storage setting。
-	handler = security.CtxInfoMiddleware(db, rdb)(handler)
-	handler = security.JWTMiddleware(jwtSvc, rdb)(handler)
-	handler = web.CORSMiddleware(web.DefaultCORSOptions())(handler)
-	handler = logx.LoggingMiddleware(handler)
-	return &Server{httpServer: &http.Server{Addr: cfg.HTTP.Addr, Handler: handler}}, nil
+	// Gin 中间件按注册顺序执行。
+	// 这里的顺序不能乱：
+	// 1. 先打日志，保证异常请求也能被记录；
+	// 2. 再处理 CORS，优先兜住浏览器预检；
+	// 3. 再解析 JWT，先得到“是谁”；
+	// 4. 最后补 workspace/storage 上下文，得到“在哪个空间、走哪个存储”。
+	router.Use(
+		logx.GinLoggingMiddleware(),
+		web.GinCORSMiddleware(web.DefaultCORSOptions()),
+		security.GinJWTMiddleware(jwtSvc, rdb),
+		security.GinCtxInfoMiddleware(db, rdb),
+	)
+	return &Server{engine: router, addr: cfg.HTTP.Addr}, nil
 }
 
 // Run 启动 HTTP 服务。
 func (s *Server) Run() error {
-	log.Printf("http api listening on %s", s.httpServer.Addr)
-	return s.httpServer.ListenAndServe()
+	log.Printf("http api listening on %s", s.addr)
+	return s.engine.Run(s.addr)
 }

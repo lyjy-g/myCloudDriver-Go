@@ -1,234 +1,183 @@
 package api
 
 import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
-	"myclouddrive-go/internal/framework/web"
-	gen "myclouddrive-go/internal/storage/api/gen"
 	"myclouddrive-go/internal/storage/model"
 	"myclouddrive-go/internal/storage/service"
-	"net/http"
 )
 
-// StorageHandler 基于 OpenAPI 生成的 ServerInterface 实现 storage 接口。
 type StorageHandler struct {
 	svc *service.StorageService
 }
 
+type createSettingRequest struct {
+	StorageSettingName string `json:"storageSettingName"`
+	Identifier         string `json:"identifier"`
+	ConfigJSON         string `json:"configJson"`
+}
+
+type updateSettingRequest struct {
+	StorageSettingName *string `json:"storageSettingName"`
+	ConfigJSON         string  `json:"configJson"`
+}
+
+// NewHandler 创建 storage 模块的 HTTP 处理器。
 func NewHandler(svc *service.StorageService) *StorageHandler {
 	return &StorageHandler{svc: svc}
 }
 
-func (h *StorageHandler) ListActivePlatforms(w http.ResponseWriter, r *http.Request) {
-	if !requireStoragePermission(w, r, security.PermissionStoragePlatformRead) {
+// ListActivePlatforms 返回当前空间已启用的存储平台列表。
+func (h *StorageHandler) ListActivePlatforms(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStoragePlatformRead) {
 		return
 	}
-	items, err := h.svc.ListActivePlatforms(r.Context())
+	items, err := h.svc.ListActivePlatforms(c.Request.Context())
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPIPlatforms(items)
-	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": items})
 }
 
-func (h *StorageHandler) ListStoragePlatforms(w http.ResponseWriter, r *http.Request) {
-	if !requireStoragePermission(w, r, security.PermissionStoragePlatformRead) {
+// ListStoragePlatforms 返回系统内可用的存储平台列表。
+func (h *StorageHandler) ListStoragePlatforms(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStoragePlatformRead) {
 		return
 	}
-	items, err := h.svc.ListStoragePlatforms(r.Context())
+	items, err := h.svc.ListStoragePlatforms(c.Request.Context())
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPIPlatforms(items)
-	web.WriteJSON(w, http.StatusOK, gen.PlatformListResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": items})
 }
 
-func (h *StorageHandler) GetStoragePlatformByIdentifier(w http.ResponseWriter, r *http.Request, identifier string) {
-	if !requireStoragePermission(w, r, security.PermissionStoragePlatformRead) {
+// GetStoragePlatformByIdentifier 按平台标识查询单个存储平台详情。
+func (h *StorageHandler) GetStoragePlatformByIdentifier(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStoragePlatformRead) {
 		return
 	}
-	item, err := h.svc.GetStoragePlatformByIdentifier(r.Context(), identifier)
+	item, err := h.svc.GetStoragePlatformByIdentifier(c.Request.Context(), c.Param("identifier"))
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPIPlatform(*item)
-	web.WriteJSON(w, http.StatusOK, gen.PlatformResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": item})
 }
 
-func (h *StorageHandler) ListStorageSettings(w http.ResponseWriter, r *http.Request) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingRead) {
+// ListStorageSettings 返回当前工作空间下的存储配置列表。
+func (h *StorageHandler) ListStorageSettings(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStorageSettingRead) {
 		return
 	}
-	items, err := h.svc.ListStorageSettings(r.Context())
+	items, err := h.svc.ListStorageSettings(c.Request.Context())
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPISettings(items)
-	web.WriteJSON(w, http.StatusOK, gen.SettingListResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": items})
 }
 
-func (h *StorageHandler) CreateStorageSetting(w http.ResponseWriter, r *http.Request) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingWrite) {
+// CreateStorageSetting 创建新的存储配置。
+func (h *StorageHandler) CreateStorageSetting(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStorageSettingWrite) {
 		return
 	}
-	var req gen.CreateSettingRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
+	var req createSettingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "invalid request body"})
 		return
 	}
-	item, err := h.svc.CreateStorageSetting(r.Context(), model.CreateSettingInput{
+	item, err := h.svc.CreateStorageSetting(c.Request.Context(), model.CreateSettingInput{
 		StorageSettingName: req.StorageSettingName,
 		Identifier:         req.Identifier,
-		ConfigJSON:         req.ConfigJson,
+		ConfigJSON:         req.ConfigJSON,
 	})
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPISetting(*item)
-	web.WriteJSON(w, http.StatusCreated, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("created"), Data: &data})
+	c.JSON(http.StatusCreated, gin.H{"code": "OK", "message": "created", "data": item})
 }
 
-func (h *StorageHandler) DeleteStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingWrite) {
+// DeleteStorageSetting 删除指定的存储配置。
+func (h *StorageHandler) DeleteStorageSetting(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStorageSettingWrite) {
 		return
 	}
-	err := h.svc.DeleteStorageSetting(r.Context(), settingID)
-	if err != nil {
-		writeStorageError(w, err)
+	if err := h.svc.DeleteStorageSetting(c.Request.Context(), c.Param("settingId")); err != nil {
+		writeStorageError(c, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
-func (h *StorageHandler) UpdateStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingWrite) {
+// UpdateStorageSetting 更新指定的存储配置。
+func (h *StorageHandler) UpdateStorageSetting(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStorageSettingWrite) {
 		return
 	}
-	var req gen.UpdateSettingRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "invalid request body")
+	var req updateSettingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "invalid request body"})
 		return
 	}
-	item, err := h.svc.UpdateStorageSetting(r.Context(), settingID, model.UpdateSettingInput{
+	item, err := h.svc.UpdateStorageSetting(c.Request.Context(), c.Param("settingId"), model.UpdateSettingInput{
 		StorageSettingName: req.StorageSettingName,
-		ConfigJSON:         req.ConfigJson,
+		ConfigJSON:         req.ConfigJSON,
 	})
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPISetting(*item)
-	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": item})
 }
 
-func (h *StorageHandler) ActivateStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingWrite) {
+// ActivateStorageSetting 将指定配置切换为当前空间的激活配置。
+func (h *StorageHandler) ActivateStorageSetting(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStorageSettingWrite) {
 		return
 	}
-	item, err := h.svc.ActivateStorageSetting(r.Context(), settingID)
+	item, err := h.svc.ActivateStorageSetting(c.Request.Context(), c.Param("settingId"))
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPISetting(*item)
-	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": item})
 }
 
-func (h *StorageHandler) SelectCurrentStorageSetting(w http.ResponseWriter, r *http.Request, settingID string) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingRead) {
+// SelectCurrentStorageSetting 设置当前用户在当前空间下使用的存储配置。
+func (h *StorageHandler) SelectCurrentStorageSetting(c *gin.Context) {
+	if !requireStoragePermission(c, security.PermissionStorageSettingRead) {
 		return
 	}
-	item, err := h.svc.SelectCurrentStorageSetting(r.Context(), settingID)
+	item, err := h.svc.SelectCurrentStorageSetting(c.Request.Context(), c.Param("settingId"))
 	if err != nil {
-		writeStorageError(w, err)
+		writeStorageError(c, err)
 		return
 	}
-	data := toAPISetting(*item)
-	web.WriteJSON(w, http.StatusOK, gen.SettingResponse{Code: strPtr("OK"), Message: strPtr("success"), Data: &data})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": "success", "data": item})
 }
 
-// ActivateOrDisableStorageSettingByAction 兼容 action 风格开关接口：1 启用，0 禁用。
-func (h *StorageHandler) ActivateOrDisableStorageSettingByAction(w http.ResponseWriter, r *http.Request, settingID string, action string) {
-	if !requireStoragePermission(w, r, security.PermissionStorageSettingWrite) {
-		return
-	}
-	switch action {
-	case "1":
-		h.ActivateStorageSetting(w, r, settingID)
-	case "0":
-		item, err := h.svc.DisableStorageSetting(r.Context(), settingID)
-		if err != nil {
-			writeStorageError(w, err)
-			return
-		}
-		data := toAPISetting(*item)
-		web.WriteJSON(w, http.StatusOK, gen.SettingResponse{
-			Code:    strPtr("OK"),
-			Message: strPtr("success"),
-			Data:    &data,
-		})
-	default:
-		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "unsupported action, use 1(enable) or 0(disable)")
-	}
-}
-
-func toAPIPlatform(p model.Platform) gen.StoragePlatform {
-	return gen.StoragePlatform{
-		Identifier:  p.Identifier,
-		Name:        p.Name,
-		Enabled:     p.Enabled,
-		Description: p.Description,
-	}
-}
-
-func toAPIPlatforms(items []model.Platform) []gen.StoragePlatform {
-	result := make([]gen.StoragePlatform, 0, len(items))
-	for _, item := range items {
-		result = append(result, toAPIPlatform(item))
-	}
-	return result
-}
-
-func toAPISetting(s model.Setting) gen.StorageSetting {
-	return gen.StorageSetting{
-		Id:                 s.ID,
-		StorageSettingName: s.StorageSettingName,
-		Identifier:         s.Identifier,
-		Active:             s.Active,
-		ConfigJson:         s.ConfigJSON,
-		UpdatedAt:          s.UpdatedAt,
-	}
-}
-
-func toAPISettings(items []model.Setting) []gen.StorageSetting {
-	result := make([]gen.StorageSetting, 0, len(items))
-	for _, item := range items {
-		result = append(result, toAPISetting(item))
-	}
-	return result
-}
-
-func writeStorageError(w http.ResponseWriter, err error) {
+func writeStorageError(c *gin.Context, err error) {
 	switch {
 	case code.Is(err, code.BadRequest):
-		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 	case code.Is(err, code.NotFound):
-		web.WriteError(w, http.StatusNotFound, string(code.NotFound), err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
 	default:
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
 	}
 }
 
-func strPtr(s string) *string { return &s }
-
-func requireStoragePermission(w http.ResponseWriter, r *http.Request, permission string) bool {
-	if _, err := security.RequirePermission(r.Context(), permission); err != nil {
-		web.WriteError(w, http.StatusForbidden, string(code.NoPermission), err.Error())
+func requireStoragePermission(c *gin.Context, permission string) bool {
+	if _, err := security.RequirePermission(c.Request.Context(), permission); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": err.Error()})
 		return false
 	}
 	return true

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CORSOptions 定义 CORS 中间件配置。
@@ -28,8 +30,14 @@ func DefaultCORSOptions() CORSOptions {
 	}
 }
 
-// CORSMiddleware 提供通用 CORS 处理能力。
-func CORSMiddleware(options CORSOptions) func(http.Handler) http.Handler {
+// GinCORSMiddleware 提供 Gin 版本的 CORS 处理。
+//
+// 这里统一处理两类事情：
+// 1. 给真实请求补上跨域响应头；
+// 2. 对浏览器 OPTIONS 预检请求直接短路返回。
+//
+// 现在项目的 HTTP 入口已经统一为 Gin，所以这里只保留 Gin 版本。
+func GinCORSMiddleware(options CORSOptions) gin.HandlerFunc {
 	allowOrigins := options.AllowOrigins
 	allowMethods := options.AllowMethods
 	allowHeaders := options.AllowHeaders
@@ -48,32 +56,32 @@ func CORSMiddleware(options CORSOptions) func(http.Handler) http.Handler {
 		originSet[item] = struct{}{}
 	}
 
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := strings.TrimSpace(r.Header.Get("Origin"))
-			if origin != "" {
-				if allowAllOrigins {
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-				} else if _, ok := originSet[origin]; ok {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
-					w.Header().Add("Vary", "Origin")
-				}
+	return func(c *gin.Context) {
+		origin := strings.TrimSpace(c.GetHeader("Origin"))
+		if origin != "" {
+			if allowAllOrigins {
+				c.Header("Access-Control-Allow-Origin", "*")
+			} else if _, ok := originSet[origin]; ok {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Vary", "Origin")
 			}
-			if options.AllowCredentials {
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			}
-			w.Header().Set("Access-Control-Allow-Methods", methodsValue)
-			w.Header().Set("Access-Control-Allow-Headers", headersValue)
-			if strings.TrimSpace(exposeValue) != "" {
-				w.Header().Set("Access-Control-Expose-Headers", exposeValue)
-			}
-			w.Header().Set("Access-Control-Max-Age", maxAgeValue)
+		}
+		if options.AllowCredentials {
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
+		c.Header("Access-Control-Allow-Methods", methodsValue)
+		c.Header("Access-Control-Allow-Headers", headersValue)
+		if strings.TrimSpace(exposeValue) != "" {
+			c.Header("Access-Control-Expose-Headers", exposeValue)
+		}
+		c.Header("Access-Control-Max-Age", maxAgeValue)
 
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
+		// 预检请求不进入业务 handler，直接在网关层短路返回。
+		if c.Request.Method == http.MethodOptions {
+			c.Status(http.StatusNoContent)
+			c.Abort()
+			return
+		}
+		c.Next()
 	}
 }

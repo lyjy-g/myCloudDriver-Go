@@ -1,9 +1,9 @@
 package module
 
 import (
-	"net/http"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"myclouddrive-go/internal/app"
 	"myclouddrive-go/internal/framework/security"
 	"myclouddrive-go/internal/user/api"
@@ -25,8 +25,8 @@ func (m *Module) Models() []any {
 	return nil
 }
 
-func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
+func (m *Module) RegisterRoutes(router gin.IRouter, deps *app.Dependencies) error {
 	jwtSvc := security.NewJWTService(os.Getenv("MYCLOUDDRIVE_JWT_SECRET"))
-	api.RegisterRoutes(mux, service.NewUserService(deps.DB, deps.Redis, jwtSvc))
+	api.RegisterRoutes(router, service.NewUserService(deps.DB, deps.Redis, jwtSvc))
 	return nil
 }

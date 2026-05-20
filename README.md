@@ -65,28 +65,20 @@ npm run dev
 
 默认前端：`http://localhost:5173`
 
-## OpenAPI 与代码生成
+## API 组织方式
 
-OpenAPI 契约位于 `api/openapi/`，当前包含：
+当前后端 API 已统一为 Gin 风格：
 
-- `storage.openapi.yaml`
-- `file.openapi.yaml`
-- `share.openapi.yaml`
-- `agent.openapi.yaml`
+- 各模块路由集中在 `internal/{module}/api/routes.go`
+- 各模块 handler 集中在 `internal/{module}/api/handler.go`
+- 请求/响应 DTO 尽量放在各模块 `model` 下，避免 service 依赖生成代码
 
 常用命令：
 
 ```bash
-make openapi-generate
-make openapi-check
 make test
 make run-gin
 ```
-
-约定：
-
-- 接口变更流程：先改 OpenAPI，再生成代码，再实现 handler/service。
-- 生成代码应提交入库，保证前后端和测试基于同一契约协作。
 
 ## 关键目录
 
@@ -94,7 +86,6 @@ make run-gin
 - `internal/app`：模块装配与启动
 - `internal/framework`：配置、DB、Redis、HTTP 基础设施
 - `internal/{storage,user,file,share,agent,plugin}`：业务模块
-- `api/openapi`：接口契约
 - `deploy`：本地依赖与数据库初始化
 - `configs`：配置模板
 - `frontend`：前端项目

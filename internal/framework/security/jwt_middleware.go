@@ -1,57 +1,52 @@
 package security
 
 import (
-	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 )
 
-// JWTMiddleware 解析 Bearer Token，并将 CtxInfo 写入请求上下文。
+// GinJWTMiddleware 解析 Bearer Token，并把认证结果写入 request context。
 //
 // 1. 非侵入：无 token 或 token 非法时不直接中断，由业务层决定是否要求登录；
 // 2. 统一：仅在入口解析一次，后续 handler/service 统一从 context 读取身份；
 // 3. 可扩展：支持 Redis 黑名单，实现“登出后 token 立即失效”。
-func JWTMiddleware(jwtSvc *JWTService, rdb redis.Cmdable) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-			// jwtSvc 为空时直接透传，主要用于本地开发或测试场景。
-			if jwtSvc == nil {
-				next.ServeHTTP(responseWriter, request)
-				return
-			}
-			authz := strings.TrimSpace(request.Header.Get("Authorization"))
-			// 仅识别 Bearer 令牌，其它认证方案由上层网关或其他中间件处理。
-			if !strings.HasPrefix(strings.ToLower(authz), "bearer ") {
-				next.ServeHTTP(responseWriter, request)
-				return
-			}
-			token := strings.TrimSpace(authz[len("Bearer "):])
-			if token == "" {
-				next.ServeHTTP(responseWriter, request)
-				return
-			}
+// 这里故意保持“弱拦截”：
+// - token 缺失或非法时不直接返回 401；
+// - 只是尽量把已认证身份写进 context；
+// - 真正要求登录的接口，再由 handler/service 主动调用 RequireLogin。
+func GinJWTMiddleware(jwtSvc *JWTService, rdb redis.Cmdable) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if jwtSvc == nil {
+			c.Next()
+			return
+		}
+		authz := strings.TrimSpace(c.GetHeader("Authorization"))
+		if !strings.HasPrefix(strings.ToLower(authz), "bearer ") {
+			c.Next()
+			return
+		}
+		token := strings.TrimSpace(authz[len("Bearer "):])
+		if token == "" || isBlacklisted(c.Request.Context(), rdb, token) {
+			c.Next()
+			return
+		}
+		claims, err := jwtSvc.ParseToken(token)
+		if err != nil {
+			c.Next()
+			return
+		}
 
-			if isBlacklisted(request.Context(), rdb, token) {
-				// 黑名单命中时不注入 Principal，交给后续鉴权点按“未登录”处理。
-				next.ServeHTTP(responseWriter, request)
-				return
-			}
-
-			claims, err := jwtSvc.ParseToken(token)
-			if err != nil {
-				next.ServeHTTP(responseWriter, request)
-				return
-			}
-
-			ctx := PutCtxInfo(request.Context(), CtxInfo{
-				UserID:      claims.UserID,
-				Username:    claims.Username,
-				WorkspaceID: claims.WorkspaceID,
-				Token:       token,
-			})
-			// 将认证结果沿请求链路透传，避免重复解析 JWT。
-			next.ServeHTTP(responseWriter, request.WithContext(ctx))
+		// 认证成功后，把解析结果放回 request context。
+		// 后面的 Gin handler、service 都统一从 context 拿，不重复解析 JWT。
+		ctx := PutCtxInfo(c.Request.Context(), CtxInfo{
+			UserID:      claims.UserID,
+			Username:    claims.Username,
+			WorkspaceID: claims.WorkspaceID,
+			Token:       token,
 		})
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
 	}
 }

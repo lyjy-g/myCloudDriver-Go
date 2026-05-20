@@ -1,54 +1,64 @@
 package security
 
 import (
-	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-// CtxInfoMiddleware 允许前端在请求头显式传 workspace，并在后端做成员校验后覆盖上下文。
+// GinCtxInfoMiddleware 组装请求级 workspace/role/storage 上下文。
 //
-// 1. 只在“已登录用户”场景生效，未登录请求直接透传；
-// 2. workspace 必须是用户成员关系，防止通过伪造 header 越权；
-// 3. 校验失败时沿用 JWT 内原 workspace，保证兼容性与可用性；
-// 4. workspace 确认后，顺手把当前请求应使用的存储配置一并注入上下文。
-func CtxInfoMiddleware(db *gorm.DB, rdb redis.Cmdable) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			principal, ok := GetCtxInfo(r.Context())
-			if !ok || strings.TrimSpace(principal.UserID) == "" || db == nil {
-				next.ServeHTTP(w, r)
-				return
-			}
+// 这层解决的是“用户已经知道了，但业务还不知道当前请求落在哪个空间、走哪个存储配置”。
+// 处理完成后，后续业务只要读 context，就能拿到：
+// - UserID
+// - WorkspaceID
+// - WorkspaceRole
+// - CurrentStorageSettingID
+func GinCtxInfoMiddleware(db *gorm.DB, rdb redis.Cmdable) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		principal, ok := GetCtxInfo(c.Request.Context())
+		if !ok || strings.TrimSpace(principal.UserID) == "" || db == nil {
+			c.Next()
+			return
+		}
 
-			workspaceID := strings.TrimSpace(r.Header.Get("X-Workspace-Id"))
-			candidates := collectWorkspaceCandidates(r, db, principal.UserID, workspaceID, principal.WorkspaceID)
-			if len(candidates) == 0 {
-				next.ServeHTTP(w, r)
-				return
+		workspaceID := strings.TrimSpace(c.GetHeader("X-Workspace-Id"))
+		candidates := collectWorkspaceCandidates(c.Request, db, principal.UserID, workspaceID, principal.WorkspaceID)
+		if len(candidates) == 0 {
+			c.Next()
+			return
+		}
+		foundWorkspaceID := ""
+		foundRole := ""
+		// 候选 workspace 的优先顺序在 collectWorkspaceCandidates 里统一维护。
+		// 这里逐个校验成员关系，谁合法就用谁，避免前端伪造 header 越权。
+		for _, candidate := range candidates {
+			role, found, err := resolveWorkspaceRole(c.Request, db, principal.UserID, candidate)
+			if err != nil || !found {
+				continue
 			}
-			foundWorkspaceID := ""
-			foundRole := ""
-			for _, candidate := range candidates {
-				role, found, err := resolveWorkspaceRole(r, db, principal.UserID, candidate)
-				if err != nil || !found {
-					continue
-				}
-				foundWorkspaceID = candidate
-				foundRole = role
-				break
-			}
-			if foundWorkspaceID == "" {
-				next.ServeHTTP(w, r)
-				return
-			}
-			principal.WorkspaceID = foundWorkspaceID
-			principal.WorkspaceRole = foundRole
-			//设置存储id
-			principal.CurrentStorageSettingID = resolveCurrentStorageSettingID(r.Context(), db, rdb, principal.UserID, foundWorkspaceID, r.Header.Get("X-Storage-Setting-Id"))
-			next.ServeHTTP(w, r.WithContext(PutCtxInfo(r.Context(), principal)))
-		})
+			foundWorkspaceID = candidate
+			foundRole = role
+			break
+		}
+		if foundWorkspaceID == "" {
+			c.Next()
+			return
+		}
+		principal.WorkspaceID = foundWorkspaceID
+		principal.WorkspaceRole = foundRole
+		// workspace 确定后，顺手把当前请求应使用的存储配置也解析好。
+		principal.CurrentStorageSettingID = resolveCurrentStorageSettingID(
+			c.Request.Context(),
+			db,
+			rdb,
+			principal.UserID,
+			foundWorkspaceID,
+			c.GetHeader("X-Storage-Setting-Id"),
+		)
+		c.Request = c.Request.WithContext(PutCtxInfo(c.Request.Context(), principal))
+		c.Next()
 	}
 }

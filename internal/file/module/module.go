@@ -1,9 +1,9 @@
 package module
 
 import (
-	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"myclouddrive-go/internal/app"
 	"myclouddrive-go/internal/file/api"
 	"myclouddrive-go/internal/file/service"
@@ -26,9 +26,9 @@ func (m *Module) Models() []any {
 	return nil
 }
 
-func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
+func (m *Module) RegisterRoutes(router gin.IRouter, deps *app.Dependencies) error {
 	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second, pluginsvc.GetRunManager(deps.DB))
 	fileService := service.NewFileService(storageService, deps.DB, deps.Redis)
-	api.RegisterRoutes(mux, fileService)
+	api.RegisterRoutes(router, fileService)
 	return nil
 }

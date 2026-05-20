@@ -1,8 +1,0 @@
-package: storageapi
-generate:
-  models: true
-  std-http-server: true
-  client: true
-output-options:
-  skip-prune: true
-output: internal/storage/api/gen/storage.gen.go

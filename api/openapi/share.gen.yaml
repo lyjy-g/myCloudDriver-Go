@@ -1,8 +1,0 @@
-package: shareapi
-generate:
-  models: true
-  std-http-server: true
-  client: true
-output-options:
-  skip-prune: true
-output: internal/share/api/gen/share.gen.go

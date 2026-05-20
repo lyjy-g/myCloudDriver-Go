@@ -2,10 +2,10 @@ package module
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"myclouddrive-go/internal/agent/api"
 	agenthistory "myclouddrive-go/internal/agent/history"
 	agentllm "myclouddrive-go/internal/agent/llm"
@@ -48,7 +48,7 @@ func (m *Module) Models() []any {
 	}
 }
 
-func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) error {
+func (m *Module) RegisterRoutes(router gin.IRouter, deps *app.Dependencies) error {
 	storageService := storagesvc.NewService(deps.DB, deps.Redis, 30*time.Second, pluginsvc.GetRunManager(deps.DB))
 	fileService := filesvc.NewFileService(storageService, deps.DB, deps.Redis)
 	shareService := sharesvc.NewService(deps.DB, storageService)
@@ -98,6 +98,6 @@ func (m *Module) RegisterRoutes(mux *http.ServeMux, deps *app.Dependencies) erro
 	retriever := agentrag.NewRetriever(embedder)
 	indexer := agentrag.NewIndexer(embedder, retriever)
 	svc := agentsvc.New(registry, llmProvider, historySvc, runSvc, fileService, indexer, retriever)
-	api.RegisterRoutes(mux, svc)
+	api.RegisterRoutes(router, svc)
 	return nil
 }

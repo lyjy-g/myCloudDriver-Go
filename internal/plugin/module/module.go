@@ -1,8 +1,7 @@
 package module
 
 import (
-	"net/http"
-
+	"github.com/gin-gonic/gin"
 	"myclouddrive-go/internal/app"
 	pluginsvc "myclouddrive-go/internal/plugin/service"
 )
@@ -22,7 +21,7 @@ func (m *Module) Models() []any {
 	return nil
 }
 
-func (m *Module) RegisterRoutes(_ *http.ServeMux, deps *app.Dependencies) error {
+func (m *Module) RegisterRoutes(_ gin.IRouter, deps *app.Dependencies) error {
 	pluginsvc.InitRunStore(deps.DB)
 	return nil
 }

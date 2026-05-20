@@ -6,139 +6,142 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"myclouddrive-go/internal/framework/code"
-	"myclouddrive-go/internal/framework/web"
-	gen "myclouddrive-go/internal/share/api/gen"
 	"myclouddrive-go/internal/share/service"
 )
 
-// Handler 基于 OpenAPI 生成与手工扩展路由实现 share 接口。
 type Handler struct {
 	svc *service.ShareService
 }
 
+// NewHandler 创建 share 模块的 HTTP 处理器。
 func NewHandler(svc *service.ShareService) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) PingShare(w http.ResponseWriter, r *http.Request) {
-	msg, err := h.svc.Ping(r.Context())
+// PingShare 返回分享模块基础存活状态，便于联调或健康检查。
+func (h *Handler) PingShare(c *gin.Context) {
+	msg, err := h.svc.Ping(c.Request.Context())
 	if err != nil {
-		web.WriteError(w, http.StatusInternalServerError, string(code.InternalError), err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, gen.PingResponse{Code: "OK", Message: msg})
+	c.JSON(http.StatusOK, gin.H{"code": "OK", "message": msg})
 }
 
-func (h *Handler) CreateShare(w http.ResponseWriter, r *http.Request) {
+// CreateShare 创建新的分享记录。
+func (h *Handler) CreateShare(c *gin.Context) {
 	var req service.CreateShareReq
-	if err := web.DecodeJSON(r, &req); err != nil {
-		writeShareError(w, code.New(code.BadRequest, "invalid request body"))
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeShareError(c, code.New(code.BadRequest, "invalid request body"))
 		return
 	}
-	item, err := h.svc.CreateShare(r.Context(), req)
+	item, err := h.svc.CreateShare(c.Request.Context(), req)
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(item))
+	c.JSON(http.StatusOK, ok(item))
 }
 
-func (h *Handler) ListMyShares(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.ListMyShares(r.Context())
+// ListMyShares 返回当前用户在当前空间下创建的分享列表。
+func (h *Handler) ListMyShares(c *gin.Context) {
+	items, err := h.svc.ListMyShares(c.Request.Context())
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(items))
+	c.JSON(http.StatusOK, ok(items))
 }
 
-func (h *Handler) GetShareDetail(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
-	item, err := h.svc.GetShareDetail(r.Context(), shareID, true)
+// GetShareDetail 返回指定分享的完整详情。
+func (h *Handler) GetShareDetail(c *gin.Context) {
+	item, err := h.svc.GetShareDetail(c.Request.Context(), c.Param("shareId"), true)
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(item))
+	c.JSON(http.StatusOK, ok(item))
 }
 
-func (h *Handler) UpdateShare(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
+// UpdateShare 更新指定分享的配置。
+func (h *Handler) UpdateShare(c *gin.Context) {
 	var req service.UpdateShareReq
-	if err := web.DecodeJSON(r, &req); err != nil {
-		writeShareError(w, code.New(code.BadRequest, "invalid request body"))
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeShareError(c, code.New(code.BadRequest, "invalid request body"))
 		return
 	}
-	item, err := h.svc.UpdateShare(r.Context(), shareID, req)
+	item, err := h.svc.UpdateShare(c.Request.Context(), c.Param("shareId"), req)
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(item))
+	c.JSON(http.StatusOK, ok(item))
 }
 
-func (h *Handler) AccessPublicShare(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
+// AccessPublicShare 校验提取码并进入公开分享访问链路。
+func (h *Handler) AccessPublicShare(c *gin.Context) {
 	var req struct {
 		ShareCode string `json:"shareCode"`
 	}
-	if err := web.DecodeJSON(r, &req); err != nil {
-		writeShareError(w, code.New(code.BadRequest, "invalid request body"))
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeShareError(c, code.New(code.BadRequest, "invalid request body"))
 		return
 	}
-	item, err := h.svc.PublicAccess(r.Context(), shareID, req.ShareCode, r)
+	item, err := h.svc.PublicAccess(c.Request.Context(), c.Param("shareId"), req.ShareCode, c.Request)
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(item))
+	c.JSON(http.StatusOK, ok(item))
 }
 
-func (h *Handler) VerifyShareCode(w http.ResponseWriter, r *http.Request) {
+// VerifyShareCode 校验分享提取码是否正确。
+func (h *Handler) VerifyShareCode(c *gin.Context) {
 	var req service.VerifyShareCodeReq
-	if err := web.DecodeJSON(r, &req); err != nil {
-		writeShareError(w, code.New(code.BadRequest, "invalid request body"))
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeShareError(c, code.New(code.BadRequest, "invalid request body"))
 		return
 	}
-	okValue, err := h.svc.VerifyShareCode(r.Context(), req.ShareID, req.ShareCode)
+	okValue, err := h.svc.VerifyShareCode(c.Request.Context(), req.ShareID, req.ShareCode)
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(okValue))
+	c.JSON(http.StatusOK, ok(okValue))
 }
 
-func (h *Handler) GetShareInfo(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
-	item, err := h.svc.GetShareInfo(r.Context(), shareID)
+// GetShareInfo 返回分享页头部需要的基础信息。
+func (h *Handler) GetShareInfo(c *gin.Context) {
+	item, err := h.svc.GetShareInfo(c.Request.Context(), c.Param("shareId"))
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(item))
+	c.JSON(http.StatusOK, ok(item))
 }
 
-func (h *Handler) GetShareItems(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
-	items, err := h.svc.GetShareItems(r.Context(), shareID, r.URL.Query().Get("parentId"))
+// GetShareItems 返回分享内某个目录下的文件列表。
+func (h *Handler) GetShareItems(c *gin.Context) {
+	items, err := h.svc.GetShareItems(c.Request.Context(), c.Param("shareId"), c.Query("parentId"))
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(items))
+	c.JSON(http.StatusOK, ok(items))
 }
 
-func (h *Handler) DownloadShareFile(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
-	fileID := r.PathValue("fileId")
-	shareCode := strings.TrimSpace(r.Header.Get("X-Share-Code"))
+// DownloadShareFile 下载分享中的指定文件。
+func (h *Handler) DownloadShareFile(c *gin.Context) {
+	shareCode := strings.TrimSpace(c.GetHeader("X-Share-Code"))
 	if shareCode == "" {
-		shareCode = strings.TrimSpace(r.URL.Query().Get("shareCode"))
+		shareCode = strings.TrimSpace(c.Query("shareCode"))
 	}
-	content, info, fileName, err := h.svc.DownloadShareFile(r.Context(), shareID, fileID, shareCode, r)
+	content, info, fileName, err := h.svc.DownloadShareFile(c.Request.Context(), c.Param("shareId"), c.Param("fileId"), shareCode, c.Request)
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
 	defer content.Close()
@@ -146,56 +149,58 @@ func (h *Handler) DownloadShareFile(w http.ResponseWriter, r *http.Request) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(fileName))
-	w.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(w, content)
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(fileName))
+	c.Status(http.StatusOK)
+	_, _ = io.Copy(c.Writer, content)
 }
 
-func (h *Handler) GetAccessRecords(w http.ResponseWriter, r *http.Request) {
-	shareID := r.PathValue("shareId")
-	items, err := h.svc.ListAccessRecords(r.Context(), shareID)
+// GetAccessRecords 查询分享访问记录。
+func (h *Handler) GetAccessRecords(c *gin.Context) {
+	items, err := h.svc.ListAccessRecords(c.Request.Context(), c.Param("shareId"))
 	if err != nil {
-		writeShareError(w, err)
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(items))
+	c.JSON(http.StatusOK, ok(items))
 }
 
-func (h *Handler) CancelShares(w http.ResponseWriter, r *http.Request) {
+// CancelShares 批量取消指定分享。
+func (h *Handler) CancelShares(c *gin.Context) {
 	var shareIDs []string
-	if err := web.DecodeJSON(r, &shareIDs); err != nil {
-		writeShareError(w, code.New(code.BadRequest, "invalid request body"))
+	if err := c.ShouldBindJSON(&shareIDs); err != nil {
+		writeShareError(c, code.New(code.BadRequest, "invalid request body"))
 		return
 	}
-	if err := h.svc.CancelShares(r.Context(), shareIDs); err != nil {
-		writeShareError(w, err)
+	if err := h.svc.CancelShares(c.Request.Context(), shareIDs); err != nil {
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(nil))
+	c.JSON(http.StatusOK, ok(nil))
 }
 
-func (h *Handler) CancelAllShares(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.CancelAllShares(r.Context()); err != nil {
-		writeShareError(w, err)
+// CancelAllShares 取消当前用户在当前空间下的全部分享。
+func (h *Handler) CancelAllShares(c *gin.Context) {
+	if err := h.svc.CancelAllShares(c.Request.Context()); err != nil {
+		writeShareError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(nil))
+	c.JSON(http.StatusOK, ok(nil))
 }
 
 func ok(data any) map[string]any {
 	return map[string]any{"code": 200, "msg": "success", "data": data}
 }
 
-func writeShareError(w http.ResponseWriter, err error) {
+func writeShareError(c *gin.Context, err error) {
 	switch {
 	case code.Is(err, code.BadRequest):
-		web.WriteJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": err.Error(), "data": nil})
+		c.JSON(http.StatusBadRequest, map[string]any{"code": 400, "msg": err.Error(), "data": nil})
 	case code.Is(err, code.NotFound):
-		web.WriteJSON(w, http.StatusNotFound, map[string]any{"code": 404, "msg": err.Error(), "data": nil})
+		c.JSON(http.StatusNotFound, map[string]any{"code": 404, "msg": err.Error(), "data": nil})
 	case code.Is(err, code.NoPermission):
-		web.WriteJSON(w, http.StatusForbidden, map[string]any{"code": 403, "msg": err.Error(), "data": nil})
+		c.JSON(http.StatusForbidden, map[string]any{"code": 403, "msg": err.Error(), "data": nil})
 	default:
-		web.WriteJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": err.Error(), "data": nil})
+		c.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "msg": err.Error(), "data": nil})
 	}
 }

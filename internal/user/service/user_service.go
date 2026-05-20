@@ -18,7 +18,6 @@ import (
 
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
-	userapi "myclouddrive-go/internal/user/api/gen"
 	usermodel "myclouddrive-go/internal/user/model"
 	"myclouddrive-go/internal/user/model/dbmodel"
 )
@@ -173,8 +172,8 @@ func boolToInt32(v bool) int32 {
 }
 
 // toSysUserVO 将 dbmodel.User 映射为 OpenAPI 生成的返回对象。
-func toSysUserVO(user dbmodel.User) *userapi.SysUserResponse {
-	return &userapi.SysUserResponse{
+func toSysUserVO(user dbmodel.User) *usermodel.SysUserResponse {
+	return &usermodel.SysUserResponse{
 		Id:          strPtrOrNil(user.ID),
 		Username:    strPtrOrNil(user.Username),
 		Email:       strPtrOrNil(user.Email),
@@ -188,12 +187,12 @@ func toSysUserVO(user dbmodel.User) *userapi.SysUserResponse {
 }
 
 // toTransferSettingVO 将 dbmodel.UserTransferSetting 映射为 OpenAPI 返回对象。
-func toTransferSettingVO(item dbmodel.UserTransferSetting) *userapi.SysUserTransferSetting {
+func toTransferSettingVO(item dbmodel.UserTransferSetting) *usermodel.SysUserTransferSetting {
 	upload := item.ConcurrentUploadQuantity
 	download := item.ConcurrentDownloadQuantity
 	speed := item.DownloadSpeedLimit
 	defaultDownloadLocation := boolToInt32(item.IsDefaultDownloadLocation)
-	return &userapi.SysUserTransferSetting{
+	return &usermodel.SysUserTransferSetting{
 		Id:                         &item.ID,
 		UserId:                     strPtrOrNil(item.UserID),
 		DownloadLocation:           strPtrOrNil(item.DownloadLocation),
@@ -339,7 +338,7 @@ func forgetCodeCacheKey(mail string) string {
 }
 
 // Login 执行登录。
-func (s *UserService) Login(ctx context.Context, req userapi.LoginCmd, r *http.Request) (*usermodel.LoginResult, error) {
+func (s *UserService) Login(ctx context.Context, req usermodel.LoginCmd, r *http.Request) (*usermodel.LoginResult, error) {
 	username := strings.TrimSpace(req.Username)
 
 	if username == "" || strings.TrimSpace(req.Password) == "" {
@@ -417,7 +416,7 @@ func (s *UserService) Logout(ctx context.Context) error {
 }
 
 // CurrentUser 获取当前用户详情。
-func (s *UserService) CurrentUser(ctx context.Context) (*userapi.SysUserResponse, error) {
+func (s *UserService) CurrentUser(ctx context.Context) (*usermodel.SysUserResponse, error) {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -435,7 +434,7 @@ func (s *UserService) CurrentUser(ctx context.Context) (*userapi.SysUserResponse
 }
 
 // Register 注册用户并初始化个人工作空间、空间存储设置与传输设置。
-func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterRequest) error {
+func (s *UserService) Register(ctx context.Context, req usermodel.UserRegisterRequest) error {
 	username := strings.TrimSpace(req.Username)
 	if username == "" {
 		return code.New(code.BadRequest, "username is required")
@@ -491,7 +490,7 @@ func (s *UserService) Register(ctx context.Context, req userapi.UserRegisterRequ
 }
 
 // UpdateUserInfo 更新用户资料。
-func (s *UserService) UpdateUserInfo(ctx context.Context, req userapi.UserEditInfoRequest) error {
+func (s *UserService) UpdateUserInfo(ctx context.Context, req usermodel.UserEditInfoRequest) error {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return err
@@ -513,7 +512,7 @@ func (s *UserService) UpdateUserInfo(ctx context.Context, req userapi.UserEditIn
 }
 
 // ChangePassword 登录态改密。
-func (s *UserService) ChangePassword(ctx context.Context, req userapi.PasswordEditRequest) error {
+func (s *UserService) ChangePassword(ctx context.Context, req usermodel.PasswordEditRequest) error {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return err
@@ -563,7 +562,7 @@ func (s *UserService) SendForgetPasswordCode(ctx context.Context, mail string) e
 }
 
 // ResetForgetPassword 验证码重置密码。
-func (s *UserService) ResetForgetPassword(ctx context.Context, req userapi.PasswordForgetEditRequest) error {
+func (s *UserService) ResetForgetPassword(ctx context.Context, req usermodel.PasswordForgetEditRequest) error {
 	if err := validateEmail(req.Mail); err != nil {
 		return err
 	}
@@ -600,7 +599,7 @@ func (s *UserService) ResetForgetPassword(ctx context.Context, req userapi.Passw
 }
 
 // GetTransferSetting 查询用户传输设置。
-func (s *UserService) GetTransferSetting(ctx context.Context) (*userapi.SysUserTransferSetting, error) {
+func (s *UserService) GetTransferSetting(ctx context.Context) (*usermodel.SysUserTransferSetting, error) {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -616,7 +615,7 @@ func (s *UserService) GetTransferSetting(ctx context.Context) (*userapi.SysUserT
 }
 
 // UpdateTransferSetting 更新用户传输设置。
-func (s *UserService) UpdateTransferSetting(ctx context.Context, req userapi.UserTransferSettingEditRequest) (*userapi.SysUserTransferSetting, error) {
+func (s *UserService) UpdateTransferSetting(ctx context.Context, req usermodel.UserTransferSettingEditRequest) (*usermodel.SysUserTransferSetting, error) {
 	userID, err := resolveCurrentUserID(ctx)
 	if err != nil {
 		return nil, err

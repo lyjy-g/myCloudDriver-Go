@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"myclouddrive-go/internal/framework/code"
-	"myclouddrive-go/internal/framework/web"
-	userapi "myclouddrive-go/internal/user/api/gen"
 	usermodel "myclouddrive-go/internal/user/model"
 	"myclouddrive-go/internal/user/service"
 )
@@ -20,283 +20,220 @@ const (
 	internalCode     = 500
 )
 
-// Handler 基于 OpenAPI 生成与手工扩展路由实现 user 接口。
+// Handler 处理 user 模块 HTTP 请求。
 type Handler struct {
 	svc *service.UserService
 }
 
+// NewHandler 创建 user 模块的 HTTP 处理器。
 func NewHandler(svc *service.UserService) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) DoLogin(w http.ResponseWriter, r *http.Request, _ userapi.DoLoginParams) {
-	var req userapi.LoginCmd
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// DoLogin 处理用户名密码登录，并返回当前用户的登录态信息。
+func (h *Handler) DoLogin(c *gin.Context) {
+	var req usermodel.LoginCmd
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	result, err := h.svc.Login(r.Context(), req, r)
+	result, err := h.svc.Login(c.Request.Context(), req, c.Request)
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage), Data: result})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage, "data": result})
 }
 
-func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.Logout(r.Context()); err != nil {
-		writeUserError(w, err)
+// Logout 处理当前登录用户登出。
+func (h *Handler) Logout(c *gin.Context) {
+	if err := h.svc.Logout(c.Request.Context()); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage})
 }
 
-func (h *Handler) GetDetail(w http.ResponseWriter, r *http.Request) {
-	user, err := h.svc.CurrentUser(r.Context())
+// GetDetail 返回当前登录用户的资料详情。
+func (h *Handler) GetDetail(c *gin.Context) {
+	user, err := h.svc.CurrentUser(c.Request.Context())
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultSysUserResponse{
-		Code: int32Ptr(200),
-		Msg:  strPtr(successMessage),
-		Data: user,
-	})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage, "data": user})
 }
 
-func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	var req userapi.UserRegisterRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// Register 注册新用户，并初始化默认个人空间等基础数据。
+func (h *Handler) Register(c *gin.Context) {
+	var req usermodel.UserRegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	if err := h.svc.Register(r.Context(), req); err != nil {
-		writeUserError(w, err)
+	if err := h.svc.Register(c.Request.Context(), req); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage})
 }
 
-func (h *Handler) EditUserInfo(w http.ResponseWriter, r *http.Request) {
-	var req userapi.UserEditInfoRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// EditUserInfo 更新当前登录用户的基础资料。
+func (h *Handler) EditUserInfo(c *gin.Context) {
+	var req usermodel.UserEditInfoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	if err := h.svc.UpdateUserInfo(r.Context(), req); err != nil {
-		writeUserError(w, err)
+	if err := h.svc.UpdateUserInfo(c.Request.Context(), req); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage})
 }
 
-func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	var req userapi.PasswordEditRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// ResetPassword 处理登录态下的修改密码请求。
+func (h *Handler) ResetPassword(c *gin.Context) {
+	var req usermodel.PasswordEditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	if err := h.svc.ChangePassword(r.Context(), req); err != nil {
-		writeUserError(w, err)
+	if err := h.svc.ChangePassword(c.Request.Context(), req); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage})
 }
 
-func (h *Handler) CheckForgetPasswordCode(w http.ResponseWriter, r *http.Request) {
-	var req userapi.PasswordForgetEditRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// CheckForgetPasswordCode 校验忘记密码验证码并执行重置密码。
+func (h *Handler) CheckForgetPasswordCode(c *gin.Context) {
+	var req usermodel.PasswordForgetEditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	if err := h.svc.ResetForgetPassword(r.Context(), req); err != nil {
-		writeUserError(w, err)
+	if err := h.svc.ResetForgetPassword(c.Request.Context(), req); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage})
 }
 
-func (h *Handler) SendForgetPasswordCodeByMail(w http.ResponseWriter, r *http.Request, mail string) {
-	if err := h.svc.SendForgetPasswordCode(r.Context(), strings.TrimSpace(mail)); err != nil {
-		writeUserError(w, err)
+// SendForgetPasswordCodeByMail 发送找回密码验证码到指定邮箱。
+func (h *Handler) SendForgetPasswordCodeByMail(c *gin.Context) {
+	if err := h.svc.SendForgetPasswordCode(c.Request.Context(), strings.TrimSpace(c.Param("mail"))); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage})
 }
 
-func (h *Handler) GetUserTransferSetting(w http.ResponseWriter, r *http.Request) {
-	item, err := h.svc.GetTransferSetting(r.Context())
+// GetUserTransferSetting 查询当前用户的传输设置。
+func (h *Handler) GetUserTransferSetting(c *gin.Context) {
+	item, err := h.svc.GetTransferSetting(c.Request.Context())
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultSysUserTransferSetting{
-		Code: int32Ptr(200),
-		Msg:  strPtr(successMessage),
-		Data: item,
-	})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage, "data": item})
 }
 
-func (h *Handler) UpdateUserTransferSetting(w http.ResponseWriter, r *http.Request) {
-	var req userapi.UserTransferSettingEditRequest
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// UpdateUserTransferSetting 更新当前用户的传输设置。
+func (h *Handler) UpdateUserTransferSetting(c *gin.Context) {
+	var req usermodel.UserTransferSettingEditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	item, err := h.svc.UpdateTransferSetting(r.Context(), req)
+	item, err := h.svc.UpdateTransferSetting(c.Request.Context(), req)
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultSysUserTransferSetting{
-		Code: int32Ptr(200),
-		Msg:  strPtr(successMessage),
-		Data: item,
-	})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": successMessage, "data": item})
 }
 
-func (h *Handler) ListUserWorkspaces(w http.ResponseWriter, r *http.Request, _ userapi.ListUserWorkspacesParams) {
-	items, err := h.svc.ListWorkspaces(r.Context())
+// ListUserWorkspaces 列出当前用户可访问的工作空间。
+func (h *Handler) ListUserWorkspaces(c *gin.Context) {
+	items, err := h.svc.ListWorkspaces(c.Request.Context())
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{"code": successCodeStr, "message": successMessage, "data": items})
+	c.JSON(http.StatusOK, gin.H{"code": successCodeStr, "message": successMessage, "data": items})
 }
 
-func (h *Handler) CreateOrgWorkspace(w http.ResponseWriter, r *http.Request) {
-	var req userapi.CreateOrgWorkspaceJSONBody
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// CreateOrgWorkspace 创建新的组织工作空间。
+func (h *Handler) CreateOrgWorkspace(c *gin.Context) {
+	var req usermodel.CreateOrgWorkspaceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	item, err := h.svc.CreateOrgWorkspace(r.Context(), req.Name)
+	item, err := h.svc.CreateOrgWorkspace(c.Request.Context(), req.Name)
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{"code": successCodeStr, "message": successMessage, "data": item})
+	c.JSON(http.StatusOK, gin.H{"code": successCodeStr, "message": successMessage, "data": item})
 }
 
-func (h *Handler) SetDefaultWorkspace(w http.ResponseWriter, r *http.Request, workspaceID string) {
-	if err := h.svc.SetDefaultWorkspace(r.Context(), workspaceID); err != nil {
-		writeUserError(w, err)
+// SetDefaultWorkspace 设置当前用户的默认工作空间。
+func (h *Handler) SetDefaultWorkspace(c *gin.Context) {
+	workspaceID := c.Param("workspaceId")
+	if err := h.svc.SetDefaultWorkspace(c.Request.Context(), workspaceID); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    successCodeStr,
-		"message": successMessage,
-		"data": map[string]string{
-			"defaultWorkspaceId": workspaceID,
-		},
-	})
+	c.JSON(http.StatusOK, gin.H{"code": successCodeStr, "message": successMessage, "data": gin.H{"defaultWorkspaceId": workspaceID}})
 }
 
-func (h *Handler) ListWorkspaceMembers(w http.ResponseWriter, r *http.Request, workspaceID string) {
-	items, err := h.svc.ListWorkspaceMembers(r.Context(), workspaceID)
+// ListWorkspaceMembers 查询指定工作空间的成员列表。
+func (h *Handler) ListWorkspaceMembers(c *gin.Context) {
+	items, err := h.svc.ListWorkspaceMembers(c.Request.Context(), c.Param("workspaceId"))
 	if err != nil {
-		writeUserError(w, err)
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{"code": successCodeStr, "message": successMessage, "data": items})
+	c.JSON(http.StatusOK, gin.H{"code": successCodeStr, "message": successMessage, "data": items})
 }
 
-func (h *Handler) AddWorkspaceMember(w http.ResponseWriter, r *http.Request, workspaceID string) {
-	var req userapi.AddWorkspaceMemberJSONBody
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
+// AddWorkspaceMember 向指定工作空间新增成员。
+func (h *Handler) AddWorkspaceMember(c *gin.Context) {
+	workspaceID := c.Param("workspaceId")
+	var req usermodel.AddWorkspaceMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": "invalid request body"})
 		return
 	}
-	if err := h.svc.AddWorkspaceMember(r.Context(), workspaceID, req.UserId, string(req.Role)); err != nil {
-		writeUserError(w, err)
+	if err := h.svc.AddWorkspaceMember(c.Request.Context(), workspaceID, req.UserId, req.Role); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    successCodeStr,
-		"message": successMessage,
-		"data": map[string]string{
-			"workspaceId": workspaceID,
-			"userId":      req.UserId,
-			"role":        string(req.Role),
-		},
-	})
+	c.JSON(http.StatusOK, gin.H{"code": successCodeStr, "message": successMessage, "data": gin.H{"workspaceId": workspaceID, "userId": req.UserId, "role": req.Role}})
 }
 
-func (h *Handler) RemoveWorkspaceMember(w http.ResponseWriter, r *http.Request, workspaceID string, userID string) {
-	if err := h.svc.RemoveWorkspaceMember(r.Context(), workspaceID, userID); err != nil {
-		writeUserError(w, err)
+// RemoveWorkspaceMember 从指定工作空间移除成员。
+func (h *Handler) RemoveWorkspaceMember(c *gin.Context) {
+	workspaceID := c.Param("workspaceId")
+	userID := c.Param("userId")
+	if err := h.svc.RemoveWorkspaceMember(c.Request.Context(), workspaceID, userID); err != nil {
+		writeUserError(c, err)
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    successCodeStr,
-		"message": successMessage,
-		"data": map[string]string{
-			"workspaceId": workspaceID,
-			"userId":      userID,
-		},
-	})
+	c.JSON(http.StatusOK, gin.H{"code": successCodeStr, "message": successMessage, "data": gin.H{"workspaceId": workspaceID, "userId": userID}})
 }
 
-// 兼容现有前端路径。
-func (h *Handler) ListWorkspacesCompat(w http.ResponseWriter, r *http.Request) {
-	h.ListUserWorkspaces(w, r, userapi.ListUserWorkspacesParams{})
-}
-
-// 兼容现有前端路径。
-func (h *Handler) GetActiveWorkspaceCompat(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.ListWorkspaces(r.Context())
-	if err != nil {
-		writeUserError(w, err)
-		return
-	}
-	for _, item := range items {
-		if item.IsDefault {
-			web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage), Data: item})
-			return
-		}
-	}
-	if len(items) == 0 {
-		web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage)})
-		return
-	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{Code: int32Ptr(200), Msg: strPtr(successMessage), Data: items[0]})
-}
-
-// 兼容现有前端路径。
-func (h *Handler) SetActiveWorkspaceCompat(w http.ResponseWriter, r *http.Request) {
-	var req usermodel.ActiveWorkspaceCmd
-	if err := web.DecodeJSON(r, &req); err != nil {
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, "invalid request body")
-		return
-	}
-	if err := h.svc.SetDefaultWorkspace(r.Context(), req.WorkspaceID); err != nil {
-		writeUserError(w, err)
-		return
-	}
-	web.WriteJSON(w, http.StatusOK, userapi.ResultObject{
-		Code: int32Ptr(200),
-		Msg:  strPtr(successMessage),
-		Data: map[string]string{"defaultWorkspaceId": req.WorkspaceID},
-	})
-}
-
-func writeUserError(w http.ResponseWriter, err error) {
+func writeUserError(c *gin.Context, err error) {
 	switch {
 	case code.Is(err, code.BadRequest):
-		web.WriteError(w, http.StatusBadRequest, badRequestCode, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"code": badRequestCode, "message": err.Error()})
 	case code.Is(err, code.NoPermission):
-		web.WriteError(w, http.StatusForbidden, noPermissionCode, err.Error())
+		c.JSON(http.StatusForbidden, gin.H{"code": noPermissionCode, "message": err.Error()})
 	case code.Is(err, code.NotFound):
-		web.WriteError(w, http.StatusNotFound, notFoundCode, err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"code": notFoundCode, "message": err.Error()})
 	default:
-		web.WriteError(w, http.StatusInternalServerError, internalCode, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": internalCode, "message": err.Error()})
 	}
-}
-
-func strPtr(v string) *string {
-	return &v
-}
-
-func int32Ptr(v int32) *int32 {
-	return &v
 }

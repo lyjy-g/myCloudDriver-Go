@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	agentapi "myclouddrive-go/internal/agent/api/gen"
+	agentmodel "myclouddrive-go/internal/agent/model"
 	agentdb "myclouddrive-go/internal/agent/model/dbmodel"
 	"myclouddrive-go/internal/framework/code"
 )
@@ -54,7 +54,7 @@ func classifyImportError(err error) string {
 }
 
 // ListKnowledgeFiles 列出知识库文件及处理状态。
-func (s *AgentService) ListKnowledgeFiles(ctx context.Context, workspaceID string, knowledgeID int64) ([]agentapi.KnowledgeFileDetail, error) {
+func (s *AgentService) ListKnowledgeFiles(ctx context.Context, workspaceID string, knowledgeID int64) ([]agentmodel.KnowledgeFileDetail, error) {
 	if s == nil || s.runSvc == nil || s.runSvc.db == nil {
 		return nil, code.New(code.InternalError, "agent db unavailable")
 	}
@@ -76,7 +76,7 @@ func (s *AgentService) ListKnowledgeFiles(ctx context.Context, workspaceID strin
 		return nil, code.New(code.InternalError, "list knowledge files failed: "+err.Error())
 	}
 
-	result := make([]agentapi.KnowledgeFileDetail, 0, len(rows))
+	result := make([]agentmodel.KnowledgeFileDetail, 0, len(rows))
 	for _, row := range rows {
 		fileName := row.FileID
 		if s.fileSvc != nil {
@@ -86,12 +86,12 @@ func (s *AgentService) ListKnowledgeFiles(ctx context.Context, workspaceID strin
 		}
 		id := int(row.ID)
 		fileID := row.FileID
-		parse := agentapi.KnowledgeFileDetailParseStatus(normalizeStageStatus(row.ParseStatus))
-		chunk := agentapi.KnowledgeFileDetailChunkStatus(normalizeStageStatus(row.ChunkStatus))
-		embed := agentapi.KnowledgeFileDetailEmbedStatus(normalizeStageStatus(row.EmbedStatus))
-		index := agentapi.KnowledgeFileDetailIndexStatus(normalizeStageStatus(row.IndexStatus))
+		parse := normalizeStageStatus(row.ParseStatus)
+		chunk := normalizeStageStatus(row.ChunkStatus)
+		embed := normalizeStageStatus(row.EmbedStatus)
+		index := normalizeStageStatus(row.IndexStatus)
 		createdAt := row.CreatedAt
-		result = append(result, agentapi.KnowledgeFileDetail{
+		result = append(result, agentmodel.KnowledgeFileDetail{
 			Id:          &id,
 			FileId:      &fileID,
 			FileName:    &fileName,
@@ -106,7 +106,7 @@ func (s *AgentService) ListKnowledgeFiles(ctx context.Context, workspaceID strin
 }
 
 // AddKnowledgeFile 创建异步导入任务（parse -> chunk -> embed -> index）。
-func (s *AgentService) AddKnowledgeFile(ctx context.Context, workspaceID string, knowledgeID int64, fileID, storageSettingID string) (*agentapi.KnowledgeFileDetail, error) {
+func (s *AgentService) AddKnowledgeFile(ctx context.Context, workspaceID string, knowledgeID int64, fileID, storageSettingID string) (*agentmodel.KnowledgeFileDetail, error) {
 	if s == nil || s.runSvc == nil || s.runSvc.db == nil {
 		return nil, code.New(code.InternalError, "agent db unavailable")
 	}
@@ -406,7 +406,7 @@ func (s *AgentService) ensureKnowledgeOwnership(ctx context.Context, workspaceID
 	return nil
 }
 
-func (s *AgentService) toKnowledgeFileDetail(ctx context.Context, row *agentdb.KnowledgeFile) *agentapi.KnowledgeFileDetail {
+func (s *AgentService) toKnowledgeFileDetail(ctx context.Context, row *agentdb.KnowledgeFile) *agentmodel.KnowledgeFileDetail {
 	if row == nil {
 		return nil
 	}
@@ -418,12 +418,12 @@ func (s *AgentService) toKnowledgeFileDetail(ctx context.Context, row *agentdb.K
 	}
 	id := int(row.ID)
 	fileID := row.FileID
-	parse := agentapi.KnowledgeFileDetailParseStatus(normalizeStageStatus(row.ParseStatus))
-	chunk := agentapi.KnowledgeFileDetailChunkStatus(normalizeStageStatus(row.ChunkStatus))
-	embed := agentapi.KnowledgeFileDetailEmbedStatus(normalizeStageStatus(row.EmbedStatus))
-	index := agentapi.KnowledgeFileDetailIndexStatus(normalizeStageStatus(row.IndexStatus))
+	parse := normalizeStageStatus(row.ParseStatus)
+	chunk := normalizeStageStatus(row.ChunkStatus)
+	embed := normalizeStageStatus(row.EmbedStatus)
+	index := normalizeStageStatus(row.IndexStatus)
 	createdAt := row.CreatedAt
-	return &agentapi.KnowledgeFileDetail{
+	return &agentmodel.KnowledgeFileDetail{
 		Id:          &id,
 		FileId:      &fileID,
 		FileName:    &fileName,

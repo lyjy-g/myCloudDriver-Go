@@ -1,8 +1,0 @@
-package: userapi
-generate:
-  models: true
-  std-http-server: true
-  client: true
-output-options:
-  skip-prune: true
-output: internal/user/api/gen/user.gen.go
