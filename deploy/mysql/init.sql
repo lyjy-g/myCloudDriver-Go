@@ -198,7 +198,7 @@ INSERT INTO `user` (
              '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
              '111222333@qq.com',
              'lyjy',
-             'https://cn.bing.com/images/search?view=detailV2&ccid=GABSNBeQ&id=D1064C2A8AFD92995785FD612DEFA5372D698CDE&thid=OIP.GABSNBeQIGgYnT9WaA6WHwAAAA&mediaurl=https%3a%2f%2fc-ssl.dtstatic.com%2fuploads%2fblog%2f202301%2f11%2f20230111141039_8dcde.thumb.400_0.jpg&exph=400&expw=400&q=%e5%a4%b4%e5%83%8f&mode=overlay&FORM=IQFRBA&ck=9FE2006144979F5EDC819D091A32F9A2&selectedIndex=0&idpp=serp',
+             '',
              'ws_01jrvgs943q0f43h0aa5mjde0y_personal',
              0,
              '2025-04-15 09:25:22',

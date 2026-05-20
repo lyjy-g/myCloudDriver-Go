@@ -3,6 +3,7 @@
 
 # Runtime data directory
 .data/
+.idea/
 
 docx/
 docs/

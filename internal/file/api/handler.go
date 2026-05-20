@@ -44,7 +44,7 @@ func (h *Handler) CreateDirectory(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.directory.create", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.directory.create", func(body []byte) (int, any, error) {
 		payload, err := decodeBodyMap(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -64,7 +64,7 @@ func (h *Handler) RenameFile(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.rename", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.rename", func(body []byte) (int, any, error) {
 		payload, err := decodeBodyMap(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -83,7 +83,7 @@ func (h *Handler) MoveFile(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.move", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.move", func(body []byte) (int, any, error) {
 		payload, err := decodeBodyMap(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -163,7 +163,7 @@ func (h *Handler) DeleteFiles(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.recycle.soft_delete", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.recycle.soft_delete", func(body []byte) (int, any, error) {
 		ids, err := decodeIDArray(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -178,7 +178,7 @@ func (h *Handler) RestoreFile(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.recycle.restore", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.recycle.restore", func(body []byte) (int, any, error) {
 		ids, err := decodeIDArray(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -193,7 +193,7 @@ func (h *Handler) PermanentlyDeleteFiles(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.recycle.permanent_delete", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.recycle.permanent_delete", func(body []byte) (int, any, error) {
 		ids, err := decodeIDArray(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -208,7 +208,7 @@ func (h *Handler) ClearRecycles(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.recycle.clear", func(_ []byte) (int, any, error) {
+	h.handleWrite(c, "file.recycle.clear", func(_ []byte) (int, any, error) {
 		report := h.svc.ClearRecycle(c.Request.Context())
 		return http.StatusOK, ok(report), nil
 	})
@@ -230,7 +230,7 @@ func (h *Handler) FavoritesFile(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.favorite.add", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.favorite.add", func(body []byte) (int, any, error) {
 		ids, err := decodeIDArray(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -245,7 +245,7 @@ func (h *Handler) UnFavoritesFile(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileWrite) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.favorite.remove", func(body []byte) (int, any, error) {
+	h.handleWrite(c, "file.favorite.remove", func(body []byte) (int, any, error) {
 		ids, err := decodeIDArray(body)
 		if err != nil {
 			return http.StatusBadRequest, errorPayload(code.BadRequest, err.Error()), nil
@@ -260,7 +260,7 @@ func (h *Handler) PreviewToken(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileRead) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.preview.token", func(_ []byte) (int, any, error) {
+	h.handleWrite(c, "file.preview.token", func(_ []byte) (int, any, error) {
 		return http.StatusOK, ok(tokenPayload("preview", c.Param("fileId"), "")), nil
 	})
 }
@@ -270,17 +270,17 @@ func (h *Handler) ArchivePreviewToken(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileRead) {
 		return
 	}
-	h.handleIdempotentWrite(c, "file.archive.preview.token", func(_ []byte) (int, any, error) {
+	h.handleWrite(c, "file.archive.preview.token", func(_ []byte) (int, any, error) {
 		return http.StatusOK, ok(tokenPayload("archive-preview", c.Param("archiveFileId"), c.Query("innerPath"))), nil
 	})
 }
 
-// handleIdempotentWrite 是 Gin 写接口的统一入口。
+// handleWrite 是 Gin 写接口的统一入口。
 // 它做三件事：
 // 1. 先把 body 读出来，作为幂等键校验输入的一部分；
 // 2. 再把 body 放回 request，避免后续逻辑读不到；
 // 3. 最后交给 service 做真正的幂等执行与重放判断。
-func (h *Handler) handleIdempotentWrite(c *gin.Context, endpoint string, execute func(body []byte) (int, any, error)) {
+func (h *Handler) handleWrite(c *gin.Context, endpoint string, execute func(body []byte) (int, any, error)) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "invalid request body"})

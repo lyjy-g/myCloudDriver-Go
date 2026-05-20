@@ -39,10 +39,7 @@ func main() {
 	}
 	g.UseDB(db)
 
-	tables := []string{
-		"file_info",
-		"file_transfer_task",
-	}
+	tables := []string{"file_info", "file_transfer_task"}
 	models := make([]any, 0, len(tables))
 	for _, table := range tables {
 		if !db.Migrator().HasTable(table) {

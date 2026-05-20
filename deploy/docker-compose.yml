@@ -41,33 +41,6 @@ services:
     volumes:
       - minio_data:/data
 
-#  admin:
-#    build:
-#      context: ..
-#      dockerfile: deploy/Dockerfile.mcd-admin
-#    container_name: myclouddrive-admin
-#    restart: unless-stopped
-#    environment:
-#      MYCLOUDDRIVE_DB_URL: ${MYCLOUDDRIVE_DB_URL}
-#      MYCLOUDDRIVE_DB_USER: ${MYCLOUDDRIVE_DB_USER}
-#      MYCLOUDDRIVE_DB_PASSWORD: ${MYCLOUDDRIVE_DB_PASSWORD}
-#      MYCLOUDDRIVE_REDIS_HOST: ${MYCLOUDDRIVE_REDIS_HOST}
-#      MYCLOUDDRIVE_REDIS_PORT: ${MYCLOUDDRIVE_REDIS_PORT}
-#      MYCLOUDDRIVE_REDIS_PASSWORD: ${MYCLOUDDRIVE_REDIS_PASSWORD}
-#      MYCLOUDDRIVE_BASE_PATH: ${MYCLOUDDRIVE_BASE_PATH}
-#      MYCLOUDDRIVE_BASE_URL: ${MYCLOUDDRIVE_BASE_URL}
-#      MYCLOUDDRIVE_UPLOAD_TMP: ${MYCLOUDDRIVE_UPLOAD_TMP}
-#      MYCLOUDDRIVE_UPLOAD_TTL: ${MYCLOUDDRIVE_UPLOAD_TTL}
-#    env_file:
-#      - .env
-#    ports:
-#      - "8080:8080"
-#    depends_on:
-#      - mysql
-#      - redis
-#    volumes:
-#      - app_data:/data/myclouddrive
-
 volumes:
   mysql_data:
   redis_data:
