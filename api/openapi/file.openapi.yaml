@@ -160,7 +160,7 @@ paths:
           schema:
             type: integer
             format: int32
-        - name: chunkMd5
+        - name: chunkSha256
           in: query
           description: ''
           required: true
@@ -190,7 +190,7 @@ paths:
     post:
       summary: 校验文件
       deprecated: false
-      description: 前端计算完MD5后调用，判断是否秒传
+      description: 前端计算完SHA-256后调用，判断是否秒传
       operationId: checkUpload
       tags:
         - 文件管理/文件传输
@@ -1100,7 +1100,7 @@ components:
           type: string
         userId:
           type: string
-        contentMd5:
+        contentSha256:
           type: string
         storagePlatformSettingId:
           type: string
@@ -1167,13 +1167,13 @@ components:
         taskId:
           type: string
           minLength: 1
-        fileMd5:
+        fileSha256:
           type: string
           minLength: 1
         fileName:
           type: string
       required:
-        - fileMd5
+        - fileSha256
         - taskId
     FileResponse:
       type: object

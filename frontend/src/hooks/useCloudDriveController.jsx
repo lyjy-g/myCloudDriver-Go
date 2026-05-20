@@ -97,7 +97,7 @@ function normalizeFileRecord(item) {
     fileId: item.fileId || item.id || "",
     fileName: item.fileName || item.name || item.display_name || item.displayName || "",
     fileSize: Number(item.fileSize ?? item.size ?? 0),
-    fileHash: item.fileHash || item.contentMd5 || item.content_md5 || "",
+    fileHash: item.fileHash || item.contentSha256 || item.content_sha256 || "",
     directory,
     raw: item
   };
@@ -162,6 +162,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadHint, setUploadHint] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -1479,8 +1480,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     }
     setError("");
     setUploadProgress(0);
+    setUploadHint("正在计算文件 hash 并做秒传预检...");
     setLoading(true);
     try {
+      // 先算整文件 hash，供后端做强预检；未命中时再进入正常分片上传。
       const fileHash = await calculateHash(selectedFile);
       const totalParts = Math.ceil(selectedFile.size / DEFAULT_CHUNK_SIZE);
       const precheckResult = await precheckUpload(normalizedBaseUrl, {
@@ -1495,9 +1498,15 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       const precheckData = precheckResult.data || precheckResult;
       if (precheckData.skipUpload) {
         setUploadProgress(100);
+        setUploadHint("强预检命中，后端已直接复用已有文件内容并创建文件记录");
         await loadFiles();
         notifySuccess("秒传成功");
         return;
+      }
+      if (precheckData.weakMatchCount > 0) {
+        setUploadHint(`弱预检命中 ${precheckData.weakMatchCount} 个候选，但 hash 未命中，继续分片上传`);
+      } else {
+        setUploadHint("未命中秒传，开始分片上传");
       }
 
       const taskId = precheckData.taskId || precheckData.uploadId;
@@ -1508,7 +1517,9 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         const start = (partNumber - 1) * DEFAULT_CHUNK_SIZE;
         const end = Math.min(selectedFile.size, partNumber * DEFAULT_CHUNK_SIZE);
         const chunk = selectedFile.slice(start, end);
-        const chunkMd5 = await calculateHash(chunk);
+        // 分片仍逐片计算 hash，和后端 UploadChunk 的校验保持一致。
+        const chunkSha256 = await calculateHash(chunk);
+        setUploadHint(`正在上传第 ${partNumber}/${totalParts} 个分片`);
         await uploadPart(normalizedBaseUrl, {
           taskId,
           uploadId: taskId,
@@ -1516,7 +1527,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
           partNumber,
           totalParts,
           fileHash,
-          chunkMd5,
+          chunkSha256,
           file: chunk
         });
         setUploadProgress(Math.round((partNumber / totalParts) * 100));
@@ -1524,6 +1535,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
 
       await mergeUpload(normalizedBaseUrl, { taskId, uploadId: taskId });
       setUploadProgress(100);
+      setUploadHint("分片合并完成，整文件 hash 已复核通过");
       await loadFiles();
       notifySuccess("文件上传完成");
     } catch (err) {
@@ -1532,6 +1544,13 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       setLoading(false);
     }
   }, [selectedFile, normalizedBaseUrl, currentParentId, loadFiles, notifyWarning, notifySuccess]);
+
+  const handleSelectUploadFile = useCallback((file) => {
+    setSelectedFile(file);
+    setUploadProgress(0);
+    setError("");
+    setUploadHint(file ? `已选择 ${file.name}，上传前会先做弱预检和强 hash 核验` : "");
+  }, []);
 
   const columns = useMemo(() => {
     const renderFileName = (value, record) => {
@@ -1756,6 +1775,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     drawerOpen,
     selectedFile,
     uploadProgress,
+    uploadHint,
     loading,
     columns,
     shareColumns,
@@ -1783,6 +1803,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     openDirectory,
     handleCreateFolder,
     handleUpload,
+    handleSelectUploadFile,
     updateStorageFormField,
     handleApplyStorageConfig,
     handleEditStorageSetting,

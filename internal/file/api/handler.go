@@ -377,16 +377,12 @@ func (h *Handler) CheckUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := genCheckToInitInput(req)
-	skip, taskID, err := h.svc.PrecheckUpload(in, currentStorageSettingID(r))
+	result, err := h.svc.PrecheckUpload(r.Context(), in, currentStorageSettingID(r))
 	if err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
 		return
 	}
-	web.WriteJSON(w, http.StatusOK, ok(map[string]any{
-		"skipUpload": skip,
-		"taskId":     taskID,
-		"uploadId":   taskID,
-	}))
+	web.WriteJSON(w, http.StatusOK, ok(result))
 }
 
 // InitUpload 初始化上传任务。
@@ -422,9 +418,9 @@ func (h *Handler) UploadChunk(w http.ResponseWriter, r *http.Request) {
 			chunkIndex = v
 		}
 	}
-	chunkMd5 := strings.TrimSpace(r.URL.Query().Get("chunkMd5"))
-	if chunkMd5 == "" {
-		chunkMd5 = strings.TrimSpace(r.FormValue("chunkMd5"))
+	chunkSha256 := strings.TrimSpace(r.URL.Query().Get("chunkSha256"))
+	if chunkSha256 == "" {
+		chunkSha256 = strings.TrimSpace(r.FormValue("chunkSha256"))
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
@@ -437,7 +433,7 @@ func (h *Handler) UploadChunk(w http.ResponseWriter, r *http.Request) {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), "read chunk failed")
 		return
 	}
-	if err = h.svc.UploadChunk(taskID, chunkIndex, chunk, chunkMd5); err != nil {
+	if err = h.svc.UploadChunk(taskID, chunkIndex, chunk, chunkSha256); err != nil {
 		web.WriteError(w, http.StatusBadRequest, string(code.BadRequest), err.Error())
 		return
 	}

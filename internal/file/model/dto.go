@@ -73,3 +73,14 @@ type UploadInitInput struct {
 	ParentID    string
 	TotalParts  int
 }
+
+// UploadPrecheckResult 表示上传预检结果。
+type UploadPrecheckResult struct {
+	SkipUpload     bool      `json:"skipUpload"`
+	TaskID         string    `json:"taskId,omitempty"`
+	UploadID       string    `json:"uploadId,omitempty"`
+	WeakMatchCount int       `json:"weakMatchCount"`
+	HashChecked    bool      `json:"hashChecked"`
+	StrongMatch    bool      `json:"strongMatch"`
+	InstantFile    *FileItem `json:"instantFile,omitempty"`
+}

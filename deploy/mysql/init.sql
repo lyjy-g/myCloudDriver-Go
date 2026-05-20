@@ -18,7 +18,7 @@ CREATE TABLE `file_info` (
                              `parent_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '父节点ID',
                              `user_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '用户ID',
                              `workspace_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '工作空间ID',
-                             `content_md5` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '文件MD5，用于秒传和文件校验',
+                             `content_sha256` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '文件SHA256，用于秒传和文件校验',
                              `storage_platform_setting_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '存储配置ID',
                              `upload_time` datetime NOT NULL COMMENT '上传时间',
                              `update_time` datetime DEFAULT NULL COMMENT '修改时间',
@@ -29,7 +29,7 @@ CREATE TABLE `file_info` (
                              KEY `idx_recycle_query` (`workspace_id`, `user_id`, `storage_platform_setting_id`, `is_deleted`, `parent_id`) USING BTREE,
                              KEY `idx_workspace_parent` (`workspace_id`, `parent_id`) USING BTREE,
                              KEY `idx_user_parent` (`user_id`, `parent_id`) USING BTREE,
-                             KEY `idx_content_md5` (`content_md5`) USING BTREE,
+                             KEY `idx_content_sha256` (`content_sha256`) USING BTREE,
                              KEY `idx_storage_setting_id` (`storage_platform_setting_id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='文件资源表' ROW_FORMAT=DYNAMIC;
 
@@ -104,7 +104,7 @@ CREATE TABLE `file_transfer_task` (
                                       `file_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '下载时关联的文件ID',
                                       `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文件名',
                                       `file_size` bigint NOT NULL COMMENT '文件大小(字节)',
-                                      `file_md5` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '文件MD5值',
+                                      `file_sha256` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '文件SHA256值',
                                       `suffix` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文件扩展名',
                                       `mime_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '标准MIME类型',
                                       `total_chunks` int NOT NULL COMMENT '总分片数',
@@ -122,7 +122,7 @@ CREATE TABLE `file_transfer_task` (
                                       UNIQUE KEY `uk_task_id` (`task_id`) USING BTREE,
                                       KEY `idx_user_id` (`user_id`) USING BTREE,
                                       KEY `idx_workspace_id` (`workspace_id`) USING BTREE,
-                                      KEY `idx_file_md5` (`file_md5`) USING BTREE,
+                                      KEY `idx_file_sha256` (`file_sha256`) USING BTREE,
                                       KEY `idx_status` (`status`) USING BTREE,
                                       KEY `idx_task_type` (`task_type`) USING BTREE,
                                       KEY `idx_create_time` (`created_at`) USING BTREE
@@ -198,7 +198,7 @@ INSERT INTO `user` (
              '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
              '111222333@qq.com',
              'lyjy',
-             'https://csdn-665-inscode.s3.cn-north-1.jdcloud-oss.com/inscode/202303/628c9f991a7e4862742d8a2f/1680072908255-49035150-ttVQUH7YUEaCdHRZenaoQrUQPxtaBUay/large',
+             'https://cn.bing.com/images/search?view=detailV2&ccid=GABSNBeQ&id=D1064C2A8AFD92995785FD612DEFA5372D698CDE&thid=OIP.GABSNBeQIGgYnT9WaA6WHwAAAA&mediaurl=https%3a%2f%2fc-ssl.dtstatic.com%2fuploads%2fblog%2f202301%2f11%2f20230111141039_8dcde.thumb.400_0.jpg&exph=400&expw=400&q=%e5%a4%b4%e5%83%8f&mode=overlay&FORM=IQFRBA&ck=9FE2006144979F5EDC819D091A32F9A2&selectedIndex=0&idpp=serp',
              'ws_01jrvgs943q0f43h0aa5mjde0y_personal',
              0,
              '2025-04-15 09:25:22',

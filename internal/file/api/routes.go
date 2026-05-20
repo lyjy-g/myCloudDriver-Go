@@ -3,15 +3,12 @@ package api
 import (
 	"net/http"
 
-	gen "myclouddrive-go/internal/file/api/gen"
 	"myclouddrive-go/internal/file/service"
 )
 
 // RegisterRoutes 将 OpenAPI 生成路由注册到标准库 ServeMux。
 func RegisterRoutes(mux *http.ServeMux, svc *service.FileService) {
 	h := NewHandler(svc)
-	// 保留 OpenAPI 生成的 ping 路由。
-	gen.HandlerFromMux(h, mux)
 
 	// 业务路由（按 Java 模块接口实现）。
 	mux.HandleFunc("GET /apis/home/info", h.GetHomes)

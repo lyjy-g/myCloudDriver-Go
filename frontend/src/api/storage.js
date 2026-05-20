@@ -540,7 +540,7 @@ export function precheckUpload(baseUrl, payload) {
 export async function uploadPart(baseUrl, payload) {
   const taskId = payload.taskId || payload.uploadId;
   const chunkIndex = payload.chunkIndex ?? payload.partNumber;
-  const chunkMd5 = payload.chunkMd5 || payload.fileHash || "";
+  const chunkSha256 = payload.chunkSha256 || payload.fileHash || "";
 
   const formData = new FormData();
   formData.append("taskId", taskId);
@@ -552,7 +552,7 @@ export async function uploadPart(baseUrl, payload) {
   formData.append("file", payload.file);
 
   const candidates = [
-    `${baseUrl}/apis/transfer/chunk?taskId=${encodeURIComponent(taskId)}&chunkIndex=${encodeURIComponent(String(chunkIndex))}&chunkMd5=${encodeURIComponent(chunkMd5)}`,
+    `${baseUrl}/apis/transfer/chunk?taskId=${encodeURIComponent(taskId)}&chunkIndex=${encodeURIComponent(String(chunkIndex))}&chunkSha256=${encodeURIComponent(chunkSha256)}`,
     `${baseUrl}/apis/upload/part`
   ];
 

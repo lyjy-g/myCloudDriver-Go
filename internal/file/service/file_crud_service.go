@@ -123,7 +123,7 @@ func (svc *FileService) getFromDB(ctx context.Context, fileID string) (*filemode
 		Name:             row.DisplayName,
 		IsDir:            row.IsDir,
 		Size:             row.Size,
-		FileHash:         row.ContentMd5,
+		FileHash:         strings.TrimSpace(row.ContentSha256),
 		ObjectKey:        row.ObjectKey,
 		CreatedAt:        row.UploadTime,
 		UpdatedAt:        row.UpdateTime,
@@ -194,7 +194,7 @@ func (svc *FileService) listFromDB(ctx context.Context, parentID, keyword, setti
 			Name:             row.DisplayName,
 			IsDir:            row.IsDir,
 			Size:             row.Size,
-			FileHash:         row.ContentMd5,
+			FileHash:         strings.TrimSpace(row.ContentSha256),
 			ObjectKey:        row.ObjectKey,
 			CreatedAt:        row.UploadTime,
 			UpdatedAt:        row.UpdateTime,
@@ -228,7 +228,7 @@ func (svc *FileService) createDirectoryDB(ctx context.Context, parentID, name, s
 		"parent_id":                   parent,
 		"user_id":                     p.UserID,
 		"workspace_id":                p.WorkspaceID,
-		"content_md5":                 "",
+		"content_sha256":              "",
 		"storage_platform_setting_id": strings.TrimSpace(settingID),
 		"upload_time":                 now,
 		"update_time":                 now,
@@ -261,9 +261,7 @@ func (svc *FileService) persistFileInfo(ctx context.Context, item filemodel.File
 	}
 	now := time.Now()
 	fileHash := strings.TrimSpace(item.FileHash)
-	if len(fileHash) > 32 {
-		fileHash = fileHash[:32]
-	}
+	// 文件域现在统一只保存 SHA-256，避免多种 hash 混用带来歧义。
 	insert := map[string]any{
 		"id":                          item.ID,
 		"object_key":                  item.ObjectKey,
@@ -276,7 +274,7 @@ func (svc *FileService) persistFileInfo(ctx context.Context, item filemodel.File
 		"parent_id":                   normalizeParentID(item.ParentID),
 		"user_id":                     p.UserID,
 		"workspace_id":                p.WorkspaceID,
-		"content_md5":                 fileHash,
+		"content_sha256":              fileHash,
 		"storage_platform_setting_id": strings.TrimSpace(item.StorageSettingID),
 		"upload_time":                 now,
 		"update_time":                 now,
@@ -549,7 +547,7 @@ func (svc *FileService) ListRecycle(ctx context.Context, page, size int) ([]file
 					Name:             row.DisplayName,
 					IsDir:            row.IsDir,
 					Size:             row.Size,
-					FileHash:         row.ContentMd5,
+					FileHash:         strings.TrimSpace(row.ContentSha256),
 					ObjectKey:        row.ObjectKey,
 					CreatedAt:        row.UploadTime,
 					UpdatedAt:        row.UpdateTime,

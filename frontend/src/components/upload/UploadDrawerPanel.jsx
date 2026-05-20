@@ -10,19 +10,21 @@ const { Text } = Typography;
  *   open: boolean,
  *   loading: boolean,
  *   uploadProgress: number,
+ *   uploadHint: string,
  *   onClose: Function,
  *   onFileChange: Function,
  *   onUpload: Function
  * }} props 组件参数
  * @returns {JSX.Element} 上传抽屉
  */
-export function UploadDrawerPanel({ open, loading, uploadProgress, onClose, onFileChange, onUpload }) {
+export function UploadDrawerPanel({ open, loading, uploadProgress, uploadHint, onClose, onFileChange, onUpload }) {
   return (
     <Drawer title="分片上传" open={open} onClose={onClose} width={420}>
       <Space direction="vertical" size={16} className="w-full">
         <Input type="file" onChange={onFileChange} />
         <div className="mcd-card p-4">
           <Text className="mcd-muted">分片大小：5MB（可在配置中调整）</Text>
+          {uploadHint ? <div className="mt-2"><Text>{uploadHint}</Text></div> : null}
         </div>
         <Button type="primary" onClick={onUpload} loading={loading}>
           开始上传
