@@ -41,6 +41,7 @@ type TransferTaskStatus string
 const (
 	TransferTaskUploading TransferTaskStatus = "UPLOADING"
 	TransferTaskPaused    TransferTaskStatus = "PAUSED"
+	TransferTaskMerging   TransferTaskStatus = "MERGING"
 	TransferTaskCompleted TransferTaskStatus = "COMPLETED"
 	TransferTaskCanceled  TransferTaskStatus = "CANCELED"
 )
@@ -48,7 +49,10 @@ const (
 // TransferTask 表示上传传输任务。
 type TransferTask struct {
 	TaskID           string             `json:"taskId"`
+	UserID           string             `json:"-"`
+	WorkspaceID      string             `json:"-"`
 	StorageSettingID string             `json:"-"`
+	ObjectKey        string             `json:"-"`
 	FileName         string             `json:"fileName"`
 	FileHash         string             `json:"fileHash"`
 	FileSize         int64              `json:"fileSize"`
@@ -58,6 +62,7 @@ type TransferTask struct {
 	UploadedSize     int64              `json:"uploadedSize"`
 	UploadedPart     int                `json:"uploadedParts"`
 	Status           TransferTaskStatus `json:"status"`
+	Version          int                `json:"version"`
 	CreatedAt        time.Time          `json:"createdAt"`
 	UpdatedAt        time.Time          `json:"updatedAt"`
 
@@ -76,11 +81,27 @@ type UploadInitInput struct {
 
 // UploadPrecheckResult 表示上传预检结果。
 type UploadPrecheckResult struct {
-	SkipUpload     bool      `json:"skipUpload"`
-	TaskID         string    `json:"taskId,omitempty"`
-	UploadID       string    `json:"uploadId,omitempty"`
-	WeakMatchCount int       `json:"weakMatchCount"`
-	HashChecked    bool      `json:"hashChecked"`
-	StrongMatch    bool      `json:"strongMatch"`
-	InstantFile    *FileItem `json:"instantFile,omitempty"`
+	SkipUpload     bool   `json:"skipUpload"`
+	TaskID         string `json:"taskId,omitempty"`
+	UploadID       string `json:"uploadId,omitempty"`
+	WeakMatchCount int    `json:"weakMatchCount"`
+	HashChecked    bool   `json:"hashChecked"`
+	StrongMatch    bool   `json:"strongMatch"`
+	// Progress 让“预检确认可上传”模式直接拿到任务初始快照，避免前端只能本地兜底构造进度。
+	Progress    map[string]any `json:"progress,omitempty"`
+	InstantFile *FileItem      `json:"instantFile,omitempty"`
+}
+
+// TransferCleanupJob 表示上传任务结束后的异步清理记录。
+type TransferCleanupJob struct {
+	JobID       string    `json:"jobId"`
+	TaskID      string    `json:"taskId"`
+	JobType     string    `json:"jobType"`
+	Status      string    `json:"status"`
+	RetryCount  int       `json:"retryCount"`
+	ErrorMsg    string    `json:"errorMsg,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	NextRetryAt time.Time `json:"nextRetryAt,omitempty"`
+	FinishedAt  time.Time `json:"finishedAt,omitempty"`
 }

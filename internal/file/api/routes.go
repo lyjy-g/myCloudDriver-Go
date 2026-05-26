@@ -8,6 +8,12 @@ import (
 
 // RegisterRoutes 注册 file 模块路由。
 // 这里按“首页/上传传输/文件管理/预览下载”几类能力顺序展开，方便后续继续维护。
+//
+// 上传链路说明：
+// - 预检接口负责秒传判断和任务创建；
+// - 分片上传接口在分片真正写入后返回任务进度；
+// - 前端优先依据分片返回结果更新进度，只在没有分片可传时低频轮询任务状态；
+// - 后端继续保留任务状态和分片唯一约束作为最终兜底。
 func RegisterRoutes(router gin.IRouter, svc *service.FileService) {
 	h := NewHandler(svc)
 
@@ -29,6 +35,10 @@ func RegisterRoutes(router gin.IRouter, svc *service.FileService) {
 	router.DELETE("/apis/transfer/cancel/:taskId", h.CancelUpload)
 	// 查询传输任务列表。
 	router.GET("/apis/transfer/files", h.GetTransferFiles)
+	// 查询单个传输任务状态与进度。
+	router.GET("/apis/transfer/task/:taskId", h.GetTransferTask)
+	// 通过 SSE 推送单个传输任务进度。
+	router.GET("/apis/transfer/stream/:taskId", h.StreamTransferTask)
 	// 查询已上传分片。
 	router.GET("/apis/transfer/chunks/:taskId", h.GetUploadedChunks)
 	// 查询已下载分片。

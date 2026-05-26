@@ -113,6 +113,7 @@ CREATE TABLE `file_transfer_task` (
                                       `chunk_size` bigint NOT NULL DEFAULT 5242880 COMMENT '分片大小(默认5MB)',
                                       `uploaded_size` bigint NOT NULL DEFAULT 0 COMMENT '已上传大小(字节)',
                                       `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'uploading' COMMENT '状态',
+                                      `version` int NOT NULL DEFAULT 1 COMMENT '状态版本号',
                                       `error_msg` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '错误信息',
                                       `start_time` datetime NOT NULL COMMENT '开始时间',
                                       `complete_time` datetime DEFAULT NULL COMMENT '完成时间',
@@ -129,21 +130,45 @@ CREATE TABLE `file_transfer_task` (
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='传输任务表' ROW_FORMAT=DYNAMIC;
 
 -- ----------------------------
--- Table structure for storage_platform
+-- Table structure for file_transfer_cleanup_job
 -- ----------------------------
-DROP TABLE IF EXISTS `storage_platform`;
-CREATE TABLE `storage_platform` (
-                                    `id` int NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-                                    `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '存储平台名称',
-                                    `identifier` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '存储平台标识符',
-                                    `config_scheme` json NOT NULL COMMENT '存储平台配置描述schema',
-                                    `icon` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '存储平台图标',
-                                    `link` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '存储平台链接',
-                                    `is_default` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否默认存储平台 0否 1是',
-                                    `desc` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '存储平台描述',
-                                    PRIMARY KEY (`id`) USING BTREE,
-                                    UNIQUE KEY `uk_identifier` (`identifier`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='存储平台' ROW_FORMAT=DYNAMIC;
+DROP TABLE IF EXISTS `file_transfer_cleanup_job`;
+CREATE TABLE `file_transfer_cleanup_job` (
+                                      `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                      `job_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '清理任务ID',
+                                      `task_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '上传任务ID',
+                                      `job_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '任务类型',
+                                      `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'PENDING' COMMENT '状态',
+                                      `retry_count` int NOT NULL DEFAULT 0 COMMENT '重试次数',
+                                      `error_msg` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '错误信息',
+                                      `next_retry_at` datetime DEFAULT NULL COMMENT '下次重试时间',
+                                      `finished_at` datetime DEFAULT NULL COMMENT '完成时间',
+                                      `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                      `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                                      PRIMARY KEY (`id`) USING BTREE,
+                                      UNIQUE KEY `uk_job_id` (`job_id`) USING BTREE,
+                                      KEY `idx_task_id` (`task_id`) USING BTREE,
+                                      KEY `idx_status_next_retry` (`status`, `next_retry_at`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='传输清理任务表' ROW_FORMAT=DYNAMIC;
+
+-- ----------------------------
+-- Table structure for file_transfer_part
+-- ----------------------------
+DROP TABLE IF EXISTS `file_transfer_part`;
+CREATE TABLE `file_transfer_part` (
+                                      `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                      `task_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '任务ID',
+                                      `part_index` int NOT NULL COMMENT '分片序号，从1开始',
+                                      `part_hash` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '分片SHA256',
+                                      `part_size` bigint NOT NULL COMMENT '分片大小',
+                                      `object_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '分片对象Key',
+                                      `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'uploaded' COMMENT '状态',
+                                      `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                      `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                                      PRIMARY KEY (`id`) USING BTREE,
+                                      UNIQUE KEY `uk_task_part` (`task_id`, `part_index`) USING BTREE,
+                                      KEY `idx_task_id` (`task_id`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='传输分片表' ROW_FORMAT=DYNAMIC;
 
 -- ----------------------------
 -- Table structure for storage_settings

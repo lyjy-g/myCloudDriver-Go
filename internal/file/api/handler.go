@@ -19,6 +19,7 @@ import (
 	"myclouddrive-go/internal/file/service"
 	"myclouddrive-go/internal/framework/code"
 	"myclouddrive-go/internal/framework/security"
+	"myclouddrive-go/internal/framework/sse"
 )
 
 type Handler struct {
@@ -377,7 +378,7 @@ func (h *Handler) InitUpload(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "invalid request body"})
 		return
 	}
-	taskID, err := h.svc.InitUpload(genCheckToInitInput(req), currentStorageSettingID(c))
+	taskID, err := h.svc.InitUpload(c.Request.Context(), genCheckToInitInput(req), currentStorageSettingID(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
@@ -386,6 +387,7 @@ func (h *Handler) InitUpload(c *gin.Context) {
 }
 
 // UploadChunk 接收上传任务的单个分片。
+// 这里返回的不是“允许上传”的预检结果，而是该分片真正写入完成后的任务进度。
 func (h *Handler) UploadChunk(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileTransferExec) {
 		return
@@ -415,11 +417,12 @@ func (h *Handler) UploadChunk(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "read chunk failed"})
 		return
 	}
-	if err = h.svc.UploadChunk(taskID, chunkIndex, chunk, chunkSha256); err != nil {
+	progress, err := h.svc.UploadChunk(c.Request.Context(), taskID, chunkIndex, chunk, chunkSha256)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, ok(map[string]any{"taskId": taskID, "chunkIndex": chunkIndex, "uploaded": true}))
+	c.JSON(http.StatusOK, ok(map[string]any{"taskId": taskID, "chunkIndex": chunkIndex, "uploaded": true, "progress": progress}))
 }
 
 // MergeChunks 触发上传任务的分片合并。
@@ -452,7 +455,7 @@ func (h *Handler) PauseTransfer(c *gin.Context) {
 		return
 	}
 	taskID := c.Param("taskId")
-	if err := h.svc.PauseTransfer(taskID); err != nil {
+	if err := h.svc.PauseTransfer(c.Request.Context(), taskID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
@@ -465,7 +468,7 @@ func (h *Handler) ResumeTransfer(c *gin.Context) {
 		return
 	}
 	taskID := c.Param("taskId")
-	if err := h.svc.ResumeTransfer(taskID); err != nil {
+	if err := h.svc.ResumeTransfer(c.Request.Context(), taskID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
@@ -478,7 +481,7 @@ func (h *Handler) CancelUpload(c *gin.Context) {
 		return
 	}
 	taskID := c.Param("taskId")
-	if err := h.svc.CancelTransfer(taskID); err != nil {
+	if err := h.svc.CancelTransfer(c.Request.Context(), taskID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
@@ -493,12 +496,79 @@ func (h *Handler) GetTransferFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, ok(h.svc.ListTransferTasks()))
 }
 
+// GetTransferTask 返回单个传输任务状态。
+func (h *Handler) GetTransferTask(c *gin.Context) {
+	if !requireFilePermission(c, security.PermissionFileTransferRead) {
+		return
+	}
+	taskID := strings.TrimSpace(c.Param("taskId"))
+	task, exists := h.svc.GetTransferTaskByID(taskID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "transfer task not found"})
+		return
+	}
+	c.JSON(http.StatusOK, ok(map[string]any{"task": task, "progress": h.svc.GetTransferTaskSnapshot(taskID)}))
+}
+
+// StreamTransferTask 通过 SSE 持续推送任务状态。
+func (h *Handler) StreamTransferTask(c *gin.Context) {
+	if !requireFilePermission(c, security.PermissionFileTransferRead) {
+		return
+	}
+	taskID := strings.TrimSpace(c.Param("taskId"))
+	task, exists := h.svc.GetTransferTaskByID(taskID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "transfer task not found"})
+		return
+	}
+	ch, cancel := sse.NewResponseWriter(c.Writer)
+	if ch == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "sse unsupported"})
+		return
+	}
+	// 这里额外订阅 task 级 watcher，让上传/暂停/恢复/merge 的快照变化可以持续推给当前连接。
+	taskCh := h.svc.SubscribeTransferTask(taskID)
+	if taskCh == nil {
+		cancel()
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "sse subscribe failed"})
+		return
+	}
+	defer h.svc.UnsubscribeTransferTask(taskID, taskCh)
+	defer cancel()
+	sse.SendTo(ch, sse.Event{Event: "task", Data: map[string]any{"task": task, "progress": h.svc.GetTransferTaskSnapshot(taskID)}})
+	// SSE 连接保持到任务终态或客户端主动断开，不再只发一次 task 后立刻 done。
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case snapshot, ok := <-taskCh:
+			if !ok {
+				return
+			}
+			sse.SendTo(ch, sse.Event{Event: "task", Data: map[string]any{"taskId": taskID, "progress": snapshot}})
+			status, _ := snapshot["status"].(string)
+			if status == "COMPLETED" || status == "CANCELED" {
+				// 任务进入终态后显式发 done，让前端知道可以关闭连接并停止等待。
+				sse.SendTo(ch, sse.Event{Event: "done", Data: map[string]any{"taskId": taskID, "status": status}})
+				return
+			}
+		case <-ticker.C:
+			// 定时发 ping，避免长时间无事件时被网关或代理静默断开。
+			sse.SendTo(ch, sse.Event{Event: "ping", Data: map[string]any{"taskId": taskID}})
+		}
+	}
+}
+
 // GetUploadedChunks 返回已上传分片列表。
 func (h *Handler) GetUploadedChunks(c *gin.Context) {
 	if !requireFilePermission(c, security.PermissionFileTransferRead) {
 		return
 	}
-	c.JSON(http.StatusOK, ok([]int{}))
+	taskID := strings.TrimSpace(c.Param("taskId"))
+	// 这里返回服务端已确认成功的分片索引，供前端断点恢复和去重判断复用。
+	c.JSON(http.StatusOK, ok(h.svc.GetUploadedChunkIndexes(c.Request.Context(), taskID)))
 }
 
 // GetDownloadedChunks 返回已下载分片列表。

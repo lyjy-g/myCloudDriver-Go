@@ -163,8 +163,10 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadHint, setUploadHint] = useState("");
+  const [uploadMode, setUploadMode] = useState("chunk-progress");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const uploadSSEAbortRef = useRef(null);
 
   const previousStorageSettingIdRef = useRef("");
   const enabledStorageKey = useMemo(
@@ -1462,6 +1464,14 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
   }, [agentMode]);
 
   useEffect(() => {
+    // 组件卸载时主动中断上传 SSE 流，避免页面离开后后台 reader 继续占连接。
+    return () => {
+      uploadSSEAbortRef.current?.abort();
+      uploadSSEAbortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (activeMenu === "knowledge-home" || activeMenu === "knowledge-detail") {
       setAgentScope("workspace");
       return;
@@ -1473,6 +1483,101 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     setAgentScope("auto");
   }, [activeMenu, activeStorage]);
 
+  const openUploadProgressStream = useCallback((taskId) => {
+    // SSE 模式需要真正消费服务端事件流，而不是继续按分片后轮询任务快照。
+    const controller = new AbortController();
+    uploadSSEAbortRef.current = controller;
+    const workspaceId = activeWorkspace?.workspaceId || "";
+    const storageId = activeStorage?.settingId || "";
+    const run = (async () => {
+      const response = await fetch(`${normalizedBaseUrl}/apis/transfer/stream/${encodeURIComponent(taskId)}`, {
+        method: "GET",
+        headers: {
+          Accept: "text/event-stream",
+          Authorization: getAuthToken() ? `Bearer ${getAuthToken()}` : "",
+          ...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
+          ...(storageId ? { "X-Storage-Setting-Id": storageId } : {})
+        },
+        signal: controller.signal
+      });
+      if (!response.ok || !response.body) {
+        throw new Error(`SSE 订阅失败(${response.status})`);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      const handleEvent = (block) => {
+        const lines = block.split("\n");
+        let eventName = "message";
+        const dataLines = [];
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            eventName = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            dataLines.push(line.slice(5).trim());
+          }
+        }
+        if (!dataLines.length) {
+          return;
+        }
+        let payload = null;
+        try {
+          payload = JSON.parse(dataLines.join("\n"));
+        } catch {
+          payload = null;
+        }
+        if (eventName === "task" && payload) {
+          const progressPayload = payload.progress || payload.data?.progress || payload;
+          const progressValue = Number(progressPayload?.progress || 0);
+          const statusValue = String(progressPayload?.status || "");
+          setUploadProgress(progressValue);
+          if (statusValue === "MERGING") {
+            setUploadHint("SSE 已收到合并中状态，等待后端完成收尾");
+          } else if (progressValue > 0) {
+            setUploadHint(`SSE 实时进度 ${progressValue}%`);
+          }
+        }
+        if (eventName === "done" && payload) {
+          const statusValue = String(payload.status || "");
+          if (statusValue === "COMPLETED") {
+            setUploadProgress(100);
+          }
+        }
+      };
+      while (!controller.signal.aborted) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary >= 0) {
+          const block = buffer.slice(0, boundary).trim();
+          buffer = buffer.slice(boundary + 2);
+          if (block) {
+            handleEvent(block);
+          }
+          boundary = buffer.indexOf("\n\n");
+        }
+      }
+    })().catch((streamError) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      console.error(streamError);
+      setUploadHint("SSE 订阅异常，当前上传会继续进行");
+    });
+    return {
+      abort() {
+        controller.abort();
+        if (uploadSSEAbortRef.current === controller) {
+          uploadSSEAbortRef.current = null;
+        }
+      },
+      done: run
+    };
+  }, [activeStorage?.settingId, activeWorkspace?.workspaceId, normalizedBaseUrl]);
+
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       notifyWarning("请先选择文件");
@@ -1482,6 +1587,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     setUploadProgress(0);
     setUploadHint("正在计算文件 hash 并做秒传预检...");
     setLoading(true);
+    let uploadStream = null;
     try {
       // 先算整文件 hash，供后端做强预检；未命中时再进入正常分片上传。
       const fileHash = await calculateHash(selectedFile);
@@ -1513,6 +1619,21 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
       if (!taskId) {
         throw new Error("后端未返回 taskId/uploadId");
       }
+      if (uploadMode === "sse") {
+        setUploadHint("已建立 SSE 进度订阅，开始上传分片");
+        uploadStream = openUploadProgressStream(taskId);
+      }
+      if (uploadMode === "precheck-progress") {
+        const progressPayload = precheckData.progress || {
+          taskId,
+          status: "UPLOADING",
+          uploadedParts: 0,
+          totalParts,
+          progress: 0
+        };
+        setUploadHint("已确认可上传，开始按低频轮询进度");
+        setUploadProgress(Number(progressPayload.progress || 0));
+      }
       for (let partNumber = 1; partNumber <= totalParts; partNumber += 1) {
         const start = (partNumber - 1) * DEFAULT_CHUNK_SIZE;
         const end = Math.min(selectedFile.size, partNumber * DEFAULT_CHUNK_SIZE);
@@ -1520,7 +1641,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
         // 分片仍逐片计算 hash，和后端 UploadChunk 的校验保持一致。
         const chunkSha256 = await calculateHash(chunk);
         setUploadHint(`正在上传第 ${partNumber}/${totalParts} 个分片`);
-        await uploadPart(normalizedBaseUrl, {
+        const partResult = await uploadPart(normalizedBaseUrl, {
           taskId,
           uploadId: taskId,
           chunkIndex: partNumber,
@@ -1530,7 +1651,26 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
           chunkSha256,
           file: chunk
         });
-        setUploadProgress(Math.round((partNumber / totalParts) * 100));
+        if (uploadMode === "chunk-progress") {
+          const partProgress = Number(partResult?.progress?.progress || 0);
+          setUploadProgress(partProgress || Math.round((partNumber / totalParts) * 100));
+          setUploadHint(`分片完成，当前进度 ${partProgress || Math.round((partNumber / totalParts) * 100)}%`);
+        } else if (uploadMode === "poll") {
+          const snapshotResp = await fetch(`${normalizedBaseUrl}/apis/transfer/task/${encodeURIComponent(taskId)}`, {
+            headers: {
+              Authorization: getAuthToken() ? `Bearer ${getAuthToken()}` : ""
+            }
+          });
+          if (snapshotResp.ok) {
+            const snapshotJson = await snapshotResp.json();
+            const snapshotProgress = snapshotJson?.data?.progress?.progress || snapshotJson?.data?.progress || 0;
+            setUploadProgress(Number(snapshotProgress) || Math.round((partNumber / totalParts) * 100));
+          } else {
+            setUploadProgress(Math.round((partNumber / totalParts) * 100));
+          }
+        } else {
+          setUploadProgress(Math.round((partNumber / totalParts) * 100));
+        }
       }
 
       await mergeUpload(normalizedBaseUrl, { taskId, uploadId: taskId });
@@ -1541,15 +1681,22 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "上传失败");
     } finally {
+      uploadStream?.abort();
+      uploadSSEAbortRef.current?.abort();
+      uploadSSEAbortRef.current = null;
       setLoading(false);
     }
-  }, [selectedFile, normalizedBaseUrl, currentParentId, loadFiles, notifyWarning, notifySuccess]);
+  }, [selectedFile, normalizedBaseUrl, currentParentId, loadFiles, notifyWarning, notifySuccess, uploadMode, openUploadProgressStream]);
 
   const handleSelectUploadFile = useCallback((file) => {
     setSelectedFile(file);
     setUploadProgress(0);
     setError("");
     setUploadHint(file ? `已选择 ${file.name}，上传前会先做弱预检和强 hash 核验` : "");
+  }, []);
+
+  const handleUploadModeChange = useCallback((mode) => {
+    setUploadMode(String(mode || "chunk-progress"));
   }, []);
 
   const columns = useMemo(() => {
@@ -1776,6 +1923,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     selectedFile,
     uploadProgress,
     uploadHint,
+    uploadMode,
     loading,
     columns,
     shareColumns,
@@ -1804,6 +1952,7 @@ export function useCloudDriveController(normalizedBaseUrl, notifier) {
     handleCreateFolder,
     handleUpload,
     handleSelectUploadFile,
+    handleUploadModeChange,
     updateStorageFormField,
     handleApplyStorageConfig,
     handleEditStorageSetting,

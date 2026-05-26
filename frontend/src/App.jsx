@@ -467,8 +467,10 @@ export default function App() {
           loading={controller.loading}
           uploadProgress={controller.uploadProgress}
           uploadHint={controller.uploadHint}
+          uploadMode={controller.uploadMode}
           onClose={() => controller.setDrawerOpen(false)}
           onFileChange={(event) => controller.handleSelectUploadFile(event.target.files?.[0] || null)}
+          onUploadModeChange={controller.handleUploadModeChange}
           onUpload={controller.handleUpload}
         />
       </div>

@@ -62,6 +62,8 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("warn: redis unavailable, fallback without cache: %v", err)
 	}
+	jwtSecret := os.Getenv("MYCLOUDDRIVE_JWT_SECRET")
+	jwtSvc := security.NewJWTService(jwtSecret)
 
 	// 这里显式使用 gin.New，而不是 gin.Default。
 	// 原因是日志、CORS、认证、上下文组装都由我们自己控制，避免和默认中间件重复。
@@ -70,6 +72,15 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	// 中间件必须先挂载，再注册业务路由。
+	// 这样 Gin 在构造每条路由的 handler chain 时，才能把日志、JWT、workspace/storage 上下文一并带上。
+	router.Use(
+		logx.GinLoggingMiddleware(),
+		web.GinCORSMiddleware(web.DefaultCORSOptions()),
+		security.GinJWTMiddleware(jwtSvc, rdb),
+		security.GinCtxInfoMiddleware(db, rdb),
+	)
+
 	deps := &Dependencies{Config: cfg, DB: db, Redis: rdb}
 	for _, module := range modules {
 		if err = module.RegisterRoutes(router, deps); err != nil {
@@ -77,21 +88,6 @@ func NewServer(configPath string, modules ...Module) (*Server, error) {
 		}
 		log.Printf("module registered: %s", module.Name())
 	}
-
-	jwtSecret := os.Getenv("MYCLOUDDRIVE_JWT_SECRET")
-	jwtSvc := security.NewJWTService(jwtSecret)
-	// Gin 中间件按注册顺序执行。
-	// 这里的顺序不能乱：
-	// 1. 先打日志，保证异常请求也能被记录；
-	// 2. 再处理 CORS，优先兜住浏览器预检；
-	// 3. 再解析 JWT，先得到“是谁”；
-	// 4. 最后补 workspace/storage 上下文，得到“在哪个空间、走哪个存储”。
-	router.Use(
-		logx.GinLoggingMiddleware(),
-		web.GinCORSMiddleware(web.DefaultCORSOptions()),
-		security.GinJWTMiddleware(jwtSvc, rdb),
-		security.GinCtxInfoMiddleware(db, rdb),
-	)
 	return &Server{engine: router, addr: cfg.HTTP.Addr}, nil
 }
 

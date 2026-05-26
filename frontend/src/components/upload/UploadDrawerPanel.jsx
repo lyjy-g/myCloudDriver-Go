@@ -1,4 +1,4 @@
-import { Button, Drawer, Input, Progress, Space, Typography } from "antd";
+import { Button, Drawer, Input, Progress, Select, Space, Typography } from "antd";
 import React from "react";
 
 const { Text } = Typography;
@@ -11,17 +11,29 @@ const { Text } = Typography;
  *   loading: boolean,
  *   uploadProgress: number,
  *   uploadHint: string,
+ *   uploadMode: string,
  *   onClose: Function,
  *   onFileChange: Function,
+ *   onUploadModeChange: Function,
  *   onUpload: Function
  * }} props 组件参数
  * @returns {JSX.Element} 上传抽屉
  */
-export function UploadDrawerPanel({ open, loading, uploadProgress, uploadHint, onClose, onFileChange, onUpload }) {
+export function UploadDrawerPanel({ open, loading, uploadProgress, uploadHint, uploadMode, onClose, onFileChange, onUploadModeChange, onUpload }) {
   return (
     <Drawer title="分片上传" open={open} onClose={onClose} width={420}>
       <Space direction="vertical" size={16} className="w-full">
         <Input type="file" onChange={onFileChange} />
+        <Select
+          value={uploadMode}
+          onChange={onUploadModeChange}
+          options={[
+            { value: "poll", label: "只靠轮询" },
+            { value: "chunk-progress", label: "分片回包进度 + 低频轮询" },
+            { value: "precheck-progress", label: "预检确认后进度 + 低频轮询" },
+            { value: "sse", label: "SSE 推送" }
+          ]}
+        />
         <div className="mcd-card p-4">
           <Text className="mcd-muted">分片大小：5MB（可在配置中调整）</Text>
           {uploadHint ? <div className="mt-2"><Text>{uploadHint}</Text></div> : null}
